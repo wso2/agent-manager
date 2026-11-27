@@ -15,23 +15,19 @@ import (
 	"fmt"
 )
 
-// GatewayStatus Gateway operational status: - ACTIVE: Gateway is operational and ready - INACTIVE: Gateway is registered but not active - PROVISIONING: Gateway is being set up - ERROR: Gateway has encountered an error
+// GatewayStatus Gateway operational status: - ACTIVE: the gateway is connected and ready - INACTIVE: the gateway is registered but not connected
 type GatewayStatus string
 
 // List of GatewayStatus
 const (
-	GATEWAYSTATUS_ACTIVE       GatewayStatus = "ACTIVE"
-	GATEWAYSTATUS_INACTIVE     GatewayStatus = "INACTIVE"
-	GATEWAYSTATUS_PROVISIONING GatewayStatus = "PROVISIONING"
-	GATEWAYSTATUS_ERROR        GatewayStatus = "ERROR"
+	GATEWAYSTATUS_ACTIVE   GatewayStatus = "ACTIVE"
+	GATEWAYSTATUS_INACTIVE GatewayStatus = "INACTIVE"
 )
 
 // All allowed values of GatewayStatus enum
 var AllowedGatewayStatusEnumValues = []GatewayStatus{
 	"ACTIVE",
 	"INACTIVE",
-	"PROVISIONING",
-	"ERROR",
 }
 
 func (v *GatewayStatus) UnmarshalJSON(src []byte) error {

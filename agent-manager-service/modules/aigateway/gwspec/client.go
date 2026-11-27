@@ -62,10 +62,6 @@ type APIClient struct {
 
 	DefaultAPI *DefaultAPIService
 
-	EnvironmentsAPI *EnvironmentsAPIService
-
-	GatewayEnvironmentMappingsAPI *GatewayEnvironmentMappingsAPIService
-
 	GatewayIdentityProvidersAPI *GatewayIdentityProvidersAPIService
 
 	GatewayTokensAPI *GatewayTokensAPIService
@@ -89,8 +85,6 @@ type APIClient struct {
 	MCPProxiesAPI *MCPProxiesAPIService
 
 	MCPProxyScopesAPI *MCPProxyScopesAPIService
-
-	SelfHostedGatewaysAPI *SelfHostedGatewaysAPIService
 }
 
 type service struct {
@@ -116,8 +110,6 @@ func NewAPIClient(cfg *Configuration) *APIClient {
 	c.AgentIdentityAPI = (*AgentIdentityAPIService)(&c.common)
 	c.CatalogAPI = (*CatalogAPIService)(&c.common)
 	c.DefaultAPI = (*DefaultAPIService)(&c.common)
-	c.EnvironmentsAPI = (*EnvironmentsAPIService)(&c.common)
-	c.GatewayEnvironmentMappingsAPI = (*GatewayEnvironmentMappingsAPIService)(&c.common)
 	c.GatewayIdentityProvidersAPI = (*GatewayIdentityProvidersAPIService)(&c.common)
 	c.GatewayTokensAPI = (*GatewayTokensAPIService)(&c.common)
 	c.GatewaysAPI = (*GatewaysAPIService)(&c.common)
@@ -130,7 +122,6 @@ func NewAPIClient(cfg *Configuration) *APIClient {
 	c.MCPAPIKeysAPI = (*MCPAPIKeysAPIService)(&c.common)
 	c.MCPProxiesAPI = (*MCPProxiesAPIService)(&c.common)
 	c.MCPProxyScopesAPI = (*MCPProxyScopesAPIService)(&c.common)
-	c.SelfHostedGatewaysAPI = (*SelfHostedGatewaysAPIService)(&c.common)
 
 	return c
 }

@@ -23,7 +23,7 @@ import (
 
 // registerAgentGatewayRoutes registers the agent and environment routes that
 // only exist with a gateway.
-func registerAgentGatewayRoutes(rr Router, ctrl *gwctl.AgentGatewayController, envCtrl *gwctl.EnvironmentGatewayController) {
+func registerAgentGatewayRoutes(rr Router, ctrl *gwctl.AgentGatewayController) {
 	// Deploy settings rewrite a running deployment's env vars, secret references
 	// and file mounts, so they reach an environment the same way a deploy does
 	// and carry the same two axes: agent:update is the capability, and the tier
@@ -35,8 +35,6 @@ func registerAgentGatewayRoutes(rr Router, ctrl *gwctl.AgentGatewayController, e
 		gwperm.AgentUpdate, gwperm.DeployNonProduction)
 	rr.HandleFuncWithValidationAndAuthz("GET /agents/{agentName}/deployments", gwperm.AgentRead, inProject(ctrl.GetAgentDeployments))
 	rr.HandleFuncWithValidationAndAuthz("GET /agents/{agentName}/configurations", gwperm.AgentRead, inProject(ctrl.GetAgentConfigurations))
-	rr.HandleFuncWithValidationAndAnyAuthz("GET /orgs/{orgName}/environments/{envID}/gateways", envCtrl.GetEnvironmentGateways,
-		gwperm.EnvironmentRead, gwperm.Read)
 }
 
 // updateTargetDims builds the growth-analytics dimensions for the shared

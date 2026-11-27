@@ -243,63 +243,19 @@ func TestGWRoutesCatalogRejections(t *testing.T) {
 	}
 }
 
-// TestGWRoutesDeleteGatewayWithDeployments refuses to delete a gateway that still holds a deployment.
+// TestGWRoutesDeleteGatewayWithDeployments refuses to delete a self-hosted gateway that still holds a deployment.
 func TestGWRoutesDeleteGatewayWithDeployments(t *testing.T) {
 	a := newRouteAPI(t)
 	gw := gwtest.Gateway(t, a.db, a.org, gwmodels.GatewayRoleEgress)
+	require.NoError(t, a.db.Model(&gwmodels.Gateway{}).Where("id = ?", gw.UUID).Update("hosting", gwmodels.GatewayHostingSelfHosted).Error)
 	gwMarkDeployed(t, a, gwCreateProvider(t, a, unique("dep"), gw.UUID.String()), gw.UUID.String())
 
-	rec := a.do(http.MethodDelete, "/orgs/{org}/gateways/"+gw.UUID.String(), nil)
+	rec := a.do(http.MethodDelete, "/gateways/"+gw.UUID.String(), nil)
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	require.NotEmpty(t, errorMessage(t, rec))
 
-	got := expectInto[gwspec.GatewayResponse](t, a.do(http.MethodGet, "/orgs/{org}/gateways/"+gw.UUID.String(), nil), http.StatusOK)
-	require.Len(t, got.Environments, 1, "the refused delete kept the gateway and its mapping")
-}
-
-// TestGWRoutesEnvironmentGateways lists the gateways mapped to the environment.
-func TestGWRoutesEnvironmentGateways(t *testing.T) {
-	a := newRouteAPI(t)
-	ingress := gwtest.Gateway(t, a.db, a.org, gwmodels.GatewayRoleIngress)
-	egress := gwtest.Gateway(t, a.db, a.org, gwmodels.GatewayRoleEgress)
-	gwtest.GatewayIn(t, a.db, a.org, gwmodels.GatewayRoleEgress) // unmapped
-
-	type gateway struct {
-		UUID        string `json:"uuid"`
-		Name        string `json:"name"`
-		GatewayType string `json:"gatewayType"`
-		Hosting     string `json:"hosting"`
-		Vhost       string `json:"vhost"`
-	}
-	list := expectInto[struct {
-		Gateways []gateway `json:"gateways"`
-	}](t, a.do(http.MethodGet, "/orgs/{org}/environments/default/gateways", nil), http.StatusOK)
-	byID := map[string]gateway{}
-	for _, g := range list.Gateways {
-		byID[g.UUID] = g
-	}
-	require.Len(t, byID, 2, "the unmapped gateway is not listed")
-	require.Equal(t, "INGRESS", byID[ingress.UUID.String()].GatewayType)
-	require.Equal(t, "EGRESS", byID[egress.UUID.String()].GatewayType)
-	require.Equal(t, ingress.Name, byID[ingress.UUID.String()].Name)
-	require.Equal(t, "MANAGED", byID[ingress.UUID.String()].Hosting)
-	require.Equal(t, ingress.Vhost, byID[ingress.UUID.String()].Vhost)
-
-	// The response decodes into the generated client's types: the status is
-	// one of the spec's values and the timestamps are the gateway's own.
-	typed := expectInto[gwspec.GetEnvironmentGateways200Response](t,
-		a.do(http.MethodGet, "/orgs/{org}/environments/default/gateways", nil), http.StatusOK)
-	require.Len(t, typed.Gateways, 2)
-	for _, g := range typed.Gateways {
-		require.True(t, g.Status.IsValid(), "status %q is in the spec enum", g.Status)
-		require.False(t, g.CreatedAt.IsZero(), "%s has its creation time", g.Name)
-		require.False(t, g.UpdatedAt.IsZero(), "%s has its update time", g.Name)
-	}
-
-	// Either the environment or the gateway read permission admits the caller.
-	expect(t, a.do(http.MethodGet, "/orgs/{org}/environments/default/gateways", nil, withScopes(scope(gwperm.Read))), http.StatusOK)
-	rec := a.do(http.MethodGet, "/orgs/{org}/environments/default/gateways", nil, withScopes(scope(gwperm.LLMProviderRead)))
-	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	got := expectInto[gwspec.GatewayDocument](t, a.do(http.MethodGet, "/gateways/"+gw.UUID.String(), nil), http.StatusOK)
+	require.Equal(t, gw.Name, got.Metadata.Name, "the refused delete kept the gateway")
 }
 
 // TestGWRoutesAgentDeploymentsAndConfigurations reads an external agent's deployments and gateway configuration.
@@ -337,7 +293,7 @@ func TestGWRoutesAgentDeploymentsAndConfigurations(t *testing.T) {
 func TestGWRoutesAgentDeploySettings(t *testing.T) {
 	a := newRouteAPI(t)
 	a.agent(gwProject, gwAgent)
-	gw := gwtest.Gateway(t, a.db, a.org, gwmodels.GatewayRoleBoth)
+	gwtest.Gateway(t, a.db, a.org, gwmodels.GatewayRoleBoth)
 	path := gwAgentPath("/deploy-settings")
 
 	rec := a.do(http.MethodPut, path, "{bad")
@@ -392,12 +348,6 @@ func TestGWRoutesAgentDeploySettings(t *testing.T) {
 	cfg = expectInto[gwspec.AgentConfigurationResponse](t, a.do(http.MethodGet, gwAgentPath("/configurations"), nil), http.StatusOK)
 	require.True(t, *cfg.EnableApiKeySecurity, "the refused save changed nothing")
 
-	// The gateway now serves the agent, so it cannot leave the environment.
-	rec = a.do(http.MethodDelete, "/orgs/{org}/gateways/"+gw.UUID.String()+"/environments/default", nil)
-	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
-	require.Contains(t, errorMessage(t, rec), "The gateway still serves this environment's agents or proxies")
-	got := expectInto[gwspec.GatewayResponse](t, a.do(http.MethodGet, "/orgs/{org}/gateways/"+gw.UUID.String(), nil), http.StatusOK)
-	require.Len(t, got.Environments, 1)
 }
 
 // TestGWRoutesPlatformGatewayFailureSummary reports the fleet's failures to the platform admin organization only.

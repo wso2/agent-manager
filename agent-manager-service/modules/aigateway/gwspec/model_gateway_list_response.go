@@ -19,25 +19,19 @@ var _ MappedNullable = &GatewayListResponse{}
 
 // GatewayListResponse struct for GatewayListResponse
 type GatewayListResponse struct {
-	Gateways []GatewayResponse `json:"gateways"`
-	// Total number of gateways matching the filter
-	Total int32 `json:"total"`
-	// Number of results per page
-	Limit int32 `json:"limit"`
-	// Number of results skipped
-	Offset int32 `json:"offset"`
+	// Number of items in this page.
+	Count      *int32            `json:"count,omitempty"`
+	List       []GatewayDocument `json:"list"`
+	Pagination *Pagination       `json:"pagination,omitempty"`
 }
 
 // NewGatewayListResponse instantiates a new GatewayListResponse object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewGatewayListResponse(gateways []GatewayResponse, total int32, limit int32, offset int32) *GatewayListResponse {
+func NewGatewayListResponse(list []GatewayDocument) *GatewayListResponse {
 	this := GatewayListResponse{}
-	this.Gateways = gateways
-	this.Total = total
-	this.Limit = limit
-	this.Offset = offset
+	this.List = list
 	return &this
 }
 
@@ -49,100 +43,92 @@ func NewGatewayListResponseWithDefaults() *GatewayListResponse {
 	return &this
 }
 
-// GetGateways returns the Gateways field value
-func (o *GatewayListResponse) GetGateways() []GatewayResponse {
-	if o == nil {
-		var ret []GatewayResponse
-		return ret
-	}
-
-	return o.Gateways
-}
-
-// GetGatewaysOk returns a tuple with the Gateways field value
-// and a boolean to check if the value has been set.
-func (o *GatewayListResponse) GetGatewaysOk() ([]GatewayResponse, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return o.Gateways, true
-}
-
-// SetGateways sets field value
-func (o *GatewayListResponse) SetGateways(v []GatewayResponse) {
-	o.Gateways = v
-}
-
-// GetTotal returns the Total field value
-func (o *GatewayListResponse) GetTotal() int32 {
-	if o == nil {
+// GetCount returns the Count field value if set, zero value otherwise.
+func (o *GatewayListResponse) GetCount() int32 {
+	if o == nil || IsNil(o.Count) {
 		var ret int32
 		return ret
 	}
-
-	return o.Total
+	return *o.Count
 }
 
-// GetTotalOk returns a tuple with the Total field value
+// GetCountOk returns a tuple with the Count field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *GatewayListResponse) GetTotalOk() (*int32, bool) {
-	if o == nil {
+func (o *GatewayListResponse) GetCountOk() (*int32, bool) {
+	if o == nil || IsNil(o.Count) {
 		return nil, false
 	}
-	return &o.Total, true
+	return o.Count, true
 }
 
-// SetTotal sets field value
-func (o *GatewayListResponse) SetTotal(v int32) {
-	o.Total = v
+// HasCount returns a boolean if a field has been set.
+func (o *GatewayListResponse) HasCount() bool {
+	if o != nil && !IsNil(o.Count) {
+		return true
+	}
+
+	return false
 }
 
-// GetLimit returns the Limit field value
-func (o *GatewayListResponse) GetLimit() int32 {
+// SetCount gets a reference to the given int32 and assigns it to the Count field.
+func (o *GatewayListResponse) SetCount(v int32) {
+	o.Count = &v
+}
+
+// GetList returns the List field value
+func (o *GatewayListResponse) GetList() []GatewayDocument {
 	if o == nil {
-		var ret int32
+		var ret []GatewayDocument
 		return ret
 	}
 
-	return o.Limit
+	return o.List
 }
 
-// GetLimitOk returns a tuple with the Limit field value
+// GetListOk returns a tuple with the List field value
 // and a boolean to check if the value has been set.
-func (o *GatewayListResponse) GetLimitOk() (*int32, bool) {
+func (o *GatewayListResponse) GetListOk() ([]GatewayDocument, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.Limit, true
+	return o.List, true
 }
 
-// SetLimit sets field value
-func (o *GatewayListResponse) SetLimit(v int32) {
-	o.Limit = v
+// SetList sets field value
+func (o *GatewayListResponse) SetList(v []GatewayDocument) {
+	o.List = v
 }
 
-// GetOffset returns the Offset field value
-func (o *GatewayListResponse) GetOffset() int32 {
-	if o == nil {
-		var ret int32
+// GetPagination returns the Pagination field value if set, zero value otherwise.
+func (o *GatewayListResponse) GetPagination() Pagination {
+	if o == nil || IsNil(o.Pagination) {
+		var ret Pagination
 		return ret
 	}
-
-	return o.Offset
+	return *o.Pagination
 }
 
-// GetOffsetOk returns a tuple with the Offset field value
+// GetPaginationOk returns a tuple with the Pagination field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *GatewayListResponse) GetOffsetOk() (*int32, bool) {
-	if o == nil {
+func (o *GatewayListResponse) GetPaginationOk() (*Pagination, bool) {
+	if o == nil || IsNil(o.Pagination) {
 		return nil, false
 	}
-	return &o.Offset, true
+	return o.Pagination, true
 }
 
-// SetOffset sets field value
-func (o *GatewayListResponse) SetOffset(v int32) {
-	o.Offset = v
+// HasPagination returns a boolean if a field has been set.
+func (o *GatewayListResponse) HasPagination() bool {
+	if o != nil && !IsNil(o.Pagination) {
+		return true
+	}
+
+	return false
+}
+
+// SetPagination gets a reference to the given Pagination and assigns it to the Pagination field.
+func (o *GatewayListResponse) SetPagination(v Pagination) {
+	o.Pagination = &v
 }
 
 func (o GatewayListResponse) MarshalJSON() ([]byte, error) {
@@ -155,10 +141,13 @@ func (o GatewayListResponse) MarshalJSON() ([]byte, error) {
 
 func (o GatewayListResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["gateways"] = o.Gateways
-	toSerialize["total"] = o.Total
-	toSerialize["limit"] = o.Limit
-	toSerialize["offset"] = o.Offset
+	if !IsNil(o.Count) {
+		toSerialize["count"] = o.Count
+	}
+	toSerialize["list"] = o.List
+	if !IsNil(o.Pagination) {
+		toSerialize["pagination"] = o.Pagination
+	}
 	return toSerialize, nil
 }
 

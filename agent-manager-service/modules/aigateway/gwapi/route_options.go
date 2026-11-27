@@ -33,7 +33,16 @@ import (
 // deployment's control plane drives on a tenant's behalf allow an org
 // override.
 var routeOptions = map[string][]modkit.RouteOption{
-	"GET /orgs/{orgName}/gateways": {modkit.AllowOrgOverride()},
+	"GET /gateways":                                          {modkit.AllowOrgOverride()},
+	"POST /gateways":                                         {modkit.Audit("gateways.create"), modkit.EmitsWithoutData(gwaudit.GatewayCreated)},
+	"PUT /gateways/{gatewayID}":                              {modkit.Audit("gateways.update"), modkit.Emits(gwaudit.GatewayUpdated)},
+	"DELETE /gateways/{gatewayID}":                           {modkit.Audit("gateways.delete"), modkit.Emits(gwaudit.GatewayDeleted), modkit.AuditFailClosed()},
+	"GET /gateways/{gatewayID}/tokens":                       {modkit.Audit("gateway-tokens.list")},
+	"POST /gateways/{gatewayID}/tokens":                      {modkit.Audit("gateway-tokens.rotate"), modkit.AuditFailClosed()},
+	"DELETE /gateways/{gatewayID}/tokens/{tokenID}":          {modkit.Audit("gateway-tokens.revoke"), modkit.AuditFailClosed()},
+	"GET /gateways/{gatewayID}/identity-providers":           {modkit.Audit("gateways.list-identity-providers")},
+	"PUT /gateways/{gatewayID}/identity-providers/{name}":    {modkit.Audit("gateways.set-identity-provider"), modkit.AuditFailClosed(), modkit.AllowOrgOverride()},
+	"DELETE /gateways/{gatewayID}/identity-providers/{name}": {modkit.Audit("gateways.remove-identity-provider"), modkit.AuditFailClosed()},
 
 	// Document routes keep v1's audit actions and webhook events, so reports don't split across the migration.
 	"POST /llm-providers":                {modkit.Audit("llm-providers.create"), modkit.Emits(gwaudit.LLMProviderCreated)},
@@ -50,10 +59,6 @@ var routeOptions = map[string][]modkit.RouteOption{
 
 	"DELETE /orgs/{orgName}/environments/{envName}/agent-identities/groups/{groupID}":                {modkit.Audit("agent-identities.delete")},
 	"DELETE /orgs/{orgName}/environments/{envName}/agent-identities/roles/{roleID}":                  {modkit.Audit("agent-identities.delete")},
-	"DELETE /orgs/{orgName}/gateways/{gatewayID}":                                                    {modkit.Audit("gateways.delete"), modkit.Emits(gwaudit.GatewayDeleted), modkit.AuditFailClosed()},
-	"DELETE /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}":                               {modkit.Audit("gateways.unassign-environment")},
-	"DELETE /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}":                          {modkit.Audit("gateways.remove-identity-provider"), modkit.AuditFailClosed()},
-	"DELETE /orgs/{orgName}/gateways/{gatewayID}/tokens/{tokenID}":                                   {modkit.Audit("gateway-tokens.revoke"), modkit.AuditFailClosed()},
 	"DELETE /llm-provider-templates/{templateId}":                                                    {modkit.Audit("llm-provider-templates.delete")},
 	"DELETE /llm-providers/{providerId}/api-keys/{keyName}":                                          {modkit.Audit("api-keys.revoke"), modkit.AuditFailClosed()},
 	"DELETE /agents/{agentName}/a2a-proxy":                                                           {modkit.Audit("agents.remove-a2a-proxy"), modkit.AuditFailClosed()},
@@ -66,17 +71,11 @@ var routeOptions = map[string][]modkit.RouteOption{
 	"DELETE /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys/{keyName}":                 {modkit.Audit("api-keys.revoke"), modkit.AuditFailClosed()},
 	"DELETE /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/{deploymentId}":         {modkit.Audit("llm-proxies.delete-deployment")},
 	"DELETE /orgs/{orgName}/projects/{projName}/llm-proxies/{proxyId}":                               {modkit.Audit("llm-proxies.delete")},
-	"DELETE /orgs/{orgName}/self-hosted-gateways/{gatewayID}":                                        {modkit.Audit("gateways.delete"), modkit.AuditFailClosed()},
-	"DELETE /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens/{tokenID}":                       {modkit.Audit("gateway-tokens.revoke"), modkit.AuditFailClosed()},
-	"GET /orgs/{orgName}/environments/{environmentId}/identity-providers":                            {modkit.Audit("environments.list-identity-providers")},
-	"GET /orgs/{orgName}/gateways/{gatewayID}/identity-providers":                                    {modkit.Audit("gateways.list-identity-providers")},
-	"GET /orgs/{orgName}/gateways/{gatewayID}/tokens":                                                {modkit.Audit("gateway-tokens.list")},
 	"GET /llm-providers/{providerId}/api-keys":                                                       {modkit.Audit("api-keys.list")},
 	"GET /agents/{agentName}/api-keys":                                                               {modkit.Audit("api-keys.list")},
 	"GET /agents/{agentName}/mcp-configs/{configId}/api-keys":                                        {modkit.Audit("api-keys.list")},
 	"GET /agents/{agentName}/model-configs/{configId}/api-keys":                                      {modkit.Audit("api-keys.list")},
 	"GET /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys":                              {modkit.Audit("api-keys.list")},
-	"GET /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens":                                    {modkit.Audit("gateway-tokens.list")},
 	"GET /platform/gateways/failure-summary":                                                         {modkit.Audit("gateways.read"), modkit.AuditCoalesce(syncWindow)},
 	"POST /orgs/{orgName}/environments/{envName}/agent-identities/groups":                            {modkit.Audit("agent-identities.create")},
 	"POST /orgs/{orgName}/environments/{envName}/agent-identities/groups/{groupID}/members/add":      {modkit.Audit("agent-identities.add-group-member")},
@@ -84,9 +83,6 @@ var routeOptions = map[string][]modkit.RouteOption{
 	"POST /orgs/{orgName}/environments/{envName}/agent-identities/roles":                             {modkit.Audit("agent-identities.create")},
 	"POST /orgs/{orgName}/environments/{envName}/agent-identities/roles/{roleID}/assignments/add":    {modkit.Audit("agent-identities.assign-role")},
 	"POST /orgs/{orgName}/environments/{envName}/agent-identities/roles/{roleID}/assignments/remove": {modkit.Audit("agent-identities.unassign-role")},
-	"POST /orgs/{orgName}/gateways":                                                                  {modkit.Audit("gateways.create"), modkit.EmitsWithoutData(gwaudit.GatewayCreated)},
-	"POST /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}":                                 {modkit.Audit("gateways.assign-environment")},
-	"POST /orgs/{orgName}/gateways/{gatewayID}/tokens":                                               {modkit.Audit("gateway-tokens.rotate"), modkit.AuditFailClosed()},
 	"POST /llm-provider-templates":                                                                   {modkit.Audit("llm-provider-templates.create")},
 	"POST /llm-providers/{providerId}/api-keys":                                                      {modkit.Audit("api-keys.create"), modkit.AuditFailClosed()},
 	"POST /llm-providers/{providerId}/deployments/restore":                                           {modkit.Audit("llm-providers.restore")},
@@ -103,12 +99,8 @@ var routeOptions = map[string][]modkit.RouteOption{
 	"POST /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments":                          {modkit.Audit("llm-proxies.deploy")},
 	"POST /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/restore":                  {modkit.Audit("llm-proxies.restore")},
 	"POST /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/undeploy":                 {modkit.Audit("llm-proxies.undeploy")},
-	"POST /orgs/{orgName}/self-hosted-gateways":                                                      {modkit.Audit("gateways.create")},
-	"POST /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens":                                   {modkit.Audit("gateway-tokens.rotate"), modkit.AuditFailClosed()},
 	"PUT /orgs/{orgName}/environments/{envName}/agent-identities/groups/{groupID}":                   {modkit.Audit("agent-identities.update")},
 	"PUT /orgs/{orgName}/environments/{envName}/agent-identities/roles/{roleID}":                     {modkit.Audit("agent-identities.update")},
-	"PUT /orgs/{orgName}/gateways/{gatewayID}":                                                       {modkit.Audit("gateways.update"), modkit.Emits(gwaudit.GatewayUpdated)},
-	"PUT /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}":                             {modkit.Audit("gateways.set-identity-provider"), modkit.AuditFailClosed(), modkit.AllowOrgOverride()},
 	"PUT /llm-provider-templates/{templateId}":                                                       {modkit.Audit("llm-provider-templates.update")},
 	"PUT /llm-providers/{providerId}/api-keys/{keyName}":                                             {modkit.Audit("api-keys.rotate"), modkit.AuditFailClosed()},
 	"PUT /agents/{agentName}/deploy-settings":                                                        {modkit.Audit("agents.update-deploy-settings"), modkit.Emits(gwaudit.AgentConfigurationSet)},
@@ -121,7 +113,6 @@ var routeOptions = map[string][]modkit.RouteOption{
 	"PUT /agents/{agentName}/model-configs/{configId}/api-keys/{keyName}":                            {modkit.Audit("api-keys.rotate"), modkit.AuditFailClosed()},
 	"PUT /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys/{keyName}":                    {modkit.Audit("api-keys.rotate"), modkit.AuditFailClosed()},
 	"PUT /orgs/{orgName}/projects/{projName}/llm-proxies/{proxyId}":                                  {modkit.Audit("llm-proxies.update")},
-	"PUT /orgs/{orgName}/self-hosted-gateways/{gatewayID}":                                           {modkit.Audit("gateways.update")},
 }
 
 // syncWindow bounds how often a polled route is recorded per caller. Gateways

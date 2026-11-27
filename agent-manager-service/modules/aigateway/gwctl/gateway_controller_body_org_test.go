@@ -26,7 +26,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
@@ -79,27 +78,6 @@ func assertBodyOrgDenied(t *testing.T, w *httptest.ResponseRecorder, ctx context
 	assert.Equal(t, requestedOrg, denial.Details["requestedOrgId"])
 }
 
-func TestRegisterGateway_BodyOrgID(t *testing.T) {
-	for _, tt := range bodyOrgCases {
-		t.Run(tt.name, func(t *testing.T) {
-			h := newRegisterHarness()
-			body := withBodyOrg(`"name":"gw-1","displayName":"Gateway","gatewayType":"BOTH","vhost":"gw.example.com"`, tt.orgID)
-			req, recorder := bodyOrgTestRequest(http.MethodPost, "/orgs/o1/gateways", body)
-			w := httptest.NewRecorder()
-			h.ctrl.RegisterGateway(w, req)
-
-			if tt.wantForbidden {
-				assertBodyOrgDenied(t, w, recorder, tt.orgID)
-				assert.Nil(t, h.created, "no gateway may be stored")
-				return
-			}
-			require.Equal(t, http.StatusCreated, w.Code, "response body: %s", w.Body.String())
-			require.NotNil(t, h.created)
-			assert.Equal(t, bodyOrgTestCallerOUID, h.created.OUID)
-		})
-	}
-}
-
 func TestRotateGatewayToken_BodyOrgID(t *testing.T) {
 	for _, tt := range bodyOrgCases {
 		t.Run(tt.name, func(t *testing.T) {
@@ -113,7 +91,7 @@ func TestRotateGatewayToken_BodyOrgID(t *testing.T) {
 			}
 			ctrl := NewGatewayController(gwsvc.NewPlatformGatewayService(gatewayRepo), nil, nil)
 
-			req, recorder := bodyOrgTestRequest(http.MethodPost, "/orgs/o1/gateways/gw-uuid/tokens", withBodyOrg("", tt.orgID))
+			req, recorder := bodyOrgTestRequest(http.MethodPost, "/gateways/gw-uuid/tokens", withBodyOrg("", tt.orgID))
 			req.SetPathValue("gatewayID", "gw-uuid")
 			w := httptest.NewRecorder()
 			ctrl.RotateGatewayToken(w, req)

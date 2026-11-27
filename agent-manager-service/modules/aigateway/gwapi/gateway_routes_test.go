@@ -45,7 +45,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
-const selfHostedTestOU = "ou-1"
+const gatewayTestOU = "ou-1"
 
 type auditCapture struct {
 	mu     sync.Mutex
@@ -83,9 +83,9 @@ func (c *auditCapture) named() (audit.Event, bool) {
 	return audit.Event{}, false
 }
 
-// selfHostedFixture serves the self-hosted routes through the real RouteRegistrar and
-// a real service over a fake repository holding one managed and one self-hosted gateway.
-type selfHostedFixture struct {
+// gatewayFixture serves the gateway routes through the real RouteRegistrar and a real
+// service over a fake repository holding one managed and one self-hosted gateway.
+type gatewayFixture struct {
 	mux        *http.ServeMux
 	audits     *auditCapture
 	managed    *gwmodels.Gateway
@@ -94,11 +94,11 @@ type selfHostedFixture struct {
 	mutations  []string
 }
 
-func newSelfHostedFixture(t *testing.T) *selfHostedFixture {
+func newGatewayFixture(t *testing.T) *gatewayFixture {
 	t.Helper()
-	f := &selfHostedFixture{audits: &auditCapture{}}
-	f.managed = &gwmodels.Gateway{UUID: uuid.New(), OUID: selfHostedTestOU, Name: "dev-managed", Hosting: gwmodels.GatewayHostingManaged}
-	f.selfHosted = &gwmodels.Gateway{UUID: uuid.New(), OUID: selfHostedTestOU, Name: "dev-edge", Hosting: gwmodels.GatewayHostingSelfHosted}
+	f := &gatewayFixture{audits: &auditCapture{}}
+	f.managed = &gwmodels.Gateway{UUID: uuid.New(), OUID: gatewayTestOU, Name: "dev-managed", Hosting: gwmodels.GatewayHostingManaged}
+	f.selfHosted = &gwmodels.Gateway{UUID: uuid.New(), OUID: gatewayTestOU, Name: "dev-edge", Hosting: gwmodels.GatewayHostingSelfHosted}
 	f.token = &gwmodels.GatewayToken{UUID: uuid.New(), GatewayUUID: f.selfHosted.UUID, Status: "active"}
 	byUUID := map[string]*gwmodels.Gateway{f.managed.UUID.String(): f.managed, f.selfHosted.UUID.String(): f.selfHosted}
 	mutated := func(op string) { f.mutations = append(f.mutations, op) }
@@ -110,7 +110,14 @@ func newSelfHostedFixture(t *testing.T) *selfHostedFixture {
 			}
 			return nil, gwerr.ErrGatewayNotFound
 		},
-		GetByNameAndOrgIDFunc: func(string, string) (*gwmodels.Gateway, error) { return nil, gwerr.ErrGatewayNotFound },
+		GetByNameAndOrgIDFunc: func(name, _ string) (*gwmodels.Gateway, error) {
+			for _, gw := range byUUID {
+				if gw.Name == name {
+					return gw, nil
+				}
+			}
+			return nil, gwerr.ErrGatewayNotFound
+		},
 		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]gwmodels.GatewayEnvironmentMapping, error) {
 			return []gwmodels.GatewayEnvironmentMapping{}, nil
 		},
@@ -118,8 +125,7 @@ func newSelfHostedFixture(t *testing.T) *selfHostedFixture {
 			return map[string][]gwmodels.GatewayEnvironmentMapping{}, nil
 		},
 		CountWithFiltersFunc: func(gwrepo.GatewayFilterOptions) (int64, error) { return 1, nil },
-		ListWithFiltersFunc: func(opts gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
-			require.Equal(t, gwmodels.GatewayHostingSelfHosted, opts.Hosting)
+		ListWithFiltersFunc: func(gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 			return []*gwmodels.Gateway{f.selfHosted}, nil
 		},
 		GetActiveTokensByGatewayUUIDFunc: func(string) ([]*gwmodels.GatewayToken, error) {
@@ -152,8 +158,8 @@ func newSelfHostedFixture(t *testing.T) *selfHostedFixture {
 	}
 
 	ocClient := &gwtest.Core{
-		ListEnvironmentsFunc: func(context.Context, string) ([]*modkit.Environment, error) {
-			return []*modkit.Environment{{ID: uuid.NewString(), Name: "dev"}}, nil
+		GetEnvironmentFunc: func(context.Context, string, string) (*modkit.Environment, error) {
+			return &modkit.Environment{ID: uuid.NewString(), Name: gwmodels.DefaultEnvironmentName}, nil
 		},
 	}
 	ctrl := gwctl.NewGatewayController(gwsvc.NewPlatformGatewayService(repo), ocClient, nil)
@@ -162,18 +168,18 @@ func newSelfHostedFixture(t *testing.T) *selfHostedFixture {
 	return f
 }
 
-func (f *selfHostedFixture) call(method, path, body string, perm rbac.Permission) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(method, "/orgs/acme/self-hosted-gateways"+path, strings.NewReader(body))
+func (f *gatewayFixture) call(method, path, body string, perm rbac.Permission) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, "/gateways"+path, strings.NewReader(body))
 	req = req.WithContext(jwtassertion.ContextWithTokenClaimsAndScope(req.Context(), &jwtassertion.TokenClaims{
-		Sub: "user-a", OuId: selfHostedTestOU, OuHandle: "acme", Scope: perm.Scope(),
+		Sub: "user-a", OuId: gatewayTestOU, OuHandle: "acme", Scope: perm.Scope(),
 	}))
 	rec := httptest.NewRecorder()
 	f.mux.ServeHTTP(rec, req)
 	return rec
 }
 
-func TestSelfHostedGatewayRoutes_SelfHostedGatewaySucceeds(t *testing.T) {
-	f := newSelfHostedFixture(t)
+func TestGatewayRoutes_SelfHostedGatewaySucceeds(t *testing.T) {
+	f := newGatewayFixture(t)
 	id := f.selfHosted.UUID.String()
 	tokenPath := "/" + id + "/tokens"
 
@@ -187,9 +193,9 @@ func TestSelfHostedGatewayRoutes_SelfHostedGatewaySucceeds(t *testing.T) {
 		named  bool
 	}{
 		{"list", http.MethodGet, "", "", gwperm.Read, http.StatusOK, false},
-		{"create", http.MethodPost, "", `{"displayName":"Edge","handle":"edge","environment":"dev","endpoints":["https://edge.example.com"]}`, gwperm.Create, http.StatusCreated, true},
+		{"create", http.MethodPost, "", edgeDoc, gwperm.Create, http.StatusCreated, true},
 		{"get", http.MethodGet, "/" + id, "", gwperm.Read, http.StatusOK, false},
-		{"update", http.MethodPut, "/" + id, `{"description":"edge site"}`, gwperm.Update, http.StatusOK, true},
+		{"update", http.MethodPut, "/" + id, gatewayDoc("dev-edge", `{"displayName":"Edge","description":"edge site"}`), gwperm.Update, http.StatusOK, true},
 		{"list tokens", http.MethodGet, tokenPath, "", gwperm.TokenManage, http.StatusOK, false},
 		{"rotate token", http.MethodPost, tokenPath, "", gwperm.TokenManage, http.StatusCreated, true},
 		{"revoke token", http.MethodDelete, tokenPath + "/" + f.token.UUID.String(), "", gwperm.TokenManage, http.StatusNoContent, true},
@@ -207,7 +213,7 @@ func TestSelfHostedGatewayRoutes_SelfHostedGatewaySucceeds(t *testing.T) {
 			}
 			event, ok := f.audits.named()
 			require.True(t, ok, "the route's record must name the gateway")
-			assert.Equal(t, selfHostedTestOU, event.OUID)
+			assert.Equal(t, gatewayTestOU, event.OUID)
 			if tt.method != http.MethodPost || tt.path != "" {
 				assert.Equal(t, id, event.ResourceID)
 			} else {
@@ -217,66 +223,66 @@ func TestSelfHostedGatewayRoutes_SelfHostedGatewaySucceeds(t *testing.T) {
 	}
 }
 
-func TestSelfHostedGatewayRoutes_CreateReturnsNoToken(t *testing.T) {
-	f := newSelfHostedFixture(t)
+func TestGatewayRoutes_CreateReturnsNoToken(t *testing.T) {
+	f := newGatewayFixture(t)
 
-	rec := f.call(http.MethodPost, "", `{"displayName":"Edge","handle":"edge","environment":"dev","endpoints":["https://edge.example.com"]}`, gwperm.Create)
+	rec := f.call(http.MethodPost, "", edgeDoc, gwperm.Create)
 
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	assert.NotContains(t, rec.Body.String(), `"token"`)
 	assert.Contains(t, rec.Body.String(), `"SELF_HOSTED"`)
 }
 
-func TestSelfHostedGatewayRoutes_ManagedGatewayIsNotFoundAndUntouched(t *testing.T) {
-	f := newSelfHostedFixture(t)
+// A managed gateway is readable and its tokens can be managed, but it cannot be changed or removed.
+func TestGatewayRoutes_ManagedGatewayIsReadOnly(t *testing.T) {
+	f := newGatewayFixture(t)
 	id := f.managed.UUID.String()
-	tokenPath := "/" + id + "/tokens"
 
-	tests := []struct {
-		name   string
-		method string
-		path   string
-		body   string
-		perm   rbac.Permission
+	rec := f.call(http.MethodGet, "/"+id, "", gwperm.Read)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"MANAGED"`)
+
+	for name, tt := range map[string]struct {
+		method, body string
+		perm         rbac.Permission
 	}{
-		{"get", http.MethodGet, "/" + id, "", gwperm.Read},
-		{"update", http.MethodPut, "/" + id, `{"displayName":"Hijacked"}`, gwperm.Update},
-		{"delete", http.MethodDelete, "/" + id, "", gwperm.Delete},
-		{"list tokens", http.MethodGet, tokenPath, "", gwperm.TokenManage},
-		{"rotate token", http.MethodPost, tokenPath, "", gwperm.TokenManage},
-		{"revoke token", http.MethodDelete, tokenPath + "/" + f.token.UUID.String(), "", gwperm.TokenManage},
+		"update": {http.MethodPut, gatewayDoc("dev-managed", `{"displayName":"Hijacked"}`), gwperm.Update},
+		"delete": {http.MethodDelete, "", gwperm.Delete},
+	} {
+		rec := f.call(tt.method, "/"+id, tt.body, tt.perm)
+		assert.Equal(t, http.StatusForbidden, rec.Code, "%s: %s", name, rec.Body.String())
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rec := f.call(tt.method, tt.path, tt.body, tt.perm)
-
-			assert.Equal(t, http.StatusNotFound, rec.Code, "body: %s", rec.Body.String())
-			assert.NotContains(t, rec.Body.String(), f.managed.Name)
-		})
-	}
-	assert.Empty(t, f.mutations, "a managed gateway must never be mutated through a self-hosted route")
-	assert.Equal(t, "", f.managed.Description)
+	assert.Empty(t, f.mutations, "a managed gateway is never mutated")
 	assert.Equal(t, "", f.managed.DisplayName)
+
+	rec = f.call(http.MethodGet, "/"+id+"/tokens", "", gwperm.TokenManage)
+	assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 }
 
-func TestSelfHostedGatewayRoutes_CreateRejectsBadInput(t *testing.T) {
+func TestGatewayRoutes_CreateRejectsBadInput(t *testing.T) {
 	tests := []struct {
 		name string
 		body string
-		want int
 	}{
-		{"placeholder endpoint", `{"displayName":"Edge","handle":"edge","environment":"dev","endpoints":["pending://awaiting-connection"]}`, http.StatusBadRequest},
-		{"unknown environment", `{"displayName":"Edge","handle":"edge","environment":"nowhere","endpoints":["https://edge.example.com"]}`, http.StatusNotFound},
-		{"missing handle", `{"displayName":"Edge","environment":"dev","endpoints":["https://edge.example.com"]}`, http.StatusBadRequest},
+		{"placeholder endpoint", gatewayDoc("edge", `{"displayName":"Edge","endpoint":"pending://awaiting-connection"}`)},
+		{"missing name", gatewayDoc("", `{"displayName":"Edge","endpoint":"https://edge.example.com"}`)},
+		{"managed", gatewayDoc("edge", `{"displayName":"Edge","hosting":"MANAGED","endpoint":"https://edge.example.com"}`)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := newSelfHostedFixture(t)
+			f := newGatewayFixture(t)
 
 			rec := f.call(http.MethodPost, "", tt.body, gwperm.Create)
 
-			assert.Equal(t, tt.want, rec.Code, "body: %s", rec.Body.String())
+			assert.Equal(t, http.StatusBadRequest, rec.Code, "body: %s", rec.Body.String())
 			assert.Empty(t, f.mutations)
 		})
 	}
 }
+
+// gatewayDoc builds a Gateway document body with the given name and raw spec.
+func gatewayDoc(name, rawSpec string) string {
+	return `{"apiVersion":"ai-control-plane.choreolabs.com/v1","kind":"Gateway","metadata":{"name":"` + name + `"},"spec":` + rawSpec + `}`
+}
+
+var edgeDoc = gatewayDoc("edge", `{"displayName":"Edge","endpoint":"https://edge.example.com"}`)

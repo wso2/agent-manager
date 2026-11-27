@@ -78,7 +78,7 @@ func newINTAPI(t *testing.T) *intAPI {
 // intNewToken issues a token for gateway through the public route, and returns it and its id.
 func (a *intAPI) intNewToken(gateway uuid.UUID) (string, string) {
 	a.t.Helper()
-	body := expect(a.t, a.do(http.MethodPost, "/orgs/{org}/gateways/"+gateway.String()+"/tokens", nil), http.StatusOK)
+	body := expect(a.t, a.do(http.MethodPost, "/gateways/"+gateway.String()+"/tokens", nil), http.StatusCreated)
 	token, _ := body["token"].(string)
 	id, _ := body["tokenId"].(string)
 	require.NotEmpty(a.t, token, "token response: %v", body)
@@ -199,7 +199,7 @@ func intAllRoutes(gateway uuid.UUID) []intRoute {
 func TestINTRoutesRefuseCallsWithoutAValidKey(t *testing.T) {
 	a := newINTAPI(t)
 	revoked, revokedID := a.intNewToken(a.gateway.UUID)
-	expect(t, a.do(http.MethodDelete, "/orgs/{org}/gateways/"+a.gateway.UUID.String()+"/tokens/"+revokedID, nil), http.StatusNoContent)
+	expect(t, a.do(http.MethodDelete, "/gateways/"+a.gateway.UUID.String()+"/tokens/"+revokedID, nil), http.StatusNoContent)
 
 	for _, r := range intAllRoutes(a.gateway.UUID) {
 		t.Run(r.method+" "+r.path, func(t *testing.T) {

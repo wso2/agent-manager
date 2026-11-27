@@ -25,7 +25,6 @@ type HealthAPIService service
 type ApiCheckGatewayHealthRequest struct {
 	ctx        context.Context
 	ApiService *HealthAPIService
-	orgName    string
 	gatewayID  string
 }
 
@@ -45,15 +44,13 @@ This endpoint will:
 - Return detailed health information
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@param gatewayID Gateway UUID or name
 	@return ApiCheckGatewayHealthRequest
 */
-func (a *HealthAPIService) CheckGatewayHealth(ctx context.Context, orgName string, gatewayID string) ApiCheckGatewayHealthRequest {
+func (a *HealthAPIService) CheckGatewayHealth(ctx context.Context, gatewayID string) ApiCheckGatewayHealthRequest {
 	return ApiCheckGatewayHealthRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		gatewayID:  gatewayID,
 	}
 }
@@ -74,19 +71,12 @@ func (a *HealthAPIService) CheckGatewayHealthExecute(r ApiCheckGatewayHealthRequ
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/gateways/{gatewayID}/health"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/gateways/{gatewayID}/health"
 	localVarPath = strings.Replace(localVarPath, "{"+"gatewayID"+"}", url.PathEscape(parameterValueToString(r.gatewayID, "gatewayID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if strlen(r.orgName) < 1 {
-		return localVarReturnValue, nil, reportError("orgName must have at least 1 elements")
-	}
-	if strlen(r.orgName) > 64 {
-		return localVarReturnValue, nil, reportError("orgName must have less than 64 elements")
-	}
 
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}

@@ -29,7 +29,7 @@ import (
 func RegisterRoutes(rr Router, gw *gwwire.Gateway) {
 	RegisterGatewayRoutes(rr, gw.GatewayController)
 	RegisterPlatformGatewayHealthRoutes(rr, gw.GatewayController)
-	registerAgentGatewayRoutes(rr, gw.AgentGatewayController, gw.EnvironmentGatewayController)
+	registerAgentGatewayRoutes(rr, gw.AgentGatewayController)
 	registerCatalogRoutes(rr, gw.CatalogController)
 	RegisterLLMRoutes(rr, gw.LLMController)
 	RegisterLLMDeploymentRoutes(rr, gw.LLMDeploymentController)

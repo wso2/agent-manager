@@ -49,7 +49,6 @@ type Gateway struct {
 	MCPProxyScopeController      gwctl.MCPProxyScopeController
 	AgentIdentityController      gwctl.AgentIdentityController
 	AgentGatewayController       *gwctl.AgentGatewayController
-	EnvironmentGatewayController *gwctl.EnvironmentGatewayController
 
 	A2ACardReconciler        gwsvc.A2ACardReconcilerService
 	DeploymentTimeoutSweeper gwsvc.DeploymentTimeoutSweeper

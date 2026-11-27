@@ -146,7 +146,7 @@ func TestRegisterSelfHostedGateway(t *testing.T) {
 	})
 }
 
-func TestListSelfHostedGatewaysFiltersByHostingAndOrg(t *testing.T) {
+func TestListGatewaysFiltersByHostingAndOrg(t *testing.T) {
 	var counted, listed gwrepo.GatewayFilterOptions
 	repo := &gwrepomocks.GatewayRepositoryMock{
 		CountWithFiltersFunc: func(f gwrepo.GatewayFilterOptions) (int64, error) {
@@ -160,7 +160,7 @@ func TestListSelfHostedGatewaysFiltersByHostingAndOrg(t *testing.T) {
 	}
 	svc := NewPlatformGatewayService(repo)
 
-	_, err := svc.ListSelfHostedGateways("org-1", 10, 5)
+	_, err := svc.ListGateways(strPtr("org-1"), &GatewayListFilters{Hosting: gwmodels.GatewayHostingSelfHosted}, 10, 5)
 
 	require.NoError(t, err)
 	for _, f := range []gwrepo.GatewayFilterOptions{counted, listed} {
@@ -179,16 +179,24 @@ func TestRequireSelfHosted(t *testing.T) {
 	tests := []struct {
 		name    string
 		stored  *gwmodels.Gateway
-		wantErr bool
+		byName  bool
+		wantErr error
 	}{
-		{name: "self-hosted", stored: storedGateway(gwmodels.GatewayHostingSelfHosted, "org")},
-		{name: "managed", stored: storedGateway(gwmodels.GatewayHostingManaged, "org"), wantErr: true},
-		{name: "other org", stored: storedGateway(gwmodels.GatewayHostingSelfHosted, "other"), wantErr: true},
-		{name: "missing", wantErr: true},
+		{name: "self-hosted by UUID", stored: storedGateway(gwmodels.GatewayHostingSelfHosted, "org")},
+		{name: "self-hosted by name", stored: storedGateway(gwmodels.GatewayHostingSelfHosted, "org"), byName: true},
+		{name: "managed", stored: storedGateway(gwmodels.GatewayHostingManaged, "org"), wantErr: gwerr.ErrGatewayManaged},
+		{name: "other org", stored: storedGateway(gwmodels.GatewayHostingSelfHosted, "other"), wantErr: gwerr.ErrGatewayNotFound},
+		{name: "missing", wantErr: gwerr.ErrGatewayNotFound},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &gwrepomocks.GatewayRepositoryMock{
+				GetByNameAndOrgIDFunc: func(string, string) (*gwmodels.Gateway, error) {
+					if tt.byName {
+						return tt.stored, nil
+					}
+					return nil, gwerr.ErrGatewayNotFound
+				},
 				GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) {
 					if tt.stored == nil {
 						return nil, gwerr.ErrGatewayNotFound
@@ -198,10 +206,10 @@ func TestRequireSelfHosted(t *testing.T) {
 			}
 			svc := NewPlatformGatewayService(repo)
 
-			got, err := svc.RequireSelfHosted(uuid.NewString(), "org")
+			got, err := svc.RequireSelfHosted(" "+uuid.NewString()+" ", "org")
 
-			if tt.wantErr {
-				require.ErrorIs(t, err, gwerr.ErrGatewayNotFound)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
 				return
 			}
 			require.NoError(t, err)
