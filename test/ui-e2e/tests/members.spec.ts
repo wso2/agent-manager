@@ -1,8 +1,11 @@
 import { AddUserPage, InviteUserPage, RolePage, UsersPage } from '../pages/IdentityPages';
-import { uniqueName } from '../support/env';
+import { authMode, uniqueName } from '../support/env';
 import { expect, test } from '../support/fixtures';
 
 test.describe('members', () => {
+  // Members live in the identity provider; with file sign-in there is none.
+  test.skip(authMode !== 'idp', 'members need an identity provider (AMP_AUTH_MODE=idp)');
+
   const username = uniqueName('user').replace(/-/g, '.');
 
   test.afterAll(async ({ api }) => {

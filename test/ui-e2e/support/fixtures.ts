@@ -1,7 +1,8 @@
 import { test as base } from '@playwright/test';
 import { AmpApi } from './api';
-import { uniqueName } from './env';
+import { authMode, uniqueName } from './env';
 import { STORAGE_STATE } from './global-setup';
+import { dropStaleRefreshTimer } from './idp';
 
 type WorkerFixtures = {
   /** API client signed in as the admin, for set-up, clean-up and read-back. */
@@ -12,6 +13,11 @@ type WorkerFixtures = {
 
 export const test = base.extend<{}, WorkerFixtures>({
   storageState: STORAGE_STATE,
+
+  context: async ({ context }, use) => {
+    if (authMode === 'idp') await dropStaleRefreshTimer(context);
+    await use(context);
+  },
 
   api: [
     async ({}, use) => {
