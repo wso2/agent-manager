@@ -185,15 +185,12 @@ describe("ManageIdentityProviderDialog add", () => {
 
   it("picks the environment, then a managed gateway in it, when no gateway is locked", async () => {
     hoisted.listGateways.mockImplementation(
-      (_params: unknown, options?: { environment: string }) => ({
+      () => ({
         data: {
-          gateways:
-            options?.environment === "prod"
-              ? [
-                  { uuid: "gw-m", name: "managed", displayName: "Managed GW", hosting: "MANAGED" },
-                  { uuid: "gw-s", name: "self", displayName: "Self GW", hosting: "SELF_HOSTED" },
-                ]
-              : [],
+          gateways: [
+            { uuid: "gw-m", name: "managed", displayName: "Managed GW", hosting: "MANAGED" },
+            { uuid: "gw-s", name: "self", displayName: "Self GW", hosting: "SELF_HOSTED" },
+          ],
         },
       }),
     );
@@ -208,6 +205,7 @@ describe("ManageIdentityProviderDialog add", () => {
     fireEvent.mouseDown(screen.getAllByRole("combobox")[1]);
     expect(screen.queryByRole("option", { name: "Self GW" })).not.toBeInTheDocument();
     fireEvent.click(await screen.findByRole("option", { name: "Managed GW" }));
+    expect(hoisted.listGateways).toHaveBeenCalledWith({ orgName: "acme" }, { hosting: "MANAGED" });
 
     fillProvider();
     fireEvent.click(addButton());

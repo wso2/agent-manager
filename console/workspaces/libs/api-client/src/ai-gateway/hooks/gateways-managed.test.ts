@@ -16,7 +16,10 @@
  * under the License.
  */
 
-import { vi } from "vitest";
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
+import { describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const modules = vi.hoisted(() => ({ installed: new Set(["ai-gateway"]) }));
 vi.mock("@agent-management-platform/views", () => ({
@@ -29,47 +32,40 @@ vi.mock("@agent-management-platform/auth", () => ({
 vi.mock("../../acp-core/hooks/telemetry", () => ({
   ConsoleAction: {}, markSessionExpired: vi.fn(), useTrack: () => ({ track: vi.fn() }),
 }));
-vi.mock("../apis/gateways", () => ({
-  assignGatewayToEnvironment: vi.fn(),
+vi.mock("../apis/gateways", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../apis/gateways")>()),
   createSelfHostedGateway: vi.fn(),
-  createSelfHostedGatewayToken: vi.fn(),
-  deleteSelfHostedGateway: vi.fn(),
-  listSelfHostedGatewayTokens: vi.fn(),
-  revokeSelfHostedGatewayToken: vi.fn(),
-  updateSelfHostedGateway: vi.fn(),
   deleteGateway: vi.fn(),
   deleteIdentityProvider: vi.fn(),
   discoverOidc: vi.fn(),
   getGateway: vi.fn(),
-  listEnvironmentIdentityProviders: vi.fn(),
   listGatewayTokens: vi.fn(),
   listGateways: vi.fn(),
   listIdentityProviders: vi.fn(),
-  removeGatewayFromEnvironment: vi.fn(),
   revokeGatewayToken: vi.fn(),
   rotateGatewayToken: vi.fn(),
-  updateGateway: vi.fn(),
+  updateSelfHostedGateway: vi.fn(),
   upsertIdentityProvider: vi.fn(),
 }));
+vi.mock("../../agent-runtime/apis/deployments", () => ({
+  listEnvironments: vi.fn(async () => [
+    { id: "e1", name: "default", dataplaneRef: "dp", isProduction: false, createdAt: "t" },
+  ]),
+}));
 
+import type { GatewayDocument } from "@agent-management-platform/types";
+import { listEnvironments } from "../../agent-runtime/apis/deployments";
 import * as api from "../apis/gateways";
 import { describeMutationHooks, describeQueryHooks } from "../../test-utils/hook-cases";
 import {
-  useAssignGatewayToEnvironment,
   useCreateSelfHostedGateway,
   useDeleteGateway,
   useDeleteIdentityProvider,
   useDiscoverOidc,
   useGetGateway,
-  useListEnvironmentIdentityProviders,
   useListGateways,
-  useListGatewayTokens,
   useListIdentityProviders,
-  useRemoveGatewayFromEnvironment,
-  useRevokeGatewayToken,
-  useRotateGatewayToken,
   useSelfHostedGatewayTokens,
-  useUpdateGateway,
   useUpsertIdentityProvider,
 } from "./gateways";
 
@@ -81,19 +77,26 @@ const setModulePresent = (present: boolean) => {
 const m = vi.mocked(api);
 const org = { orgName: "o" };
 const gw = { orgName: "o", gatewayId: "g" };
-const query = { type: "managed" };
+const query = { type: "EGRESS" as const };
+const env = api.gatewayEnvironment({ id: "e1", name: "default", dataplaneRef: "dp", isProduction: false, createdAt: "t" });
+const doc: GatewayDocument = {
+  apiVersion: "ai-control-plane.choreolabs.com/v1", kind: "Gateway",
+  metadata: { name: "edge", uid: "g" }, spec: { displayName: "Edge", hosting: "SELF_HOSTED" },
+};
 
 describeQueryHooks("gateway queries", [
   {
     name: "useListGateways",
-    use: () => useListGateways(org, query as never),
+    use: () => useListGateways(org, query),
     api: m.listGateways, args: [org, query], key: ["gateways", org, query],
+    data: { list: [doc] }, expected: api.gatewayListFromDocuments({ list: [doc] }, [env]),
     idle: [() => useListGateways({ orgName: "" })],
   },
   {
     name: "useGetGateway",
     use: () => useGetGateway(gw),
     api: m.getGateway, args: [gw], key: ["gateway", gw],
+    data: doc, expected: api.gatewayFromDocument(doc, [env]),
     idle: [() => useGetGateway({ ...gw, gatewayId: "" })],
   },
   {
@@ -103,22 +106,9 @@ describeQueryHooks("gateway queries", [
     idle: [() => useListIdentityProviders({ orgName: "" })],
   },
   {
-    name: "useListEnvironmentIdentityProviders",
-    use: () => useListEnvironmentIdentityProviders({ ...org, environmentId: "e" }),
-    api: m.listEnvironmentIdentityProviders, args: [{ ...org, environmentId: "e" }],
-    key: ["environment-identity-providers", { ...org, environmentId: "e" }],
-    idle: [() => useListEnvironmentIdentityProviders({ ...org, environmentId: "" })],
-  },
-  {
-    name: "useListGatewayTokens",
-    use: () => useListGatewayTokens(gw),
-    api: m.listGatewayTokens, args: [gw], key: ["gateway-tokens", gw],
-    idle: [() => useListGatewayTokens({ ...gw, gatewayId: "" })],
-  },
-  {
     name: "useSelfHostedGatewayTokens",
     use: () => useSelfHostedGatewayTokens(gw),
-    api: m.listSelfHostedGatewayTokens, args: [gw], key: ["self-hosted-gateway-tokens", gw],
+    api: m.listGatewayTokens, args: [gw], key: ["self-hosted-gateway-tokens", gw],
     idle: [() => useSelfHostedGatewayTokens(gw, { enabled: false }), () => useSelfHostedGatewayTokens({ ...gw, orgName: "" })],
   },
 ], { setModulePresent });
@@ -127,12 +117,9 @@ const SEEDED = {
   gateways: ["gateways", org],
   gateway: ["gateway", gw],
   idps: ["identity-providers", org],
-  envIdps: ["environment-identity-providers", { ...org, environmentId: "e" }],
-  tokens: ["gateway-tokens", gw],
   selfHostedTokens: ["self-hosted-gateway-tokens", gw],
 } as const;
 
-const envParams = { ...gw, envId: "e" };
 const idp = { ...gw, name: "idp" };
 
 describeMutationHooks("gateway mutations", SEEDED, [
@@ -142,38 +129,36 @@ describeMutationHooks("gateway mutations", SEEDED, [
   },
   {
     name: "useUpsertIdentityProvider", use: useUpsertIdentityProvider, api: m.upsertIdentityProvider,
-    variables: { params: idp, body: { issuer: "i" } }, args: [idp, { issuer: "i" }], invalidates: ["idps", "envIdps"],
+    variables: { params: idp, body: { issuer: "i" } }, args: [idp, { issuer: "i" }], invalidates: ["idps"],
   },
   {
     name: "useDeleteIdentityProvider", use: useDeleteIdentityProvider, api: m.deleteIdentityProvider,
-    variables: idp, args: [idp], invalidates: ["idps", "envIdps"],
-  },
-  {
-    name: "useUpdateGateway", use: useUpdateGateway, api: m.updateGateway,
-    variables: { params: gw, body: { displayName: "G" } }, args: [gw, { displayName: "G" }], invalidates: ["gateways", "gateway"],
+    variables: idp, args: [idp], invalidates: ["idps"],
   },
   {
     name: "useDeleteGateway", use: useDeleteGateway, api: m.deleteGateway,
     variables: gw, args: [gw], invalidates: ["gateways", "gateway"],
   },
   {
-    name: "useAssignGatewayToEnvironment", use: useAssignGatewayToEnvironment, api: m.assignGatewayToEnvironment,
-    variables: envParams, args: [envParams], invalidates: ["gateways", "gateway"],
-  },
-  {
-    name: "useRemoveGatewayFromEnvironment", use: useRemoveGatewayFromEnvironment, api: m.removeGatewayFromEnvironment,
-    variables: envParams, args: [envParams], invalidates: ["gateways", "gateway"],
-  },
-  {
-    name: "useRotateGatewayToken", use: useRotateGatewayToken, api: m.rotateGatewayToken,
-    variables: gw, args: [gw], invalidates: ["tokens"],
-  },
-  {
-    name: "useRevokeGatewayToken", use: useRevokeGatewayToken, api: m.revokeGatewayToken,
-    variables: { ...gw, tokenId: "t" }, args: [{ ...gw, tokenId: "t" }], invalidates: ["tokens"],
-  },
-  {
     name: "useCreateSelfHostedGateway", use: useCreateSelfHostedGateway, api: m.createSelfHostedGateway,
-    variables: { params: org, body: { handle: "edge" } }, args: [org, { handle: "edge" }], invalidates: ["gateways", "gateway"],
+    variables: { params: org, body: { handle: "edge" } }, args: [org, { handle: "edge" }],
+    response: doc, expected: api.gatewayFromDocument(doc), invalidates: ["gateways", "gateway"],
   },
 ]);
+
+describe("gateway environments", () => {
+  it("lists gateways without environments when they cannot be read", async () => {
+    vi.mocked(listEnvironments).mockRejectedValueOnce(new Error("forbidden"));
+    m.listGateways.mockReset().mockResolvedValue({ list: [doc] });
+    const qc = new QueryClient();
+    let data: unknown;
+    const Probe = () => {
+      data = useListGateways(org).data;
+      return null;
+    };
+    const root = createRoot(document.createElement("div"));
+    await act(async () => root.render(createElement(QueryClientProvider, { client: qc }, createElement(Probe))));
+    await vi.waitFor(() => expect(data).toBeDefined());
+    expect(data).toEqual(api.gatewayListFromDocuments({ list: [doc] }));
+  });
+});

@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import type { ListQuery, OrgPathParams, PaginationMeta } from "./common";
+import type { DocumentMetadata, ListQuery, OrgPathParams, PaginationMeta } from "./common";
 
 export type GatewayType = "INGRESS" | "EGRESS" | "BOTH";
 
@@ -54,11 +54,7 @@ export const showGatewayHosting = (
   gateways: ReadonlyArray<{ hosting?: GatewayHosting }>,
 ): boolean => flagEnabled || gateways.some(isSelfHostedGateway);
 
-export type GatewayStatus =
-  | "ACTIVE"
-  | "INACTIVE"
-  | "PROVISIONING"
-  | "ERROR";
+export type GatewayStatus = "ACTIVE" | "INACTIVE";
 
 export interface GatewayListenerSpec {
   port?: number;
@@ -104,10 +100,12 @@ export interface GatewayResponse {
   organizationName: string;
   name: string;
   displayName: string;
+  description?: string;
   gatewayType: GatewayType;
   vhost: string;
-  region?: string;
+  runtimeUrl?: string;
   isCritical: boolean;
+  properties?: Record<string, unknown>;
   status: GatewayStatus;
   hosting: GatewayHosting;
   createdAt: string;
@@ -119,20 +117,33 @@ export interface GatewayListResponse extends PaginationMeta {
   gateways: GatewayResponse[];
 }
 
-export interface CreateGatewayRequest {
-  name: string;
+/** The spec of a Gateway document; `endpoint` is the flat body's `vhost`. */
+export interface GatewayDocumentSpec {
   displayName: string;
-  gatewayType: GatewayType;
-  vhost: string;
-  region?: string;
+  description?: string;
+  hosting?: GatewayHosting;
+  type?: GatewayType;
+  endpoint?: string;
+  runtimeUrl?: string;
   isCritical?: boolean;
-  environmentIds?: string[];
+  properties?: Record<string, unknown>;
 }
 
-/**
- * Request body for registering a gateway the customer runs.
- * `environment` is an environment name.
- */
+export interface GatewayDocument {
+  apiVersion: "ai-control-plane.choreolabs.com/v1";
+  kind: "Gateway";
+  metadata: DocumentMetadata;
+  spec: GatewayDocumentSpec;
+  status?: { state?: GatewayStatus };
+}
+
+export interface GatewayDocumentList {
+  count?: number;
+  list: GatewayDocument[];
+  pagination?: { limit?: number; offset?: number; total?: number };
+}
+
+/** Request body for registering a gateway the customer runs, in the organization's default environment. */
 export interface SelfHostedGatewayRequest {
   displayName: string;
   /**
@@ -141,17 +152,13 @@ export interface SelfHostedGatewayRequest {
    */
   handle: string;
   description?: string;
-  environment: string;
   /** At least one http(s) endpoint URL; the first is the gateway's address. */
   endpoints: string[];
-  functionalityType?: "ai";
-  /** Gateway version, `major.minor` or CalVer `YYYY.MM.DD`. */
-  version?: string;
   isCritical?: boolean;
   properties?: Record<string, unknown>;
 }
 
-/** Handle, environment and kind are fixed at registration. */
+/** Handle, endpoint and kind are fixed at registration. */
 export interface SelfHostedGatewayUpdateRequest {
   displayName?: string;
   description?: string;
@@ -161,34 +168,25 @@ export interface SelfHostedGatewayUpdateRequest {
 
 export type CreateSelfHostedGatewayPathParams = OrgPathParams;
 export type UpdateSelfHostedGatewayPathParams = GatewayPathParams;
-export type DeleteSelfHostedGatewayPathParams = GatewayPathParams;
 export type SelfHostedGatewayTokensPathParams = GatewayPathParams;
 
 export interface RevokeSelfHostedGatewayTokenPathParams extends GatewayPathParams {
   tokenId: string | undefined;
 }
 
-export interface UpdateGatewayRequest {
-  displayName?: string;
-  isCritical?: boolean;
-  status?: GatewayStatus;
-}
-
 export interface ListGatewaysQuery extends ListQuery {
   type?: GatewayType;
   status?: GatewayStatus;
-  environment?: string;
+  hosting?: GatewayHosting;
 }
 
 export type ListGatewaysPathParams = OrgPathParams;
-export type CreateGatewayPathParams = OrgPathParams;
 
 export interface GatewayPathParams extends OrgPathParams {
   gatewayId: string | undefined;
 }
 
 export type GetGatewayPathParams = GatewayPathParams;
-export type UpdateGatewayPathParams = GatewayPathParams;
 export type DeleteGatewayPathParams = GatewayPathParams;
 
 export type IdentityProviderType = "system" | "custom";
@@ -245,10 +243,6 @@ export type DiscoverOidcPathParams = OrgPathParams;
 export interface DiscoverOidcQuery {
   /** Issuer base URL or full .well-known/openid-configuration URL. */
   url: string;
-}
-
-export interface ListEnvironmentIdentityProvidersPathParams extends OrgPathParams {
-  environmentId: string | undefined;
 }
 
 export interface GatewayTokenInfo {

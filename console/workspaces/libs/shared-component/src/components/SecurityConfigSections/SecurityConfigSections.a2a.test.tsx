@@ -23,7 +23,7 @@ import type { ConfigurationResponse } from "@agent-management-platform/types";
 
 vi.mock("@agent-management-platform/api-client", () => ({
   useGetAgent: vi.fn(),
-  useListEnvironmentIdentityProviders: vi.fn(() => ({ data: undefined })),
+  useListIdentityProviders: vi.fn(() => ({ data: undefined })),
 }));
 
 import { useGetAgent } from "@agent-management-platform/api-client";

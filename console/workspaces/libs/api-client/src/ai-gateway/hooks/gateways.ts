@@ -21,56 +21,64 @@ import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "../../shared/react-query-notifications";
 import { useUIModulePresent } from "../../shared/useUIModulePresent";
 import type {
+  CreateSelfHostedGatewayPathParams,
   DeleteGatewayPathParams,
+  DeleteIdentityProviderPathParams,
   DiscoverOidcPathParams,
   DiscoverOidcQuery,
+  GatewayEnvironmentResponse,
   GatewayListResponse,
-  OidcDiscoveryResponse,
   GatewayResponse,
+  GatewayTokenListResponse,
+  GatewayTokenResponse,
   GetGatewayPathParams,
+  IdentityProvider,
   IdentityProviderListResponse,
-  ListEnvironmentIdentityProvidersPathParams,
   ListGatewaysPathParams,
   ListGatewaysQuery,
   ListIdentityProvidersPathParams,
-  UpsertIdentityProviderPathParams,
-  UpsertIdentityProviderRequest,
-  DeleteIdentityProviderPathParams,
-  IdentityProvider,
-  UpdateGatewayPathParams,
-  UpdateGatewayRequest,
-  CreateSelfHostedGatewayPathParams,
-  DeleteSelfHostedGatewayPathParams,
-  GatewayTokenListResponse,
-  GatewayTokenResponse,
+  OidcDiscoveryResponse,
   RevokeSelfHostedGatewayTokenPathParams,
   SelfHostedGatewayRequest,
   SelfHostedGatewayTokensPathParams,
   SelfHostedGatewayUpdateRequest,
   UpdateSelfHostedGatewayPathParams,
+  UpsertIdentityProviderPathParams,
+  UpsertIdentityProviderRequest,
 } from "@agent-management-platform/types";
 import {
-  assignGatewayToEnvironment,
   createSelfHostedGateway,
-  createSelfHostedGatewayToken,
-  deleteSelfHostedGateway,
-  listSelfHostedGatewayTokens,
-  revokeSelfHostedGatewayToken,
-  updateSelfHostedGateway,
   deleteGateway,
   deleteIdentityProvider,
   discoverOidc,
+  gatewayEnvironment,
+  gatewayFromDocument,
+  gatewayListFromDocuments,
   getGateway,
-  listEnvironmentIdentityProviders,
   listGatewayTokens,
   listGateways,
   listIdentityProviders,
-  removeGatewayFromEnvironment,
   revokeGatewayToken,
   rotateGatewayToken,
-  updateGateway,
+  updateSelfHostedGateway,
   upsertIdentityProvider,
 } from "../apis/gateways";
+import { listEnvironments } from "../../agent-runtime/apis/deployments";
+
+/**
+ * The organization's environments, which every gateway serves. A caller who cannot read them still sees its
+ * gateways, without environments.
+ */
+async function gatewayEnvironments(
+  orgName: string | undefined,
+  getToken: () => Promise<string>,
+): Promise<GatewayEnvironmentResponse[]> {
+  try {
+    return (await listEnvironments({ orgName }, getToken)).map(gatewayEnvironment);
+  } catch {
+    return [];
+  }
+}
 
 export function useListGateways(
   params: ListGatewaysPathParams,
@@ -80,7 +88,13 @@ export function useListGateways(
   const { getToken } = useAuthHooks();
   return useApiQuery<GatewayListResponse>({
     queryKey: ["gateways", params, query],
-    queryFn: () => listGateways(params, query, getToken),
+    queryFn: async () => {
+      const [list, environments] = await Promise.all([
+        listGateways(params, query, getToken),
+        gatewayEnvironments(params.orgName, getToken),
+      ]);
+      return gatewayListFromDocuments(list, environments);
+    },
     enabled: gatewayPresent && !!params.orgName,
   });
 }
@@ -90,7 +104,13 @@ export function useGetGateway(params: GetGatewayPathParams) {
   const { getToken } = useAuthHooks();
   return useApiQuery<GatewayResponse>({
     queryKey: ["gateway", params],
-    queryFn: () => getGateway(params, getToken),
+    queryFn: async () => {
+      const [doc, environments] = await Promise.all([
+        getGateway(params, getToken),
+        gatewayEnvironments(params.orgName, getToken),
+      ]);
+      return gatewayFromDocument(doc, environments);
+    },
     enabled: gatewayPresent && !!params.orgName && !!params.gatewayId,
   });
 }
@@ -121,18 +141,6 @@ export function useDiscoverOidc(params: DiscoverOidcPathParams) {
   });
 }
 
-export function useListEnvironmentIdentityProviders(
-  params: ListEnvironmentIdentityProvidersPathParams,
-) {
-  const gatewayPresent = useUIModulePresent("ai-gateway");
-  const { getToken } = useAuthHooks();
-  return useApiQuery<IdentityProviderListResponse>({
-    queryKey: ["environment-identity-providers", params],
-    queryFn: () => listEnvironmentIdentityProviders(params, getToken),
-    enabled: gatewayPresent && !!params.orgName && !!params.environmentId,
-  });
-}
-
 /**
  * Upserts a gateway identity provider via the REST API. Used by the managed
  * (cloud) path of the Add Identity Provider dialog, where the server also patches
@@ -150,7 +158,6 @@ export function useUpsertIdentityProvider() {
     mutationFn: ({ params, body }) => upsertIdentityProvider(params, body, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["identity-providers"] });
-      queryClient.invalidateQueries({ queryKey: ["environment-identity-providers"] });
     },
   });
 }
@@ -163,121 +170,24 @@ export function useDeleteIdentityProvider() {
     mutationFn: (params) => deleteIdentityProvider(params, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["identity-providers"] });
-      queryClient.invalidateQueries({ queryKey: ["environment-identity-providers"] });
     },
   });
 }
 
-export function useUpdateGateway() {
-  const { getToken } = useAuthHooks();
-  const queryClient = useQueryClient();
-  return useApiMutation<
-    GatewayResponse,
-    unknown,
-    { params: UpdateGatewayPathParams; body: UpdateGatewayRequest }
-  >({
-    action: { verb: 'update', target: 'gateway' },
-    mutationFn: ({ params, body }) => updateGateway(params, body, getToken),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["gateways"] });
-      queryClient.invalidateQueries({ queryKey: ["gateway"] });
-    },
-  });
+function invalidateGatewayQueries(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ["gateways"] });
+  queryClient.invalidateQueries({ queryKey: ["gateway"] });
 }
 
+/** Deletes a self-hosted gateway; a managed one is read-only. */
 export function useDeleteGateway() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
   return useApiMutation<void, unknown, DeleteGatewayPathParams>({
     action: { verb: 'delete', target: 'gateway' },
     mutationFn: (params) => deleteGateway(params, getToken),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["gateways"] });
-      queryClient.invalidateQueries({ queryKey: ["gateway"] });
-    },
+    onSuccess: () => invalidateGatewayQueries(queryClient),
   });
-}
-
-export function useAssignGatewayToEnvironment() {
-  const { getToken } = useAuthHooks();
-  const queryClient = useQueryClient();
-  return useApiMutation<
-    GatewayResponse,
-    unknown,
-    import("../apis/gateways").AssignGatewayToEnvironmentParams
-  >({
-    action: { verb: 'assign', target: 'gateway to environment' },
-    mutationFn: (params) => assignGatewayToEnvironment(params, getToken),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["gateways"] });
-      queryClient.invalidateQueries({ queryKey: ["gateway"] });
-    },
-  });
-}
-
-export function useListGatewayTokens(
-  params: import("../apis/gateways").ListGatewayTokensParams,
-) {
-  const gatewayPresent = useUIModulePresent("ai-gateway");
-  const { getToken } = useAuthHooks();
-  return useApiQuery({
-    queryKey: ["gateway-tokens", params],
-    queryFn: () => listGatewayTokens(params, getToken),
-    enabled: gatewayPresent && !!params.orgName && !!params.gatewayId,
-  });
-}
-
-export function useRotateGatewayToken() {
-  const { getToken } = useAuthHooks();
-  const queryClient = useQueryClient();
-  return useApiMutation({
-    action: { verb: 'rotate', target: 'gateway token' },
-    mutationFn: (
-      params: import("../apis/gateways").ListGatewayTokensParams,
-    ) => rotateGatewayToken(params, getToken),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["gateway-tokens"] });
-    },
-  });
-}
-
-export function useRevokeGatewayToken() {
-  const { getToken } = useAuthHooks();
-  const queryClient = useQueryClient();
-  return useApiMutation({
-    action: { verb: 'revoke', target: 'gateway token' },
-    mutationFn: (params: {
-      orgName: string;
-      gatewayId: string;
-      tokenId: string;
-    }) => revokeGatewayToken(params, getToken),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["gateway-tokens"] });
-    },
-  });
-}
-
-export function useRemoveGatewayFromEnvironment() {
-  const { getToken } = useAuthHooks();
-  const queryClient = useQueryClient();
-  return useApiMutation<
-    void,
-    unknown,
-    import("../apis/gateways").RemoveGatewayFromEnvironmentParams
-  >({
-    action: { verb: 'remove', target: 'gateway from environment' },
-    mutationFn: (params) => removeGatewayFromEnvironment(params, getToken),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["gateways"] });
-      queryClient.invalidateQueries({ queryKey: ["gateway"] });
-    },
-  });
-}
-
-
-function invalidateGatewayQueries(queryClient: ReturnType<typeof useQueryClient>) {
-  queryClient.invalidateQueries({ queryKey: ["gateways"] });
-  queryClient.invalidateQueries({ queryKey: ["gateway"] });
 }
 
 /** Tokens change nothing a gateway query returns, so they have a root key of their own. */
@@ -295,7 +205,8 @@ export function useCreateSelfHostedGateway() {
     { params: CreateSelfHostedGatewayPathParams; body: SelfHostedGatewayRequest }
   >({
     action: { verb: 'create', target: 'self-hosted gateway' },
-    mutationFn: ({ params, body }) => createSelfHostedGateway(params, body, getToken),
+    mutationFn: async ({ params, body }) =>
+      gatewayFromDocument(await createSelfHostedGateway(params, body, getToken)),
     onSuccess: () => invalidateGatewayQueries(queryClient),
   });
 }
@@ -309,17 +220,8 @@ export function useUpdateSelfHostedGateway() {
     { params: UpdateSelfHostedGatewayPathParams; body: SelfHostedGatewayUpdateRequest }
   >({
     action: { verb: 'update', target: 'self-hosted gateway' },
-    mutationFn: ({ params, body }) => updateSelfHostedGateway(params, body, getToken),
-    onSuccess: () => invalidateGatewayQueries(queryClient),
-  });
-}
-
-export function useDeleteSelfHostedGateway() {
-  const { getToken } = useAuthHooks();
-  const queryClient = useQueryClient();
-  return useApiMutation<void, unknown, DeleteSelfHostedGatewayPathParams>({
-    action: { verb: 'delete', target: 'self-hosted gateway' },
-    mutationFn: (params) => deleteSelfHostedGateway(params, getToken),
+    mutationFn: async ({ params, body }) =>
+      gatewayFromDocument(await updateSelfHostedGateway(params, body, getToken)),
     onSuccess: () => invalidateGatewayQueries(queryClient),
   });
 }
@@ -333,7 +235,7 @@ export function useSelfHostedGatewayTokens(
   const { getToken } = useAuthHooks();
   return useApiQuery<GatewayTokenListResponse>({
     queryKey: selfHostedGatewayTokensKey(params),
-    queryFn: () => listSelfHostedGatewayTokens(params, getToken),
+    queryFn: () => listGatewayTokens(params, getToken),
     enabled: gatewayPresent && enabled && !!params.orgName && !!params.gatewayId,
   });
 }
@@ -343,7 +245,7 @@ export function useCreateSelfHostedGatewayToken() {
   const queryClient = useQueryClient();
   return useApiMutation<GatewayTokenResponse, unknown, SelfHostedGatewayTokensPathParams>({
     action: { verb: 'create', target: 'registration token' },
-    mutationFn: (params) => createSelfHostedGatewayToken(params, getToken),
+    mutationFn: (params) => rotateGatewayToken(params, getToken),
     onSuccess: (_data, params) => {
       queryClient.invalidateQueries({ queryKey: selfHostedGatewayTokensKey(params) });
     },
@@ -355,7 +257,7 @@ export function useRevokeSelfHostedGatewayToken() {
   const queryClient = useQueryClient();
   return useApiMutation<void, unknown, RevokeSelfHostedGatewayTokenPathParams>({
     action: { verb: 'revoke', target: 'registration token' },
-    mutationFn: (params) => revokeSelfHostedGatewayToken(params, getToken),
+    mutationFn: (params) => revokeGatewayToken(params, getToken),
     onSuccess: (_data, params) => {
       queryClient.invalidateQueries({ queryKey: selfHostedGatewayTokensKey(params) });
     },

@@ -23,12 +23,12 @@ import type { ConfigurationResponse } from "@agent-management-platform/types";
 
 vi.mock("@agent-management-platform/api-client", () => ({
   useGetAgent: vi.fn(),
-  useListEnvironmentIdentityProviders: vi.fn(() => ({ data: undefined })),
+  useListIdentityProviders: vi.fn(() => ({ data: undefined })),
 }));
 
 import {
   useGetAgent,
-  useListEnvironmentIdentityProviders,
+  useListIdentityProviders,
 } from "@agent-management-platform/api-client";
 import { SecurityConfigSections, type SecurityConfigHandle } from "./SecurityConfigSections";
 
@@ -38,9 +38,9 @@ const mockAgent = (type: string, subType?: string) =>
   } as unknown as ReturnType<typeof useGetAgent>);
 
 const mockIdps = (names: string[]) =>
-  vi.mocked(useListEnvironmentIdentityProviders).mockReturnValue({
+  vi.mocked(useListIdentityProviders).mockReturnValue({
     data: { list: names.map((name) => ({ name })) },
-  } as unknown as ReturnType<typeof useListEnvironmentIdentityProviders>);
+  } as unknown as ReturnType<typeof useListIdentityProviders>);
 
 const baseConfig = (overrides: Partial<ConfigurationResponse> = {}): ConfigurationResponse => ({
   projectName: "proj",
@@ -83,9 +83,9 @@ const addChip = (placeholder: string, value: string) => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(useListEnvironmentIdentityProviders).mockReturnValue({
+  vi.mocked(useListIdentityProviders).mockReturnValue({
     data: undefined,
-  } as unknown as ReturnType<typeof useListEnvironmentIdentityProviders>);
+  } as unknown as ReturnType<typeof useListIdentityProviders>);
   mockAgent("agent-api", "chat-api");
 });
 
@@ -95,18 +95,12 @@ describe("SecurityConfigSections", () => {
     const { ref, container } = renderSections(baseConfig());
     expect(container).toBeEmptyDOMElement();
     expect(ref.current?.buildBody()).toEqual({});
-    expect(useListEnvironmentIdentityProviders).toHaveBeenCalledWith({
-      orgName: "org",
-      environmentId: undefined,
-    });
+    expect(useListIdentityProviders).toHaveBeenCalledWith({ orgName: "" });
   });
 
   it("defaults to API key auth and closed CORS when nothing is configured", () => {
     const { ref } = renderSections(undefined);
-    expect(useListEnvironmentIdentityProviders).toHaveBeenCalledWith({
-      orgName: "org",
-      environmentId: "dev",
-    });
+    expect(useListIdentityProviders).toHaveBeenCalledWith({ orgName: "org" });
     expect(ref.current?.buildBody()).toEqual({
       enableApiKeySecurity: true,
       enableOAuthSecurity: false,
