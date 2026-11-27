@@ -117,12 +117,8 @@ type Config struct {
 	// Thunder admin API configuration for provisioning OAuth apps
 	Thunder ThunderConfig
 
-	// RootOUHandle identifies the root/admin Organization Unit in Thunder.
-	// Client-credentials tokens issued to this OU are allowed to access any
-	// org's gateway-registration route (see RequireOrgMatchAllowRootOU /
-	// RequirePermissionAllowRootOU in middleware/authorization.go), since
-	// system clients always carry the root OU rather than a specific tenant's OU.
-	RootOUHandle string
+	// IdentityProvider is the identity provider operators sign in through.
+	IdentityProvider IdentityProviderConfig
 
 	// PlatformAdminOUID is the Thunder OU ID (claims.ouId) of the single
 	// organization allowed to call the cross-organization platform routes —
@@ -131,11 +127,10 @@ type Config struct {
 	// these routes read every tenant's data and the check below is the only
 	// thing standing in front of them.
 	//
-	// Matched on the OU ID rather than the handle (unlike RootOUHandle above)
-	// because a handle is a renameable, re-claimable label: if an org handle is
-	// ever released and re-registered, a handle-based allowlist would silently
-	// hand platform-admin access to whoever claims it next. The OU ID does not
-	// move.
+	// Matched on the OU ID rather than the handle because a handle is a
+	// renameable, re-claimable label: if an org handle is ever released and
+	// re-registered, a handle-based allowlist would silently hand
+	// platform-admin access to whoever claims it next. The OU ID does not move.
 	PlatformAdminOUID string
 
 	// TLS Configurations
@@ -247,6 +242,23 @@ type KeyManagerConfigurations struct {
 	Issuer   []string
 	Audience []string
 	JWKSUrl  string
+	// DiscoveryIssuer is the identity provider whose OpenID Connect discovery
+	// document names the key set, used when JWKSUrl is empty: the key set URL
+	// is looked up on the first token to check, not at startup, so the API
+	// starts while the identity provider is still coming up.
+	DiscoveryIssuer string
+}
+
+// IdentityProviderConfig is the identity provider operators sign in through
+// when AuthMode is idp.
+type IdentityProviderConfig struct {
+	// Issuer is the identity provider's issuer URL (IDP_ISSUER, else the
+	// bundled ThunderID's THUNDER_BASE_URL). The token check, the console's
+	// sign-in and the MCP authorization server default from it.
+	Issuer string
+	// Bundled reports that the identity provider is the ThunderID AMP sets
+	// up itself, whose clients, organization unit and key set path AMP knows.
+	Bundled bool
 }
 
 // Authentication modes for AuthMode.

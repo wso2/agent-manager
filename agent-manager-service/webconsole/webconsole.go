@@ -159,7 +159,7 @@ func defaultValues(r *http.Request) map[string]string {
 	}
 	return map[string]string{
 		"API_BASE_URL":          origin,
-		"AUTH_BASE_URL":         cfg.Thunder.BaseURL,
+		"AUTH_BASE_URL":         cfg.IdentityProvider.Issuer,
 		"AUTH_CLIENT_ID":        "amp-console-client",
 		"AUTH_MODE":             cfg.AuthMode,
 		"AUTH_SCOPES":           Scopes(),

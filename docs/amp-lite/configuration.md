@@ -18,7 +18,7 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 | Setting | amp.yaml | Default | Description |
 |---|---|---|---|
 | `SERVER_PUBLIC_URL` | `server.public_url` |  | Where browsers and clients reach the API and the console. Several defaults are worked out from it. Also read as `AMP_PUBLIC_URL`. |
-| `THUNDER_BASE_URL` | `thunder.base_url` |  | ThunderID as browsers see it; the issuer of its tokens. Also read as `THUNDER_PUBLIC_URL`. |
+| `THUNDER_BASE_URL` | `thunder.base_url` |  | The bundled ThunderID as browsers see it; the issuer of its tokens, and the identity provider when IDP_ISSUER is unset. Also read as `THUNDER_PUBLIC_URL`. |
 | `INTERNAL_SERVER_PUBLIC_URL` | `internal.server_public_url` |  | The origin module workloads reach the internal server at; empty means each request's own origin. |
 | `CORS_ALLOWED_ORIGIN` | `cors.allowed_origin` | `http://localhost:3000` | Origin allowed to call the API from a browser (the dev console). |
 
@@ -68,16 +68,16 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 
 | Setting | amp.yaml | Default | Description |
 |---|---|---|---|
-| `AUTH_MODE` | `auth.mode` | `idp` | How operators sign in: file (accounts in FILE_AUTH_USERS_PATH, the API issues tokens; no identity provider, so no users, groups, roles or agent identities) or idp (ThunderID). |
+| `AUTH_MODE` | `auth.mode` | `idp` | How operators sign in: file (accounts in FILE_AUTH_USERS_PATH, the API issues tokens; no identity provider, so no users, groups, roles or agent identities) or idp (an OpenID Connect identity provider, IDP_ISSUER). |
 | `FILE_AUTH_USERS_PATH` | `file.auth_users_path` | `<data dir>/fileauth/users.yaml` | The file sign-in accounts; written on first start from the admin password and AMP_DEFAULT_USERS. |
 | `FILE_AUTH_ISSUER` | `file.auth_issuer` | `amp-file-auth` | Issuer of file sign-in tokens. |
 | `FILE_AUTH_AUDIENCE` | `file.auth_audience` | `urn:wso2:amp` | Audience of file sign-in tokens. |
 | `FILE_AUTH_TOKEN_TTL` | `file.auth_token_ttl` | `8h` | How long a file sign-in session lasts; it is not renewed. |
-| `KEY_MANAGER_JWKS_URL` | `key.manager_jwks_url` | `the API's own keys (file), ThunderID's (idp)` | Key set the API validates sign-in tokens with. |
-| `KEY_MANAGER_ISSUER` | `key.manager_issuer` | `Agent Management Platform Local and THUNDER_BASE_URL` | Accepted token issuers, comma-separated. |
-| `KEY_MANAGER_AUDIENCE` | `key.manager_audience` | `the platform's clients and SERVER_PUBLIC_URL/mcp` | Accepted token audiences, comma-separated. |
+| `KEY_MANAGER_JWKS_URL` | `key.manager_jwks_url` | `the API's own keys (file); the bundled ThunderID's, or the jwks_uri of IDP_ISSUER's discovery document (idp)` | Key set the API validates sign-in tokens with. |
+| `KEY_MANAGER_ISSUER` | `key.manager_issuer` | `Agent Management Platform Local and IDP_ISSUER` | Accepted token issuers, comma-separated. |
+| `KEY_MANAGER_AUDIENCE` | `key.manager_audience` | `IDP_AUDIENCE (the bundled ThunderID's clients when unset) and SERVER_PUBLIC_URL/mcp` | Accepted token audiences, comma-separated. |
 | `AUTH_HEADER` | `auth.header` | `Authorization` | Header the API reads the bearer token from. |
-| `OAUTH_AUTHORIZATION_SERVERS` | `oauth.authorization_servers` | `THUNDER_BASE_URL` | Authorization servers the MCP endpoint advertises. |
+| `OAUTH_AUTHORIZATION_SERVERS` | `oauth.authorization_servers` | `IDP_ISSUER` | Authorization servers the MCP endpoint advertises. |
 | `OAUTH_SCOPES_SUPPORTED` | `oauth.scopes_supported` | `the scopes of the active modules` | Scopes the MCP endpoint advertises, comma-separated. |
 | `JWT_SIGNING_PRIVATE_KEY_PATH` | `jwt.signing_private_key_path` | `<secrets dir>/jwt/private.pem` | Key agent tokens are signed with; generated on first start. **Secret.** |
 | `JWT_SIGNING_PUBLIC_KEYS_CONFIG` | `jwt.signing_public_keys_config` | `<secrets dir>/jwt/public-keys-config.json` | The public keys agent tokens are checked with. |
@@ -88,21 +88,27 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 | `DEFAULT_ORG_OU_ID` | `default.org_ou_id` | `00000000-0000-0000-0000-000000000001` | The trial organization file sign-in tokens name. Connecting an identity provider starts in its own organization. Change it together with the AI Gateway's default_gateway_org_ou_id. |
 | `DEFAULT_ORG_HANDLE` | `default.org_handle` | `default` | The trial organization's handle. Do not change it once in use: traces are found by it. |
 
-## Identity provider (ThunderID)
+## Identity provider
+
+| Setting | amp.yaml | Default | Description |
+|---|---|---|---|
+| `IDP_ISSUER` | `idp.issuer` | `THUNDER_BASE_URL` | Issuer URL of the OpenID Connect identity provider operators sign in through, exactly as its tokens name it. Its tokens must carry ouId (a UUID) and ouHandle. Unset, it is the bundled ThunderID. |
+| `IDP_AUDIENCE` | `idp.audience` | `the bundled ThunderID's clients` | Audiences the identity provider's tokens name for AMP, comma-separated; required when IDP_ISSUER is another identity provider. |
+| `PLATFORM_ADMIN_OU_ID` | `platform.admin_ou_id` | `DEFAULT_ORG_OU_ID (file), 01900000-0000-7000-8000-000000000001 (the bundled ThunderID), none (another identity provider)` | The platform organization (its tokens' ouId); cross-organization routes accept only its tokens, and none when it is empty. |
+
+## Bundled ThunderID
 
 | Setting | amp.yaml | Default | Description |
 |---|---|---|---|
 | `THUNDER_RESOLVE_TO_HOST` | `thunder.resolve_to_host` |  | host:port the API dials ThunderID at (a container name), while THUNDER_BASE_URL stays the issuer. |
 | `THUNDER_CLIENT_ID` | `thunder.client_id` | `amp-system-client` | ThunderID client the API administers it with. Also read as `AMP_SYSTEM_CLIENT_ID`. |
 | `THUNDER_CLIENT_SECRET` | `thunder.client_secret` | `generated` | Its secret. Also read as `AMP_SYSTEM_CLIENT_SECRET`. **Secret.** |
-| `IDP_CLIENT_ID` | `idp.client_id` | `amp-api-client` | The API's client. Also read as `AMP_API_CLIENT_ID`. |
+| `IDP_CLIENT_ID` | `idp.client_id` | `amp-api-client` | The client amp init registers for API automation (client credentials). Also read as `AMP_API_CLIENT_ID`. |
 | `IDP_CLIENT_SECRET` | `idp.client_secret` | `generated` | Its secret. Also read as `AMP_API_CLIENT_SECRET`. **Secret.** |
-| `AMP_CONSOLE_CLIENT_ID` | `amp.console_client_id` | `amp-console-client` | The console's client. |
+| `AMP_CONSOLE_CLIENT_ID` | `amp.console_client_id` | `amp-console-client` | The console client amp init registers. |
 | `AMP_CONSOLE_CLIENT_SECRET` | `amp.console_client_secret` | `generated` | Its secret. **Secret.** |
 | `AMP_USE_THUNDER_DEFAULT_RESOURCE_SERVER` | `amp.use_thunder_default_resource_server` | `false` | Request administrative tokens for ThunderID's default resource server. |
 | `AMP_THUNDER_SYSTEM_RESOURCE_IDENTIFIER` | `amp.thunder_system_resource_identifier` | `THUNDER_BASE_URL/mcp` | Resource server administrative tokens are requested for. |
-| `PLATFORM_ADMIN_OU_ID` | `platform.admin_ou_id` | `DEFAULT_ORG_OU_ID (file), 01900000-0000-7000-8000-000000000001 (idp)` | The platform organization; cross-organization routes accept only its tokens. |
-| `ROOT_OU_HANDLE` | `root.ou_handle` | `admin` | Handle of ThunderID's root organization unit. |
 | `AMP_ORG_NAMESPACE` | `amp.org_namespace` | `default` | The organization ThunderID instances are addressed by. |
 
 ## Secrets and state
@@ -149,7 +155,7 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 | `CONSOLE_ENABLED` | `console.enabled` | `true` | Serve the console on the API port. |
 | `CONSOLE_ANALYTICS_ENABLED` | `console.analytics_enabled` | `false` | Feature-usage tracking in the console. |
 | `CONSOLE_API_BASE_URL` | `console.api_base_url` | `SERVER_PUBLIC_URL` | The API the console calls. |
-| `CONSOLE_AUTH_BASE_URL` | `console.auth_base_url` | `THUNDER_BASE_URL` | ThunderID, for idp sign-in. |
+| `CONSOLE_AUTH_BASE_URL` | `console.auth_base_url` | `IDP_ISSUER` | The identity provider, for idp sign-in. |
 | `CONSOLE_AUTH_CLIENT_ID` | `console.auth_client_id` | `amp-console-client` | The console's client. |
 | `CONSOLE_AUTH_MODE` | `console.auth_mode` | `AUTH_MODE` | file or idp; must match the API. |
 | `CONSOLE_AUTH_SCOPES` | `console.auth_scopes` | `the active modules' scopes` | Scopes the console asks for. |

@@ -167,7 +167,7 @@ func loadSettings(strict bool) {
 		DeploymentModel:           r.readOptionalString("AMP_DEPLOYMENT_MODEL", "on-prem"),
 		Environment:               r.readOptionalString("AMP_ENVIRONMENT", ""),
 	}
-	config.OAuthAuthorizationServers = r.readOptionalStringList("OAUTH_AUTHORIZATION_SERVERS", d.thunderURL)
+	config.OAuthAuthorizationServers = r.readOptionalStringList("OAUTH_AUTHORIZATION_SERVERS", d.idpIssuer)
 	config.OAuthScopesSupported = r.readOptionalStringList("OAUTH_SCOPES_SUPPORTED", "")
 
 	// IDP OAuth2 client credentials for service-to-service auth
@@ -218,6 +218,22 @@ func loadSettings(strict bool) {
 		default:
 			config.FileAuth.TokenTTL = ttl
 		}
+	}
+	// The identity provider. IDP_ISSUER names any OpenID Connect provider;
+	// left unset, it is the bundled ThunderID (THUNDER_BASE_URL), whose
+	// clients and key set path AMP knows. Read here as well as in
+	// derivedDefaults so a configuration file that sets them is not warned
+	// about.
+	idpIssuer := strings.TrimSpace(r.readOptionalString("IDP_ISSUER", ""))
+	idpAudience := strings.TrimSpace(r.readOptionalString("IDP_AUDIENCE", ""))
+	config.IdentityProvider = IdentityProviderConfig{Issuer: d.idpIssuer, Bundled: d.bundledIdP}
+	if config.AuthMode == AuthModeIDP && !d.bundledIdP {
+		// Another provider's key set is found through its discovery document,
+		// unless KEY_MANAGER_JWKS_URL names it.
+		if strings.TrimSpace(config.KeyManagerConfigurations.JWKSUrl) == "" {
+			config.KeyManagerConfigurations.DiscoveryIssuer = idpIssuer
+		}
+		validateIdentityProviderAudience(idpIssuer, idpAudience, Value("KEY_MANAGER_AUDIENCE"), r)
 	}
 	if config.AuthMode == AuthModeFile {
 		// Checked here rather than at login time: a deployment that cannot
@@ -311,17 +327,19 @@ func loadSettings(strict bool) {
 		EnableTLS: r.readOptionalBool("TLS_ENABLED", false),
 	}
 
-	config.RootOUHandle = r.readOptionalString("ROOT_OU_HANDLE", "admin")
-
 	// Cross-organization platform routes accept only the platform organization's
 	// tokens. Left unset, it is the trial organization with file sign-in (the
-	// only one there is) and ThunderID's built-in one with an identity provider.
-	// Set but empty, the routes stay registered but refuse every caller, the
-	// safe end of the failure mode; warned about rather than fatal so a
-	// deployment with no platform-admin org still starts.
-	platformAdminDefault := DefaultPlatformAdminOUID
-	if config.AuthMode == AuthModeFile && config.DefaultOrg.OUID != "" {
+	// only one there is) and the bundled ThunderID's built-in one with that
+	// identity provider; another provider's organization ids are not known, so
+	// with one it must be set. Unset or empty, the routes stay registered but
+	// refuse every caller, the safe end of the failure mode; warned about
+	// rather than fatal so a deployment with no platform-admin org still starts.
+	platformAdminDefault := ""
+	switch {
+	case config.AuthMode == AuthModeFile:
 		platformAdminDefault = config.DefaultOrg.OUID
+	case config.IdentityProvider.Bundled:
+		platformAdminDefault = DefaultPlatformAdminOUID
 	}
 	config.PlatformAdminOUID = platformAdminDefault
 	if v, set := Lookup("PLATFORM_ADMIN_OU_ID"); set {
@@ -519,6 +537,17 @@ func validateThunderConfig(cfg *Config, r *configReader) {
 	if (u.Scheme == "http" || u.Scheme == "https") && u.Host == "" {
 		r.errors = append(r.errors, fmt.Errorf(
 			"AMP_THUNDER_SYSTEM_RESOURCE_IDENTIFIER %q must have a non-empty host", thunder.SystemResourceIdentifier,
+		))
+	}
+}
+
+// validateIdentityProviderAudience requires the audience an identity provider
+// other than the bundled ThunderID names in its tokens for AMP: it cannot be
+// guessed, since AMP's own client ids are the bundled ThunderID's.
+func validateIdentityProviderAudience(issuer, idpAudience, keyManagerAudience string, r *configReader) {
+	if strings.TrimSpace(idpAudience) == "" && strings.TrimSpace(keyManagerAudience) == "" {
+		r.errors = append(r.errors, fmt.Errorf(
+			"IDP_AUDIENCE is required when IDP_ISSUER (%q) is not the bundled ThunderID: the audience its tokens name for AMP", issuer,
 		))
 	}
 }
@@ -757,7 +786,10 @@ const DefaultTrialOrgOUID = "00000000-0000-0000-0000-000000000001"
 // defaults are the settings worked out from the public URLs and sign-in mode
 // when they are not set themselves.
 type defaults struct {
-	thunderURL, jwksURL, issuer, audience string
+	idpIssuer, jwksURL, issuer, audience string
+	// bundledIdP reports that the identity provider is the bundled ThunderID:
+	// IDP_ISSUER is unset or names THUNDER_BASE_URL.
+	bundledIdP bool
 }
 
 func derivedDefaults(serverPort int) defaults {
@@ -771,21 +803,38 @@ func derivedDefaults(serverPort int) defaults {
 			thunderDial = u.Scheme + "://" + h
 		}
 	}
+	// The issuer is kept as given: it is compared with the tokens' iss claim
+	// exactly, and some providers end it with a slash.
+	idpIssuer := strings.TrimSpace(Value("IDP_ISSUER"))
+	bundled := idpIssuer == "" || strings.TrimRight(idpIssuer, "/") == thunderURL
+	if idpIssuer == "" {
+		idpIssuer = thunderURL
+	}
 	d := defaults{
-		thunderURL: thunderURL,
+		idpIssuer:  idpIssuer,
+		bundledIdP: bundled,
 		issuer:     "Agent Management Platform Local",
 	}
-	if thunderURL != "" {
-		d.issuer += "," + thunderURL
+	if idpIssuer != "" {
+		d.issuer += "," + idpIssuer
 	}
+	// Another identity provider's key set is found from its discovery
+	// document when a token is first checked (KeyManagerConfigurations.DiscoveryIssuer).
 	if strings.EqualFold(strings.TrimSpace(Value("AUTH_MODE")), AuthModeFile) {
 		d.jwksURL = fmt.Sprintf("http://127.0.0.1:%d/auth/external/jwks.json", serverPort)
-	} else if thunderURL != "" {
+	} else if bundled && thunderURL != "" {
 		d.jwksURL = thunderDial + "/oauth2/jwks"
 	}
-	audience := []string{
-		"urn:wso2:amp", "localhost", valueOr("IDP_CLIENT_ID", "amp-api-client"),
-		valueOr("AMP_CONSOLE_CLIENT_ID", "amp-console-client"), "amctl", "am-mcp",
+	var audience []string
+	switch {
+	case strings.TrimSpace(Value("IDP_AUDIENCE")) != "":
+		audience = []string{strings.TrimSpace(Value("IDP_AUDIENCE"))}
+	case bundled:
+		// The bundled ThunderID's resource server and the clients amp init registers there.
+		audience = []string{
+			"urn:wso2:amp", "localhost", valueOr("IDP_CLIENT_ID", "amp-api-client"),
+			valueOr("AMP_CONSOLE_CLIENT_ID", "amp-console-client"), "amctl", "am-mcp",
+		}
 	}
 	if publicURL != "" {
 		audience = append(audience, publicURL+"/mcp")
