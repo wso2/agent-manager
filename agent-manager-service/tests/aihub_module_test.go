@@ -345,11 +345,11 @@ func TestSubscriptionPlansModule(t *testing.T) {
 	})
 
 	// Creating a project creates the organization in the core: plans need their organization to exist.
-	code, body := w.call(t, w.full, http.MethodPost, "/api/v1/orgs/"+w.handle+"/projects",
-		map[string]any{"name": "plans", "displayName": "Plans"})
+	code, body := w.call(t, w.full, http.MethodPost, "/api/v1/projects",
+		projectDocument("plans", "Plans", nil))
 	require.Equal(t, http.StatusAccepted, code, string(body))
-	code, body = w.call(t, w.other, http.MethodPost, "/api/v1/orgs/"+w.otherHandle+"/projects",
-		map[string]any{"name": "plans", "displayName": "Plans"})
+	code, body = w.call(t, w.other, http.MethodPost, "/api/v1/projects",
+		projectDocument("plans", "Plans", nil))
 	require.Equal(t, http.StatusAccepted, code, string(body))
 
 	t.Run("installable: not served until it is installed", func(t *testing.T) {
@@ -668,8 +668,8 @@ func send(t *testing.T, h http.Handler, req *http.Request) (int, string) {
 func TestSubscriptionPlanWebhook(t *testing.T) {
 	t.Setenv("MODULE_AI_HUB_WEBHOOK_SECRET", webhookSecret)
 	w := newPlansWorld(t)
-	code, body := w.call(t, w.full, http.MethodPost, "/api/v1/orgs/"+w.handle+"/projects",
-		map[string]any{"name": "hooks", "displayName": "Hooks"})
+	code, body := w.call(t, w.full, http.MethodPost, "/api/v1/projects",
+		projectDocument("hooks", "Hooks", nil))
 	require.Equal(t, http.StatusAccepted, code, body)
 	now := time.Now()
 	gone := map[string]any{"handle": "never-copied", "display_name": "Never copied"}
@@ -848,8 +848,8 @@ func TestSubscriptionPlanGatewaySync(t *testing.T) {
 	t.Setenv("MODULE_AI_HUB_WEBHOOK_SECRET", webhookSecret)
 	w := newPlansWorld(t)
 	ctx := context.Background()
-	code, body := w.call(t, w.full, http.MethodPost, "/api/v1/orgs/"+w.handle+"/projects",
-		map[string]any{"name": "gwsync", "displayName": "Gateway sync"})
+	code, body := w.call(t, w.full, http.MethodPost, "/api/v1/projects",
+		projectDocument("gwsync", "Gateway sync", nil))
 	require.Equal(t, http.StatusAccepted, code, string(body))
 	deactivatePlans(ctx, t, w)
 	installPlans(ctx, t, w)
@@ -982,8 +982,8 @@ func TestSubscriptionsFromThePortal(t *testing.T) {
 	t.Setenv("MODULE_AI_HUB_WEBHOOK_SECRET", webhookSecret)
 	w := newPlansWorld(t)
 	ctx := context.Background()
-	code, body := w.call(t, w.full, http.MethodPost, "/api/v1/orgs/"+w.handle+"/projects",
-		map[string]any{"name": "subs", "displayName": "Subscriptions"})
+	code, body := w.call(t, w.full, http.MethodPost, "/api/v1/projects",
+		projectDocument("subs", "Subscriptions", nil))
 	require.Equal(t, http.StatusAccepted, code, string(body))
 	deactivatePlans(ctx, t, w)
 	installPlans(ctx, t, w)
@@ -1170,8 +1170,8 @@ func TestSubscriptionsFromThePortal(t *testing.T) {
 func TestPlanOfferedByMCPProxies(t *testing.T) {
 	w := newPlansWorld(t)
 	ctx := context.Background()
-	code, body := w.call(t, w.full, http.MethodPost, "/api/v1/orgs/"+w.handle+"/projects",
-		map[string]any{"name": "offers", "displayName": "Offers"})
+	code, body := w.call(t, w.full, http.MethodPost, "/api/v1/projects",
+		projectDocument("offers", "Offers", nil))
 	require.Equal(t, http.StatusAccepted, code, string(body))
 	deactivatePlans(ctx, t, w)
 	installPlans(ctx, t, w)

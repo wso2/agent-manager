@@ -32,9 +32,9 @@ CHIPS = {
 # How each core card's tables carry org_id; cards not listed have none.
 # Module cards get theirs in Card.
 ORG_ID = {
-    "project": "FK → organizations", "env": "FK → organizations", "secret": "FK → organizations",
-    "dest": "FK → organizations", "outbox": "FK → organizations", "modev": "FK → organizations",
-    "wlcred": "FK → organizations, optional",
+    "project": "org's id, no FK", "env": "org's id, no FK", "secret": "org's id, no FK",
+    "dest": "org's id, no FK", "outbox": "org's id, no FK", "modev": "org's id, no FK",
+    "wlcred": "org's id, optional",
     "agent": "same org as its parent", "labels": "same org as its parent",
     "identity": "same org as its parent", "sub": "same org as its parent",
     "subfilt": "same org as its parent", "destproj": "same org as its parent",
@@ -67,7 +67,7 @@ def wrap(text, width_px, cw):
 
 class Card:
     def __init__(self, key, area, x, y, w, title, table, purpose, fields=(), chips=(), rel=None,
-                 hidden=False, deferred=False):
+                 hidden=False, deferred=False, token=False):
         self.key, self.area, self.x, self.y, self.w = key, area, x, y, w
         self.title, self.table, self.purpose = title, table, purpose
         self.fields, self.chips, self.rel = list(fields), list(chips), rel
@@ -77,7 +77,7 @@ class Card:
             org = "org's id, no FK"
         if org is not None:
             self.fields.insert(0, ("org_id", org))
-        self.hidden, self.deferred = hidden, deferred
+        self.hidden, self.deferred, self.token = hidden or token, deferred, token
         self.layout()
 
     def layout(self):
@@ -161,7 +161,8 @@ class Card:
         if self.hidden:
             bx = self.x + self.w - 82
             out.append(f'<rect x="{bx}" y="{self.y + 9}" width="70" height="20" rx="10" fill="#334155"/>')
-            out.append(f'<text x="{bx + 35}" y="{self.y + 23}" class="badge" text-anchor="middle">HIDDEN</text>')
+            badge = "TOKEN" if self.token else "HIDDEN"
+            out.append(f'<text x="{bx + 35}" y="{self.y + 23}" class="badge" text-anchor="middle">{badge}</text>')
         for ln in self.table_lines:
             y += 14
             out.append(f'<text x="{self.x + 14}" y="{y}" class="ctable">{esc(ln)}</text>')
@@ -215,11 +216,11 @@ card("project", "tenancy", 50, TOP, 230, "Project", "projects",
      "Groups an org's agents and the LLM and MCP proxies they use.",
      [("name", "URL name, immutable"), ("display_name", ""), ("description", "")],
      rel="Can't be deleted while it has agents, LLM proxies or MCP servers.")
-card("org", "tenancy", 350, TOP, 240, "Organization", "organizations",
-     "The tenant and root of all data. Never renamed or deleted.",
-     [("handle", "URL name, unique"), ("display_name", ""), ("thunder_ou_id", "Thunder org unit")])
+card("org", "tenancy", 350, TOP, 240, "Organization", "",
+     "Not stored: the caller's token names it. Every tenant-owned row holds its id as org_id.",
+     [("id", "the token's ouId"), ("handle", "the token's ouHandle")], token=True)
 card("env", "tenancy", 660, TOP, 230, "Environment", "environments",
-     "Exactly one per org, named default, created with the org. Never shown in or accepted by the API or console.",
+     "Exactly one per org, named default; it is what makes the org exist here. Created at startup for the file sign-in trial org, else on the org's first request. Never shown in or accepted by the API or console.",
      [("name", "always 'default'"), ("is_production", "no")],
      rel="Kept so more environments can come later with no table changes.", hidden=True)
 
@@ -676,8 +677,8 @@ def render_svg(viewbox=None, width=None):
                    f'stroke="{a["color"]}" stroke-opacity="0.45" stroke-width="1.5"{dash}/>')
         out.append(f'<text x="{x0 + 18}" y="{y0 + 30}" class="aname" fill="{a["color"]}">{esc(a["name"].upper())}</text>')
     tb = area_boxes["tenancy"]
-    tnotes = ["Core creates the default org and its default environment at startup; the gateway",
-              "module seeds the bundled gateway and its token."]
+    tnotes = ["With file sign-in, core creates the trial org's default environment at startup;",
+              "the gateway module seeds the bundled gateway and its token."]
     for i, ln in enumerate(tnotes):
         out.append(f'<text x="{tb[0] + 290}" y="{tb[3] - 40 + i * 18}" class="anote">{esc(ln)}</text>')
     gb = area_boxes["gateway"]

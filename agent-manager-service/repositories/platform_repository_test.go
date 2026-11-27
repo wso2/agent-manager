@@ -40,22 +40,21 @@ import (
 
 func strp(s string) *string { return &s }
 
-// A previously unseen OU gets its organization and default environment on first read, under the handle the caller's
-// token carries.
-func TestPlatformRepoCreatesOrganizationOnFirstUse(t *testing.T) {
+// A previously unseen organization gets its default environment on first use, and only once. No organization row
+// is written: the organization is the token's.
+func TestEnsureOrgCreatesDefaultEnvironmentOnce(t *testing.T) {
 	gdb := db.GetDB()
 	repo := NewPlatformRepo(gdb)
 	ou := uuid.Must(uuid.NewV7()).String()
 	t.Cleanup(func() { deleteOrg(t, ou) })
 	ctx := orgctx.WithResolvedOrg(context.Background(), orgctx.ResolvedOrg{OUID: ou, OuHandle: "acme-" + ou[len(ou)-8:]})
 
-	org, err := repo.GetOrganization(ctx, ou)
+	id, err := EnsureOrg(ctx, gdb, ou)
 	require.NoError(t, err)
-	assert.Equal(t, "acme-"+ou[len(ou)-8:], org.Handle)
-
-	again, err := repo.GetOrganization(context.Background(), ou)
+	assert.Equal(t, ou, id.String())
+	again, err := EnsureOrg(context.Background(), gdb, ou)
 	require.NoError(t, err)
-	assert.Equal(t, org.Handle, again.Handle, "a later read finds the same organization")
+	assert.Equal(t, id, again)
 
 	envs, err := repo.ListEnvironments(ctx, ou)
 	require.NoError(t, err)
@@ -64,35 +63,43 @@ func TestPlatformRepoCreatesOrganizationOnFirstUse(t *testing.T) {
 	env, err := repo.GetEnvironment(ctx, ou, "anything")
 	require.NoError(t, err)
 	assert.Equal(t, envs[0].UUID, env.UUID, "the name is ignored: there is one environment")
+}
 
+// The list is the request's organization; a request with none is an error, not an empty success.
+func TestListOrganizationsNeedsTheRequestOrg(t *testing.T) {
+	repo := NewPlatformRepo(db.GetDB())
+	_, err := repo.ListOrganizations(context.Background())
+	require.ErrorIs(t, err, utils.ErrOrganizationNotFound)
+
+	ou := uuid.Must(uuid.NewV7()).String()
+	t.Cleanup(func() { deleteOrg(t, ou) })
+	ctx := orgctx.WithResolvedOrg(context.Background(), orgctx.ResolvedOrg{OUID: ou, OuHandle: "acme"})
 	orgs, err := repo.ListOrganizations(ctx)
 	require.NoError(t, err)
-	found := false
-	for _, o := range orgs {
-		found = found || o.Handle == org.Handle
-	}
-	assert.True(t, found)
+	require.Len(t, orgs, 1)
+	assert.Equal(t, "acme", orgs[0].Handle)
+}
 
-	for _, bad := range []string{"", "not-a-uuid"} {
-		_, err := repo.GetOrganization(ctx, bad)
+func TestEnsureOrgRejectsNonUUID(t *testing.T) {
+	for _, bad := range []string{"", "not-a-uuid", "acme"} {
+		_, err := EnsureOrg(context.Background(), db.GetDB(), bad)
 		require.ErrorIs(t, err, utils.ErrOrganizationNotFound, "%q", bad)
 	}
 }
 
-// Concurrent first requests for one OU all get the organization; exactly one is created.
-func TestPlatformRepoConcurrentFirstUse(t *testing.T) {
+// Concurrent first requests for one organization all succeed; exactly one default environment is created.
+func TestEnsureOrgConcurrentFirstUse(t *testing.T) {
 	gdb := db.GetDB()
-	repo := NewPlatformRepo(gdb)
 	ou := uuid.Must(uuid.NewV7()).String()
 	t.Cleanup(func() { deleteOrg(t, ou) })
 
 	var wg sync.WaitGroup
-	errs := make([]error, 6)
+	errs := make([]error, 8)
 	for i := range errs {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			_, errs[i] = repo.GetOrganization(context.Background(), ou)
+			_, errs[i] = EnsureOrg(context.Background(), gdb, ou)
 		}(i)
 	}
 	wg.Wait()
@@ -399,10 +406,9 @@ func TestIsDefaultEnvironment(t *testing.T) {
 	assert.False(t, IsDefaultEnvironment("staging"))
 }
 
-// deleteOrg removes an organization created outside dbtest.Org, with what hangs off it.
+// deleteOrg removes what an organization created outside dbtest.Org got: its default environment.
 func deleteOrg(t *testing.T, ou string) {
 	t.Helper()
 	gdb := db.GetDB()
 	require.NoError(t, gdb.Where("org_id = ?", ou).Delete(&models.Environment{}).Error)
-	require.NoError(t, gdb.Where("id = ?", ou).Delete(&models.Organization{}).Error)
 }

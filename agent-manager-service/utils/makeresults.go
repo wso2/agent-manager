@@ -101,7 +101,6 @@ func ConvertToOrganizationResponse(org *models.OrganizationResponse) spec.Organi
 
 	return spec.OrganizationResponse{
 		Name:        org.Name,
-		CreatedAt:   org.CreatedAt,
 		DisplayName: org.DisplayName,
 		Description: org.Description,
 		Handle:      stringToPtr(org.Handle),
@@ -117,7 +116,6 @@ func ConvertToOrganizationListItems(org *models.OrganizationResponse) spec.Organ
 		Name:        org.Name,
 		DisplayName: org.DisplayName,
 		Handle:      stringToPtr(org.Handle),
-		CreatedAt:   org.CreatedAt,
 	}
 }
 

@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
@@ -106,6 +107,9 @@ func NewService(cfg *config.Config, logger *slog.Logger) (Service, error) {
 
 	users, err := LoadUserFile(cfg.FileAuth.UsersPath)
 	if err != nil {
+		return nil, err
+	}
+	if err := matchesDefaultOrg(users.Organization, cfg.DefaultOrg); err != nil {
 		return nil, err
 	}
 
@@ -276,4 +280,22 @@ func loadPrivateKey(path string) (*rsa.PrivateKey, error) {
 		return nil, fmt.Errorf("signing key %s is %T, not RSA", path, parsed)
 	}
 	return key, nil
+}
+
+// matchesDefaultOrg checks that the organization file sign-in tokens name (users.yaml) is the one the server sets
+// up for file sign-in (DEFAULT_ORG_OU_ID and DEFAULT_ORG_HANDLE): its environment, the platform-admin default and
+// the bundled gateway. amp init writes users.yaml from the same settings, so a mismatch means the two were given
+// different configuration, and signing in would land in an organization the rest was set up for another.
+func matchesDefaultOrg(org Organization, def config.DefaultOrgConfig) error {
+	fileID, errFile := uuid.Parse(strings.TrimSpace(org.UUID))
+	defID, errDef := uuid.Parse(strings.TrimSpace(def.OUID))
+	if errFile != nil || errDef != nil || fileID != defID {
+		return fmt.Errorf("file auth: users.yaml names organization %q but DEFAULT_ORG_OU_ID is %q; "+
+			"give amp init and the server the same DEFAULT_ORG_OU_ID", org.UUID, def.OUID)
+	}
+	if config.NormaliseOrgHandle(org.Handle) != def.Handle {
+		return fmt.Errorf("file auth: users.yaml names organization handle %q but DEFAULT_ORG_HANDLE is %q; "+
+			"give amp init and the server the same DEFAULT_ORG_HANDLE", org.Handle, def.Handle)
+	}
+	return nil
 }

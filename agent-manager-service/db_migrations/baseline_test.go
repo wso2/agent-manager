@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-gormigrate/gormigrate/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -83,20 +82,31 @@ func TestSQLiteBaselineAppliesOnce(t *testing.T) {
 	assert.Equal(t, []string{"agent_identity.reconciler"}, locks)
 }
 
-// A database the baseline alone ran on, as an earlier release left it, gets the later migrations on its next run.
-func TestSQLiteLaterMigrationsApplyOnAnExistingDatabase(t *testing.T) {
+// The organization is the token's: the schema keeps no table of them, and everything is in the one baseline.
+func TestSQLiteBaselineHasNoOrganizationsTable(t *testing.T) {
 	dsn := "file:" + filepath.Join(t.TempDir(), "amp.db") + "?_pragma=foreign_keys(1)&_txlock=immediate"
 	gormDB, err := gorm.Open(sqlitedialect.Open(dsn), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
 	list, err := sqlMigrationsFor(config.DBDriverSQLite)
 	require.NoError(t, err)
-	require.Greater(t, len(list), 1, "there is a migration after the baseline")
-	require.NoError(t, gormigrate.New(gormDB, migrateOptions, list[:1]).Migrate())
-	assert.False(t, gormDB.Migrator().HasTable("secret_jobs"))
+	require.Len(t, list, 1, "the baseline is the only migration")
 
 	require.NoError(t, MigrateBaseline(gormDB, config.DBDriverSQLite))
+	assert.False(t, gormDB.Migrator().HasTable("organizations"))
 	assert.True(t, gormDB.Migrator().HasTable("secret_jobs"))
-	assert.Equal(t, list[len(list)-1].ID, latestApplied(gormDB))
+}
+
+// A database created before organizations left the schema still has the table and the foreign keys to it, which
+// every new organization's first write would trip over; migrating refuses it with a clear reason instead.
+func TestSQLiteMigrateRefusesADatabaseWithOrganizations(t *testing.T) {
+	dsn := "file:" + filepath.Join(t.TempDir(), "amp.db") + "?_pragma=foreign_keys(1)&_txlock=immediate"
+	gormDB, err := gorm.Open(sqlitedialect.Open(dsn), &gorm.Config{Logger: logger.Discard})
+	require.NoError(t, err)
+	require.NoError(t, gormDB.Exec("CREATE TABLE organizations (id TEXT PRIMARY KEY)").Error)
+
+	err = MigrateBaseline(gormDB, config.DBDriverSQLite)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "reset")
 }
 
 func TestSQLiteBaselineEnforcesKeys(t *testing.T) {
@@ -112,9 +122,6 @@ func assertBaselineKeys(t *testing.T, gormDB *gorm.DB) {
 	exec := func(sql string, args ...any) error { return gormDB.Exec(sql, args...).Error }
 
 	orgA, orgB, project, agent := id(), id(), id(), id()
-	for handle, org := range map[string]string{"org-a": orgA, "org-b": orgB} {
-		require.NoError(t, exec("INSERT INTO organizations (id, handle, display_name, created_at, updated_at) VALUES (?, ?, 'Org', ?, ?)", org, handle, now, now))
-	}
 	require.NoError(t, exec("INSERT INTO projects (id, org_id, name, display_name, created_at, updated_at) VALUES (?, ?, 'p', 'P', ?, ?)", project, orgA, now, now))
 	insertAgent := func(agentID, orgID, name string) error {
 		return exec(`INSERT INTO agents (id, org_id, project_id, name, display_name, provisioning_type, created_at, updated_at)

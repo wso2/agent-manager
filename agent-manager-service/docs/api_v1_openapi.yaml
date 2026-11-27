@@ -3731,10 +3731,9 @@ components:
         createdAt:
           type: string
           format: date-time
-          description: Timestamp when the organization was created
+          description: When the organization was created. Not recorded, so omitted.
       required:
         - name
-        - createdAt
         - displayName
         - description
     OrganizationListItem:
@@ -3752,10 +3751,9 @@ components:
         createdAt:
           type: string
           format: date-time
-          description: Timestamp when the organization was created
+          description: When the organization was created. Not recorded, so omitted.
       required:
         - name
-        - createdAt
         - displayName
 
     OrganizationListResponse:

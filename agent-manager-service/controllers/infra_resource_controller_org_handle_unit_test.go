@@ -51,11 +51,11 @@ func namedOrg(name string) *models.OrganizationResponse {
 	return &models.OrganizationResponse{Name: name, DisplayName: name}
 }
 
-func listOrgs(t *testing.T, orgs []*models.OrganizationResponse, claims *jwtassertion.TokenClaims) []map[string]any {
+func listOrgs(t *testing.T, orgs []*models.OrganizationResponse, resolved *middleware.ResolvedOrg) []map[string]any {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/orgs", nil)
-	if claims != nil {
-		req = req.WithContext(jwtassertion.ContextWithTokenClaims(req.Context(), claims))
+	if resolved != nil {
+		req = req.WithContext(middleware.WithResolvedOrg(req.Context(), *resolved))
 	}
 	rec := httptest.NewRecorder()
 	NewInfraResourceController(&fakeOrgManager{orgs: orgs}, nil).ListOrganizations(rec, req)
@@ -68,53 +68,56 @@ func listOrgs(t *testing.T, orgs []*models.OrganizationResponse, claims *jwtasse
 	return body.Organizations
 }
 
-func TestListOrganizations_SingleOrgCarriesTokenHandle(t *testing.T) {
+// The organization is the request's: its handle, with no creation date, as nothing records one.
+func TestListOrganizations_ReturnsRequestOrg(t *testing.T) {
 	got := listOrgs(t,
-		[]*models.OrganizationResponse{namedOrg("wc-01a0c318-7a4ef447")},
-		&jwtassertion.TokenClaims{OuId: "ou-1", OuHandle: "agent-manager-team"})
+		[]*models.OrganizationResponse{namedOrg("acme")},
+		&middleware.ResolvedOrg{OUID: "ou-1", OuHandle: "acme"})
 
 	require.Len(t, got, 1)
-	assert.Equal(t, "agent-manager-team", got[0]["handle"])
-	// The name is unchanged: the CLI and old links rely on it.
-	assert.Equal(t, "wc-01a0c318-7a4ef447", got[0]["name"])
+	assert.Equal(t, "acme", got[0]["name"])
+	assert.Equal(t, "acme", got[0]["handle"])
+	assert.NotContains(t, got[0], "createdAt")
 }
 
-func TestListOrganizations_MultipleOrgsOmitHandle(t *testing.T) {
-	got := listOrgs(t,
-		[]*models.OrganizationResponse{namedOrg("default"), namedOrg("other")},
-		&jwtassertion.TokenClaims{OuId: "ou-1", OuHandle: "acme"})
+// A trusted caller acting for another organization gets that organization's handle, not its token's.
+func TestListOrganizations_UsesOverriddenOrgHandle(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/orgs", nil)
+	ctx := jwtassertion.ContextWithTokenClaims(req.Context(), &jwtassertion.TokenClaims{OuId: "ou-admin", OuHandle: "platform"})
+	ctx = middleware.WithResolvedOrg(ctx, middleware.ResolvedOrg{OUID: "ou-beta", OuHandle: "beta"})
+	rec := httptest.NewRecorder()
+	NewInfraResourceController(&fakeOrgManager{orgs: []*models.OrganizationResponse{namedOrg("beta")}}, nil).
+		ListOrganizations(rec, req.WithContext(ctx))
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	require.Len(t, got, 2)
-	for _, org := range got {
-		assert.NotContains(t, org, "handle", "a token handle can't be attributed to one of several orgs")
+	var body struct {
+		Organizations []map[string]any `json:"organizations"`
 	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.Len(t, body.Organizations, 1)
+	assert.Equal(t, "beta", body.Organizations[0]["handle"])
 }
 
-func TestListOrganizations_NoHandleInTokenOmitsField(t *testing.T) {
-	for name, claims := range map[string]*jwtassertion.TokenClaims{
-		"no claims":    nil,
-		"empty handle": {OuId: "ou-1"},
-	} {
-		t.Run(name, func(t *testing.T) {
-			got := listOrgs(t, []*models.OrganizationResponse{namedOrg("wc-01a0c318-7a4ef447")}, claims)
-			require.Len(t, got, 1)
-			assert.NotContains(t, got[0], "handle")
-		})
-	}
+func TestListOrganizations_NoResolvedOrgOmitsHandle(t *testing.T) {
+	got := listOrgs(t, []*models.OrganizationResponse{namedOrg("acme")}, nil)
+	require.Len(t, got, 1)
+	assert.NotContains(t, got[0], "handle")
 }
 
 func TestGetOrganization_CarriesResolvedOrgHandle(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/orgs/wc-01a0c318-7a4ef447", nil)
+	req := httptest.NewRequest(http.MethodGet, "/orgs/acme", nil)
 	req = req.WithContext(middleware.WithResolvedOrg(req.Context(),
-		middleware.ResolvedOrg{OUID: "ou-1", OuHandle: "agent-manager-team"}))
+		middleware.ResolvedOrg{OUID: "ou-1", OuHandle: "acme"}))
 	rec := httptest.NewRecorder()
 
 	NewInfraResourceController(&fakeOrgManager{
-		orgs: []*models.OrganizationResponse{namedOrg("wc-01a0c318-7a4ef447")},
+		orgs: []*models.OrganizationResponse{namedOrg("acme")},
 	}, nil).GetOrganization(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	var body map[string]any
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-	assert.Equal(t, "agent-manager-team", body["handle"])
+	assert.Equal(t, "acme", body["handle"])
+	assert.Equal(t, "acme", body["displayName"])
+	assert.NotContains(t, body, "createdAt")
 }

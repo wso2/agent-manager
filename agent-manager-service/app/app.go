@@ -172,9 +172,10 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	// Get the raw DB instance without context - repositories will add context per-operation
 	database := db.GetDB()
 
-	// Deployment-specific AgentID provisioning; nil disables it.
+	// Deployment-specific AgentID provisioning; nil disables it. Agent
+	// identities live in the identity provider, so file sign-in has none.
 	var agentThunderProvisioning services.AgentThunderProvisioningService
-	if opts.AgentThunderProvisioning != nil {
+	if opts.AgentThunderProvisioning != nil && identityProviderConnected(cfg.AuthMode) {
 		encryptionKey, err := wiring.ProvideEncryptionKey(*cfg)
 		if err != nil {
 			slog.Error("failed to load encryption key for AgentID provisioning", "error", err)
@@ -213,7 +214,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	// so it exists when modules activate.
 	modulesCtx, modulesCancel := context.WithCancel(context.Background())
 	defer modulesCancel()
-	if err := ensureDefaultOrg(audit.WithRecorder(modulesCtx, dependencies.AuditRecorder), database, cfg.DefaultOrg); err != nil {
+	if err := ensureDefaultOrg(audit.WithRecorder(modulesCtx, dependencies.AuditRecorder), database, cfg.AuthMode, cfg.DefaultOrg); err != nil {
 		slog.Error("failed to create the default organization", "error", err)
 		os.Exit(1)
 	}
@@ -381,7 +382,7 @@ func StartModules(ctx context.Context, host *modhost.Host, database *gorm.DB, de
 		Core:          repositories.NewCoreReadAPI(database),
 		Secrets:       repositories.NewModuleSecretStore(database, deps.SecretStore),
 		InternalURL:   config.GetConfig().InternalServerPublicURL,
-		Capabilities:  map[string]any{identityv1.ID: services.NewIdentityDirectory(deps.EnvThunderResolver, deps.AgentThunderClientRepository)},
+		Capabilities:  map[string]any{identityv1.ID: identityDirectory(deps)},
 	}
 	if signer, ok := deps.AgentTokenManagerService.(services.WorkloadTokenSigner); ok {
 		attach.Tokens = signer
@@ -558,4 +559,21 @@ func stopEvents(deps *wiring.AppParams) {
 		publisher.Stop()
 	}
 	deps.EventBus.Close()
+}
+
+// identityProviderConnected reports whether sign-in goes through an identity
+// provider. With file sign-in there is none: users, groups, roles and agent
+// identities, which live in the provider, are not available.
+func identityProviderConnected(authMode string) bool {
+	return authMode != config.AuthModeFile
+}
+
+// identityDirectory is the identity.directory/v1 modules get: the identity
+// provider's, or with file sign-in one that has no environment provisioned.
+// The capability is offered either way, as modules require it.
+func identityDirectory(deps *wiring.AppParams) identityv1.Directory {
+	if !identityProviderConnected(config.GetConfig().AuthMode) {
+		return services.NoIdentityDirectory()
+	}
+	return services.NewIdentityDirectory(deps.EnvThunderResolver, deps.AgentThunderClientRepository)
 }

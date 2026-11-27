@@ -300,6 +300,8 @@ func withOrg(next http.HandlerFunc) http.HandlerFunc {
 				ctx = modkit.WithOrgID(ctx, org.OUID)
 			} else if c.OuId != "" {
 				ctx = modkit.WithOrgID(ctx, c.OuId)
+				// The handle names the organization to the core (Core().GetOrg).
+				ctx = orgctx.WithResolvedOrg(ctx, orgctx.ResolvedOrg{OUID: c.OuId, OuHandle: c.OuHandle})
 			}
 			r = r.WithContext(ctx)
 		}

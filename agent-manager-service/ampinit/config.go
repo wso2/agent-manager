@@ -89,7 +89,7 @@ func init() {
 	config.RegisterKeys(
 		"AMCTL_CLIENT_ID", "AMCTL_REDIRECT_URIS", "AMP_ADMIN_PASSWORD", "AMP_ADMIN_USERNAME",
 		"AMP_CONSOLE_CLIENT_ID", "AMP_CONSOLE_CLIENT_SECRET",
-		"AMP_DEFAULT_ORG_HANDLE", "AMP_DEFAULT_USERS", "AMP_FILE_OWNER",
+		"AMP_DEFAULT_USERS", "AMP_FILE_OWNER",
 		"CONSOLE_URL", "PLATFORM_ADMIN_OU_ID",
 		"THUNDER_ADMIN_EMAIL", "THUNDER_ADMIN_FAMILY_NAME", "THUNDER_ADMIN_GIVEN_NAME", "THUNDER_ADMIN_USERNAME",
 		"THUNDER_CORS_ORIGINS", "THUNDER_FILE_OWNER", "THUNDER_PORT", "AMP_SHARED_SECRETS_DIR",
@@ -254,11 +254,10 @@ func parseUsers(spec string) ([]User, error) {
 func LoadFileAuthConfig() (*FileAuthConfig, error) {
 	r := &envReader{}
 	cfg := &FileAuthConfig{
-		// The same id the API is given as PLATFORM_ADMIN_OU_ID, so the
-		// organization a file-mode token names is the platform admin one
-		// rather than a second organization beside it.
-		OrgUUID:   r.str("PLATFORM_ADMIN_OU_ID", config.DefaultPlatformAdminOUID),
-		OrgHandle: normaliseHandle(r.str("AMP_DEFAULT_ORG_HANDLE", defaultOrgHandle)),
+		// The trial organization, the API's DEFAULT_ORG_OU_ID too, which with
+		// file sign-in is also its platform organization.
+		OrgUUID:   r.str("DEFAULT_ORG_OU_ID", config.DefaultTrialOrgOUID),
+		OrgHandle: config.NormaliseOrgHandle(r.str("DEFAULT_ORG_HANDLE", "")),
 	}
 	extra, err := parseUsers(r.str("AMP_DEFAULT_USERS", ""))
 	if err != nil {

@@ -124,7 +124,7 @@ func newOrgServer(t *testing.T, status int, names []string) (*Factory, func()) {
 		if status == http.StatusOK {
 			items := make([]amsvc.OrganizationListItem, 0, len(names))
 			for _, n := range names {
-				items = append(items, amsvc.OrganizationListItem{Name: n, CreatedAt: time.Now().UTC()})
+				items = append(items, amsvc.OrganizationListItem{Name: n})
 			}
 			_ = json.NewEncoder(w).Encode(amsvc.OrganizationListResponse{
 				Organizations: items, Limit: 20, Offset: 0, Total: len(items),

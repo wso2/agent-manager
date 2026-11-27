@@ -213,6 +213,8 @@ func signedIn(params *wiring.AppParams, apiMux *http.ServeMux, apiMiddleware fun
 	if apiMiddleware != nil {
 		h = apiMiddleware(apiMux)
 	}
+	// After authentication, so an unauthenticated request still gets 401 first.
+	h = middleware.RequireIdentityProvider(config.GetConfig().AuthMode)(h)
 	h = params.AuthMiddleware(h)
 	h = logger.RequestLogger()(h)
 	h = middleware.AddCorrelationID()(h)

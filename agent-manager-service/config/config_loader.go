@@ -140,9 +140,14 @@ func loadSettings(strict bool) {
 
 	config.IsLocalDevEnv = r.readOptionalBool("IS_LOCAL_DEV_ENV", false)
 
+	// Trimmed before the default applies, so a blank value is unset, as amp init reads it.
+	defaultOrgOUID := strings.TrimSpace(r.readOptionalString("DEFAULT_ORG_OU_ID", ""))
+	if defaultOrgOUID == "" {
+		defaultOrgOUID = DefaultTrialOrgOUID
+	}
 	config.DefaultOrg = DefaultOrgConfig{
-		OUID:   strings.TrimSpace(r.readOptionalString("DEFAULT_ORG_OU_ID", "01900000-0000-7000-8000-000000000001")),
-		Handle: r.readOptionalString("DEFAULT_ORG_HANDLE", "default"),
+		OUID:   defaultOrgOUID,
+		Handle: NormaliseOrgHandle(r.readOptionalString("DEFAULT_ORG_HANDLE", "")),
 	}
 	d := derivedDefaults(config.ServerPort)
 	config.KeyManagerConfigurations = KeyManagerConfigurations{
@@ -310,12 +315,20 @@ func loadSettings(strict bool) {
 
 	config.RootOUHandle = r.readOptionalString("ROOT_OU_HANDLE", "admin")
 
-	// Cross-organization platform routes. Deliberately no default: an unset
-	// PLATFORM_ADMIN_OU_ID leaves the routes registered but refusing every
-	// caller, which is the safe end of the failure mode. Warned about rather
-	// than fatal so open-source and local-dev deployments — which have no
-	// platform-admin org at all — still start.
-	config.PlatformAdminOUID = strings.TrimSpace(r.readOptionalString("PLATFORM_ADMIN_OU_ID", DefaultPlatformAdminOUID))
+	// Cross-organization platform routes accept only the platform organization's
+	// tokens. Left unset, it is the trial organization with file sign-in (the
+	// only one there is) and ThunderID's built-in one with an identity provider.
+	// Set but empty, the routes stay registered but refuse every caller, the
+	// safe end of the failure mode; warned about rather than fatal so a
+	// deployment with no platform-admin org still starts.
+	platformAdminDefault := DefaultPlatformAdminOUID
+	if config.AuthMode == AuthModeFile && config.DefaultOrg.OUID != "" {
+		platformAdminDefault = config.DefaultOrg.OUID
+	}
+	config.PlatformAdminOUID = platformAdminDefault
+	if v, set := Lookup("PLATFORM_ADMIN_OU_ID"); set {
+		config.PlatformAdminOUID = strings.TrimSpace(v)
+	}
 	if config.PlatformAdminOUID == "" {
 		slog.Warn("PLATFORM_ADMIN_OU_ID is not set; cross-organization platform routes will deny every request")
 	}
@@ -760,9 +773,28 @@ func validateEventsConfig(cfg EventsConfig) []error {
 	return errs
 }
 
-// DefaultPlatformAdminOUID is the organization a single-organization install
-// (file sign-in, amp init's ThunderID bootstrap) uses.
+// DefaultPlatformAdminOUID is the platform organization with an identity
+// provider: ThunderID's built-in organization unit, the one amp init's
+// bootstrap puts every client in.
 const DefaultPlatformAdminOUID = "01900000-0000-7000-8000-000000000001"
+
+// DefaultTrialOrgHandle is the trial organization's handle when none is configured.
+const DefaultTrialOrgHandle = "default"
+
+// NormaliseOrgHandle is an organization handle as file sign-in names it: trimmed and lowercased, the default when
+// empty. amp init writes it into users.yaml this way, and the server reads it the same way, so both name the trial
+// organization alike (traces are found by handle).
+func NormaliseOrgHandle(handle string) string {
+	handle = strings.ToLower(strings.TrimSpace(handle))
+	if handle == "" {
+		return DefaultTrialOrgHandle
+	}
+	return handle
+}
+
+// DefaultTrialOrgOUID is the organization file sign-in names, a trial one:
+// connecting an identity provider starts afresh in the provider's own.
+const DefaultTrialOrgOUID = "00000000-0000-0000-0000-000000000001"
 
 // defaults are the settings worked out from the public URLs and sign-in mode
 // when they are not set themselves.
