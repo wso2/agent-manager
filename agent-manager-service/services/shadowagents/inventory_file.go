@@ -32,8 +32,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/xuri/excelize/v2"
-
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
@@ -59,11 +57,10 @@ const (
 	// maxInventoryID is the longest id, in characters.
 	maxInventoryID = 256
 	// maxXLSXUnzipBytes bounds what an Excel file may unpack to in all, and
-	// maxXLSXPartBytes a sheet or the shared strings, against zip bombs:
-	// excelize holds the parts in memory (no temporary files at these sizes)
-	// and decodes the shared strings, the styles and other small parts into
-	// up to 50 times their size. Every other XML part may be at most
-	// maxXLSXOtherXMLBytes, and maxXLSXOtherXMLTotal together.
+	// maxXLSXPartBytes a sheet or the shared strings, against zip bombs: the
+	// sheet is streamed, but the shared strings are held in memory. Every
+	// other XML part may be at most maxXLSXOtherXMLBytes, and
+	// maxXLSXOtherXMLTotal together.
 	maxXLSXUnzipBytes    = 20 << 20
 	maxXLSXPartBytes     = 8 << 20
 	maxXLSXOtherXMLBytes = 1 << 20
@@ -76,12 +73,10 @@ const (
 	// maxXLSXParts bounds the parts of an Excel file; a workbook has a few
 	// dozen.
 	maxXLSXParts = 1000
-	// maxXLSXColumns is the widest sheet read: excelize reads a row as one
-	// value per column up to its last value, so a value in column XFD makes
-	// every row 16384 values.
+	// maxXLSXColumns is the widest sheet read: a row is read as one value
+	// per column up to its last value, and a value in a column beyond it
+	// refuses the file.
 	maxXLSXColumns = 200
-	// maxXLSXParses is how many Excel files are read at once.
-	maxXLSXParses = 2
 	// maxQuoted is how much of a value from the file a problem quotes.
 	maxQuoted = 60
 	// maxProblemMessage bounds a problem's message, in characters.
@@ -424,7 +419,7 @@ func (r *inventoryRow) warn(format string, a ...any) {
 
 // add turns one row into an agent, or leaves it out. The row's warnings
 // and the problems with its values are recorded only when it is kept.
-func (p *inventoryParser) add(row int, r inventoryRow, allowSerialDate bool) {
+func (p *inventoryParser) add(row int, r inventoryRow, dates excelDates) {
 	v := r.values
 	id, name := v[InventoryFieldID], v[InventoryFieldName]
 	switch {
@@ -454,7 +449,7 @@ func (p *inventoryParser) add(row int, r inventoryRow, allowSerialDate bool) {
 		OwnerHint: MinimiseOwnerHint(models.ShadowOwnerHint{Name: v[InventoryFieldOwnerName], Email: v[InventoryFieldOwnerEmail]}),
 	}
 	if raw := v[InventoryFieldCreatedAt]; raw != "" {
-		if t, ok := parseInventoryDate(raw, allowSerialDate); ok {
+		if t, ok := parseInventoryDate(raw, dates); ok {
 			f.ProviderCreatedAt = &t
 		} else {
 			p.problem(row, "createdAt %s is not a date such as 2026-01-15 or 2026-01-15T09:30:00Z; the date was left out.",
@@ -523,21 +518,33 @@ var inventoryDateLayouts = []string{
 	"2006-01-02",
 }
 
-// parseInventoryDate reads createdAt. An Excel date shown as a number (a
-// date cell formatted as General) is read as an Excel date when
-// allowSerial.
-func parseInventoryDate(s string, allowSerial bool) (time.Time, bool) {
+// excelDates says whether createdAt may be an Excel date number, and in
+// which of Excel's date systems.
+type excelDates uint8
+
+const (
+	// noExcelDates: a number is not a date (JSON and CSV).
+	noExcelDates excelDates = iota
+	// excelDates1900 counts days from 1900-01-01, as Excel does by default.
+	excelDates1900
+	// excelDates1904 counts days from 1904-01-01 (workbooks from old Excel
+	// for Mac).
+	excelDates1904
+)
+
+// parseInventoryDate reads createdAt. In an Excel file, a number is an
+// Excel date: Excel stores a date cell as the number of days since the
+// start of its date system.
+func parseInventoryDate(s string, dates excelDates) (time.Time, bool) {
 	s = strings.TrimSpace(s)
 	for _, layout := range inventoryDateLayouts {
 		if t, err := time.Parse(layout, s); err == nil {
 			return t.UTC(), true
 		}
 	}
-	if allowSerial {
-		if n, err := strconv.ParseFloat(s, 64); err == nil && n >= 1 && n < 2958466 {
-			if t, err := excelize.ExcelDateToTime(n, false); err == nil {
-				return t.UTC(), true
-			}
+	if dates != noExcelDates {
+		if n, err := strconv.ParseFloat(s, 64); err == nil {
+			return excelSerialTime(n, dates == excelDates1904)
 		}
 	}
 	return time.Time{}, false
@@ -648,7 +655,7 @@ func (p *inventoryParser) jsonAgent(row int, item json.RawMessage) {
 		}
 		r.values[field] = s
 	}
-	p.add(row, r, false)
+	p.add(row, r, noExcelDates)
 }
 
 // jsonText reads a text value: a string, or a number or boolean as written.
@@ -739,7 +746,7 @@ func (p *inventoryParser) columns(header []string) ([]string, error) {
 }
 
 // row adds one CSV or Excel row; a row with no value is skipped.
-func (p *inventoryParser) row(rowNum int, cols, cells []string, allowSerialDate bool) error {
+func (p *inventoryParser) row(rowNum int, cols, cells []string, dates excelDates) error {
 	r := inventoryRow{values: map[string]string{}}
 	empty := true
 	for i, c := range cells {
@@ -763,7 +770,7 @@ func (p *inventoryParser) row(rowNum int, cols, cells []string, allowSerialDate 
 	if err := p.countAgent(); err != nil {
 		return err
 	}
-	p.add(rowNum, r, allowSerialDate)
+	p.add(rowNum, r, dates)
 	return nil
 }
 
@@ -808,7 +815,7 @@ func (p *inventoryParser) parseCSV(data []byte) error {
 		start, _ := r.FieldPos(0)
 		rowNum += 1 + max(start-prevEnd-1, 0)
 		prevEnd = csvRecordEnd(r, rec)
-		if err := p.row(rowNum, cols, rec, false); err != nil {
+		if err := p.row(rowNum, cols, rec, noExcelDates); err != nil {
 			return err
 		}
 	}
@@ -829,9 +836,6 @@ func csvErrorMessage(err error) string {
 	return "it is not valid CSV"
 }
 
-// xlsxParses holds a slot per Excel file being read.
-var xlsxParses = make(chan struct{}, maxXLSXParses)
-
 const msgXLSXInvalid = "The file is not a valid Excel workbook. Save it as an Excel workbook (.xlsx), " +
 	"then upload it again."
 
@@ -841,9 +845,9 @@ const msgXLSXTooManyStrings = "The Excel file holds too many different text valu
 const msgXLSXTooLarge = "The Excel file unpacks to too much data to read. Remove the columns that are not in " +
 	"the format, or save it as CSV UTF-8, then upload it again."
 
-// checkXLSXSize refuses an Excel file that unpacks to more than excelize is
-// allowed to hold, from the sizes its zip directory declares (the zip reader
-// fails on a part longer than declared).
+// checkXLSXSize refuses an Excel file that unpacks to too much, from the
+// sizes its zip directory declares (the zip reader fails on a part longer
+// than declared).
 func checkXLSXSize(data []byte) error {
 	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
@@ -855,8 +859,7 @@ func checkXLSXSize(data []byte) error {
 	var total, otherXML uint64
 	for _, zf := range zr.File {
 		size := zf.UncompressedSize64
-		// Part names as excelize reads them.
-		name := strings.ToLower(strings.ReplaceAll(zf.Name, "\\", "/"))
+		name := xlsxPartKey(zf.Name)
 		switch {
 		case name == "xl/sharedstrings.xml":
 			if size > maxXLSXPartBytes {
@@ -871,14 +874,14 @@ func checkXLSXSize(data []byte) error {
 				return inventoryFileErr(msgXLSXTooLarge)
 			}
 		case strings.HasSuffix(name, ".xml") || strings.HasSuffix(name, ".rels") || strings.HasSuffix(name, ".vml"):
-			// Styles, the workbook, relationships, content types and the
-			// like, which excelize decodes whole.
+			// The workbook, relationships, styles, content types and the
+			// like.
 			if size > maxXLSXOtherXMLBytes {
 				return inventoryFileErr(msgXLSXTooLarge)
 			}
 			otherXML += size
 		}
-		// Pictures and other files are held, never decoded.
+		// Pictures and other files are never read.
 		total += size
 	}
 	if total > maxXLSXUnzipBytes || otherXML > maxXLSXOtherXMLTotal {
@@ -887,8 +890,8 @@ func checkXLSXSize(data []byte) error {
 	return nil
 }
 
-// checkXLSXStrings refuses shared strings that excelize would decode into
-// too much memory: too many strings, or too many elements in them.
+// checkXLSXStrings refuses shared strings that would be read into too much
+// memory: too many strings, or too many elements in them.
 func checkXLSXStrings(zf *zip.File) error {
 	rc, err := zf.Open()
 	if err != nil {
@@ -909,55 +912,34 @@ func (p *inventoryParser) parseXLSX(data []byte) error {
 	if err := checkXLSXSize(data); err != nil {
 		return err
 	}
-	xlsxParses <- struct{}{}
-	defer func() { <-xlsxParses }()
-	f, err := excelize.OpenReader(bytes.NewReader(data), excelize.Options{
-		UnzipSizeLimit:    maxXLSXUnzipBytes,
-		UnzipXMLSizeLimit: maxXLSXPartBytes,
-		// Date cells in the default date formats read as 2026-01-15.
-		ShortDatePattern: "yyyy-mm-dd",
-	})
+	wb, err := openXLSX(data)
 	if err != nil {
-		if strings.Contains(err.Error(), "unzip size") {
-			return inventoryFileErr(msgXLSXTooLarge)
-		}
-		return inventoryFileErr(msgXLSXInvalid)
+		return xlsxFileErr(err)
 	}
-	defer func() { _ = f.Close() }()
-	sheets := f.GetSheetList()
-	if len(sheets) == 0 {
-		return inventoryFileErr("The Excel workbook has no sheet.")
-	}
-	if col, row, wide := xlsxWideCell(f, xlsxFirstSheetParts(f)); wide {
-		name, _ := excelize.ColumnNumberToName(col)
-		return inventoryFileErr("The first sheet has a value in column %s (row %d). At most %d columns can be "+
-			"read: delete the columns that are not in the format, then upload it again.", name, row, maxXLSXColumns)
-	}
-	rows, err := f.Rows(sheets[0])
+	sst, err := wb.readSharedStrings()
 	if err != nil {
-		return inventoryFileErr("The first sheet of the Excel workbook cannot be read.")
+		return xlsxFileErr(err)
 	}
-	defer func() { _ = rows.Close() }()
+	dates := excelDates1900
+	if wb.date1904 {
+		dates = excelDates1904
+	}
 	var cols []string
-	// Next moves one spreadsheet row at a time, empty rows included, so the
-	// count is the row number.
-	for rowNum := 1; rows.Next(); rowNum++ {
-		cells, err := rows.Columns()
-		if err != nil {
-			return inventoryFileErr("The first sheet of the Excel workbook cannot be read.")
-		}
+	err = wb.eachRow(sst, maxXLSXColumns, func(rowNum int, cells []string) error {
 		if cols == nil {
-			if cols, err = p.columns(cells); err != nil {
-				return err
+			// The header is the sheet's first row: a sheet that does not
+			// start at row 1 has no column names.
+			if rowNum != 1 {
+				cells = nil
 			}
-			continue
-		}
-		if err := p.row(rowNum, cols, cells, true); err != nil {
+			var err error
+			cols, err = p.columns(cells)
 			return err
 		}
-	}
-	if rows.Error() != nil {
-		return inventoryFileErr("The first sheet of the Excel workbook cannot be read.")
+		return p.row(rowNum, cols, cells, dates)
+	})
+	if err != nil {
+		return xlsxFileErr(err)
 	}
 	if cols == nil {
 		return inventoryFileErr("The file is empty. Download a template, fill in your agents and upload it.")
@@ -965,153 +947,25 @@ func (p *inventoryParser) parseXLSX(data []byte) error {
 	return nil
 }
 
-// xlsxFirstSheetParts returns the part that holds the workbook's first
-// sheet, found as excelize finds it. When it cannot be found that way, it
-// returns every part, so the width check still covers the sheet excelize
-// reads.
-func xlsxFirstSheetParts(f *excelize.File) [][]byte {
-	if part, ok := xlsxFirstSheetPart(f); ok {
-		return [][]byte{part}
+// xlsxFileErr says why an Excel file cannot be read.
+func xlsxFileErr(err error) error {
+	var wide *xlsxWideCellError
+	var bad *InventoryFileError
+	switch {
+	case errors.As(err, &bad):
+		return err
+	case errors.As(err, &wide):
+		return inventoryFileErr("The first sheet has a value in column %s (row %d). At most %d columns can be "+
+			"read: delete the columns that are not in the format, then upload it again.",
+			xlsxColumnName(wide.Col), wide.Row, maxXLSXColumns)
+	case errors.Is(err, errXLSXTooManyStrings):
+		return inventoryFileErr(msgXLSXTooManyStrings)
+	case errors.Is(err, errXLSXNoSheet):
+		return inventoryFileErr("The Excel workbook has no sheet.")
+	case errors.Is(err, errXLSXSheet):
+		return inventoryFileErr("The first sheet of the Excel workbook cannot be read.")
 	}
-	var parts [][]byte
-	f.Pkg.Range(func(_, v any) bool {
-		if b, ok := v.([]byte); ok {
-			parts = append(parts, b)
-		}
-		return true
-	})
-	return parts
-}
-
-// xlsxRels is a relationships part.
-type xlsxRels struct {
-	Rels []struct {
-		ID     string `xml:"Id,attr"`
-		Type   string `xml:"Type,attr"`
-		Target string `xml:"Target,attr"`
-	} `xml:"Relationship"`
-}
-
-func xlsxReadRels(f *excelize.File, name string) (xlsxRels, bool) {
-	var rels xlsxRels
-	v, ok := f.Pkg.Load(name)
-	if !ok {
-		return rels, false
-	}
-	b, ok := v.([]byte)
-	if !ok {
-		return rels, false
-	}
-	d := xml.NewDecoder(bytes.NewReader(b))
-	d.CharsetReader = f.CharsetReader
-	return rels, d.Decode(&rels) == nil
-}
-
-func xlsxFirstSheetPart(f *excelize.File) ([]byte, bool) {
-	if f.WorkBook == nil || len(f.WorkBook.Sheets.Sheet) == 0 {
-		return nil, false
-	}
-	// excelize finds a sheet by its name ignoring case: with two such names
-	// it may read either.
-	names := map[string]bool{}
-	for _, sh := range f.WorkBook.Sheets.Sheet {
-		key := strings.ToLower(sh.Name)
-		if names[key] {
-			return nil, false
-		}
-		names[key] = true
-	}
-	root, ok := xlsxReadRels(f, "_rels/.rels")
-	if !ok {
-		return nil, false
-	}
-	wbPath := ""
-	for _, rel := range root.Rels {
-		if rel.Type == excelize.SourceRelationshipOfficeDocument {
-			wbPath = strings.TrimPrefix(rel.Target, "/")
-			break
-		}
-	}
-	if wbPath == "" {
-		return nil, false
-	}
-	dir := path.Dir(wbPath)
-	relsPath := strings.TrimPrefix(dir+"/_rels/"+path.Base(wbPath)+".rels", "./")
-	rels, ok := xlsxReadRels(f, relsPath)
-	if !ok {
-		return nil, false
-	}
-	id := f.WorkBook.Sheets.Sheet[0].ID
-	for _, rel := range rels.Rels {
-		if rel.ID != id {
-			continue
-		}
-		// As excelize's getWorksheetPath.
-		target := strings.TrimPrefix(strings.ReplaceAll(path.Clean(dir+"/"+rel.Target), "\\", "/"), "/")
-		if strings.HasPrefix(rel.Target, "/") {
-			target = strings.TrimPrefix(strings.ReplaceAll(path.Clean(rel.Target), "\\", "/"), "/")
-		}
-		if v, ok := f.Pkg.Load(target); ok {
-			b, ok := v.([]byte)
-			return b, ok
-		}
-		return nil, false
-	}
-	return nil, false
-}
-
-// xlsxWideCell finds the first cell with a value (or formula) beyond
-// maxXLSXColumns in the sheet parts, reading them as excelize does: an
-// empty value, like an empty formatted cell, is not read.
-func xlsxWideCell(f *excelize.File, parts [][]byte) (col, row int, wide bool) {
-	for _, part := range parts {
-		d := xml.NewDecoder(bytes.NewReader(part))
-		d.CharsetReader = f.CharsetReader
-		row, col = 0, 0
-		inCell, inText := false, false
-		for {
-			tok, err := d.Token()
-			if err != nil {
-				// The end, or where excelize stops reading too.
-				break
-			}
-			switch t := tok.(type) {
-			case xml.StartElement:
-				switch t.Name.Local {
-				case "row":
-					row++
-					col = 0
-					if n, err := strconv.Atoi(xmlAttr(t, "r")); err == nil {
-						row = n
-					}
-				case "c":
-					col++
-					if c, _, err := excelize.CellNameToCoordinates(xmlAttr(t, "r")); err == nil {
-						col = c
-					}
-					inCell = true
-				case "v", "t":
-					inText = inCell
-				case "f":
-					if inCell && col > maxXLSXColumns {
-						return col, row, true
-					}
-				}
-			case xml.CharData:
-				if inText && len(t) > 0 && col > maxXLSXColumns {
-					return col, row, true
-				}
-			case xml.EndElement:
-				switch t.Name.Local {
-				case "c":
-					inCell, inText = false, false
-				case "v", "t":
-					inText = false
-				}
-			}
-		}
-	}
-	return 0, 0, false
+	return inventoryFileErr(msgXLSXInvalid)
 }
 
 func xmlAttr(e xml.StartElement, name string) string {
@@ -1220,42 +1074,12 @@ func inventoryJSONTemplate(rows [][]string) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-// inventoryXLSXTemplate writes one "Agents" sheet, every cell as text.
+// inventoryXLSXTemplate writes one "Agents" sheet, every cell as text, the
+// header bold.
 func inventoryXLSXTemplate(rows [][]string) ([]byte, error) {
-	f := excelize.NewFile()
-	defer func() { _ = f.Close() }()
-	const sheet = "Agents"
-	if err := f.SetSheetName("Sheet1", sheet); err != nil {
-		return nil, fmt.Errorf("naming the template sheet: %w", err)
-	}
-	for r, row := range rows {
-		for c, v := range row {
-			cell, err := excelize.CoordinatesToCellName(c+1, r+1)
-			if err != nil {
-				return nil, err
-			}
-			if err := f.SetCellStr(sheet, cell, v); err != nil {
-				return nil, fmt.Errorf("writing the template: %w", err)
-			}
-		}
-	}
-	lastCol, err := excelize.ColumnNumberToName(len(rows[0]))
-	if err != nil {
-		return nil, err
-	}
-	bold, err := f.NewStyle(&excelize.Style{Font: &excelize.Font{Bold: true}})
-	if err != nil {
-		return nil, fmt.Errorf("styling the template: %w", err)
-	}
-	if err := f.SetCellStyle(sheet, "A1", lastCol+"1", bold); err != nil {
-		return nil, fmt.Errorf("styling the template: %w", err)
-	}
-	if err := f.SetColWidth(sheet, "A", lastCol, 24); err != nil {
-		return nil, fmt.Errorf("styling the template: %w", err)
-	}
-	buf, err := f.WriteToBuffer()
+	b, err := writeXLSX("Agents", rows, 24)
 	if err != nil {
 		return nil, fmt.Errorf("writing the Excel template: %w", err)
 	}
-	return buf.Bytes(), nil
+	return b, nil
 }

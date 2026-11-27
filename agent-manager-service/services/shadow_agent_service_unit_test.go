@@ -1316,7 +1316,7 @@ func TestShadowCustomInventoryStoresNoSecret(t *testing.T) {
 	}
 	svc := newShadowSvc(repo)
 	for _, old := range []map[string]any{
-		{"agentsUrl": "https://agents.example.com/v1/agents"}, {"apiKey": "k-1234567890"},
+		{"agentsUrl": "https://agents.example.com/v1/agents"}, {"apiKey": "x"},
 	} {
 		_, err := svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
 			Name: "old", Provider: models.ShadowProviderCustom, Settings: old,

@@ -21,14 +21,18 @@ import (
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
+	"encoding/xml"
+	"errors"
 	"fmt"
+	"io"
+	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/xuri/excelize/v2"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
@@ -165,19 +169,47 @@ func TestInventoryDates(t *testing.T) {
 		"2026-01-15 09:30":          time.Date(2026, 1, 15, 9, 30, 0, 0, time.UTC),
 		"2026-01-15 09:30:10":       time.Date(2026, 1, 15, 9, 30, 10, 0, time.UTC),
 	} {
-		got, ok := parseInventoryDate(in, false)
+		got, ok := parseInventoryDate(in, noExcelDates)
 		require.True(t, ok, in)
 		assert.Equal(t, want, got, in)
 	}
-	_, ok := parseInventoryDate("46037", false)
+	_, ok := parseInventoryDate("46037", noExcelDates)
 	assert.False(t, ok, "a number is a date only in Excel")
-	got, ok := parseInventoryDate("46037.5", true)
-	require.True(t, ok)
-	assert.Equal(t, time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC), got)
-	for _, bad := range []string{"yesterday", "15/01/2026", "2026-13-01", "0"} {
-		_, ok := parseInventoryDate(bad, true)
+	for _, bad := range []string{"yesterday", "15/01/2026", "2026-13-01", "0", "-5", "NaN", "2958466", "60"} {
+		_, ok := parseInventoryDate(bad, excelDates1900)
 		assert.False(t, ok, bad)
 	}
+}
+
+// Excel stores a date as a number of days: from 1900-01-01 as day 1, with
+// the 1900-02-29 that never was as day 60, or from 1904-01-01 as day 0.
+func TestInventoryExcelDates(t *testing.T) {
+	day := func(y int, m time.Month, d int) time.Time { return time.Date(y, m, d, 0, 0, 0, 0, time.UTC) }
+	for _, tc := range []struct {
+		in    string
+		dates excelDates
+		want  time.Time
+	}{
+		{"1", excelDates1900, day(1900, 1, 1)},
+		{"59", excelDates1900, day(1900, 2, 28)},
+		{"61", excelDates1900, day(1900, 3, 1)},
+		{"46037", excelDates1900, day(2026, 1, 15)},
+		{"46037.5", excelDates1900, time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)},
+		// 09:30 as Excel writes it.
+		{"46037.395833333336", excelDates1900, time.Date(2026, 1, 15, 9, 30, 0, 0, time.UTC)},
+		{"4.6037E4", excelDates1900, day(2026, 1, 15)},
+		{"2958465", excelDates1900, day(9999, 12, 31)},
+		{"1", excelDates1904, day(1904, 1, 2)},
+		{"44575", excelDates1904, day(2026, 1, 15)},
+		{"44575.75", excelDates1904, time.Date(2026, 1, 15, 18, 0, 0, 0, time.UTC)},
+		{"2026-01-15", excelDates1904, day(2026, 1, 15)},
+	} {
+		got, ok := parseInventoryDate(tc.in, tc.dates)
+		require.True(t, ok, tc.in)
+		assert.Equal(t, tc.want, got, "%s in date system %d", tc.in, tc.dates)
+	}
+	_, ok := parseInventoryDate("2958465", excelDates1904)
+	assert.False(t, ok, "after 9999-12-31")
 }
 
 func TestInventoryRequiredFieldsAndIDs(t *testing.T) {
@@ -357,23 +389,43 @@ func TestInventoryJSON(t *testing.T) {
 	parseFails(t, "a.json", []byte(`[{"name": "x"}]`), "None of the 1 agents")
 }
 
-// buildXLSX writes a workbook whose first sheet has rows; a time.Time is
-// written as a date cell.
+// xlsxRowsXML writes rows as the <row> elements of a sheet: a string as an
+// inline string, a bool as a boolean, a time.Time as Excel stores a date (a
+// number of days, with a date style) and any other value as a number.
+func xlsxRowsXML(rows [][]any) string {
+	var b strings.Builder
+	for r, row := range rows {
+		fmt.Fprintf(&b, `<row r="%d">`, r+1)
+		for c, v := range row {
+			ref := xlsxColumnName(c+1) + strconv.Itoa(r+1)
+			switch v := v.(type) {
+			case string:
+				b.WriteString(`<c r="` + ref + `" t="inlineStr"><is><t>`)
+				_ = xml.EscapeText(&b, []byte(v))
+				b.WriteString(`</t></is></c>`)
+			case bool:
+				n := 0
+				if v {
+					n = 1
+				}
+				fmt.Fprintf(&b, `<c r="%s" t="b"><v>%d</v></c>`, ref, n)
+			case time.Time:
+				days := float64(v.Sub(time.Date(1899, 12, 30, 0, 0, 0, 0, time.UTC))) / float64(24*time.Hour)
+				fmt.Fprintf(&b, `<c r="%s" s="1"><v>%s</v></c>`, ref, strconv.FormatFloat(days, 'g', -1, 64))
+			default:
+				fmt.Fprintf(&b, `<c r="%s"><v>%v</v></c>`, ref, v)
+			}
+		}
+		b.WriteString(`</row>`)
+	}
+	return b.String()
+}
+
+// buildXLSX writes a workbook whose first sheet has rows (see xlsxRowsXML),
+// and a second sheet that is not read.
 func buildXLSX(t *testing.T, rows [][]any) []byte {
 	t.Helper()
-	f := excelize.NewFile()
-	defer func() { _ = f.Close() }()
-	_, err := f.NewSheet("Second")
-	require.NoError(t, err)
-	require.NoError(t, f.SetCellStr("Second", "A1", "not read"))
-	for r, row := range rows {
-		cell, err := excelize.CoordinatesToCellName(1, r+1)
-		require.NoError(t, err)
-		require.NoError(t, f.SetSheetRow("Sheet1", cell, &row))
-	}
-	buf, err := f.WriteToBuffer()
-	require.NoError(t, err)
-	return buf.Bytes()
+	return rawXLSX(t, "", xlsxRowsXML(rows), `<row r="1"><c r="A1" t="inlineStr"><is><t>not read</t></is></c></row>`)
 }
 
 func TestInventoryXLSX(t *testing.T) {
@@ -407,63 +459,83 @@ func TestInventoryXLSX(t *testing.T) {
 	parseFails(t, "a.xlsx", []byte("PK not really a zip"), "not a valid Excel workbook")
 }
 
-// rawXLSX writes a minimal workbook with the given shared strings and
-// first sheet rows (sheetData XML), a second sheet, and extra parts given as
-// name, content pairs.
-func rawXLSX(t *testing.T, sst, rows, second string, extra ...string) []byte {
+const (
+	xlsxNS = `xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ` +
+		`xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"`
+	xlsxRelNS   = `xmlns="http://schemas.openxmlformats.org/package/2006/relationships"`
+	xlsxRelType = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/"
+)
+
+// xlsxTestParts are the parts of a minimal workbook with the given shared
+// strings and first sheet rows (sheetData XML), and a second sheet.
+func xlsxTestParts(sst, rows, second string) map[string]string {
+	const decl = `<?xml version="1.0" encoding="UTF-8"?>`
+	return map[string]string{
+		"[Content_Types].xml": decl + `<Types ` +
+			`xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
+			`<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
+			`<Default Extension="xml" ContentType="application/xml"/>` +
+			`<Override PartName="/xl/workbook.xml" ` +
+			`ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>` +
+			`<Override PartName="/xl/worksheets/sheet1.xml" ` +
+			`ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>` +
+			`<Override PartName="/xl/worksheets/sheet2.xml" ` +
+			`ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`,
+		"_rels/.rels": decl + `<Relationships ` + xlsxRelNS + `><Relationship Id="rId1" ` +
+			`Type="` + xlsxRelType + `officeDocument" Target="xl/workbook.xml"/></Relationships>`,
+		"xl/workbook.xml": decl + `<workbook ` + xlsxNS + `><sheets>` +
+			`<sheet name="Agents" sheetId="1" r:id="rId1"/><sheet name="Notes" sheetId="2" r:id="rId3"/>` +
+			`</sheets></workbook>`,
+		"xl/_rels/workbook.xml.rels": decl + `<Relationships ` + xlsxRelNS + `>` +
+			`<Relationship Id="rId1" Type="` + xlsxRelType + `worksheet" Target="worksheets/sheet1.xml"/>` +
+			`<Relationship Id="rId3" Type="` + xlsxRelType + `worksheet" Target="worksheets/sheet2.xml"/>` +
+			`<Relationship Id="rId2" Type="` + xlsxRelType + `sharedStrings" Target="sharedStrings.xml"/>` +
+			`</Relationships>`,
+		"xl/sharedStrings.xml":     decl + `<sst ` + xlsxNS + `>` + sst + `</sst>`,
+		"xl/worksheets/sheet1.xml": decl + `<worksheet ` + xlsxNS + `><sheetData>` + rows + `</sheetData></worksheet>`,
+		"xl/worksheets/sheet2.xml": decl + `<worksheet ` + xlsxNS + `><sheetData>` + second + `</sheetData></worksheet>`,
+	}
+}
+
+// zipXLSX zips the parts, [Content_Types].xml first.
+func zipXLSX(t *testing.T, parts map[string]string) []byte {
 	t.Helper()
+	names := make([]string, 0, len(parts))
+	for n := range parts {
+		names = append(names, n)
+	}
+	sort.Slice(names, func(i, j int) bool {
+		if (names[i] == "[Content_Types].xml") != (names[j] == "[Content_Types].xml") {
+			return names[i] == "[Content_Types].xml"
+		}
+		return names[i] < names[j]
+	})
 	var b bytes.Buffer
 	z := zip.NewWriter(&b)
-	add := func(name, body string) {
+	for _, name := range names {
 		w, err := z.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Deflate})
 		require.NoError(t, err)
-		_, err = w.Write([]byte(body))
+		_, err = w.Write([]byte(parts[name]))
 		require.NoError(t, err)
-	}
-	const ns = `xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"`
-	add("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8"?><Types `+
-		`xmlns="http://schemas.openxmlformats.org/package/2006/content-types">`+
-		`<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>`+
-		`<Default Extension="xml" ContentType="application/xml"/>`+
-		`<Override PartName="/xl/workbook.xml" `+
-		`ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>`+
-		`<Override PartName="/xl/worksheets/sheet1.xml" `+
-		`ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`+
-		`<Override PartName="/xl/worksheets/sheet2.xml" `+
-		`ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`)
-	add("_rels/.rels", `<?xml version="1.0" encoding="UTF-8"?><Relationships `+
-		`xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" `+
-		`Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" `+
-		`Target="xl/workbook.xml"/></Relationships>`)
-	add("xl/workbook.xml", `<?xml version="1.0" encoding="UTF-8"?><workbook `+ns+
-		` xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>`+
-		`<sheet name="Agents" sheetId="1" r:id="rId1"/><sheet name="Notes" sheetId="2" r:id="rId3"/>`+
-		`</sheets></workbook>`)
-	add("xl/_rels/workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8"?><Relationships `+
-		`xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`+
-		`<Relationship Id="rId1" `+
-		`Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" `+
-		`Target="worksheets/sheet1.xml"/>`+
-		`<Relationship Id="rId3" `+
-		`Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" `+
-		`Target="worksheets/sheet2.xml"/>`+
-		`<Relationship Id="rId2" `+
-		`Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" `+
-		`Target="sharedStrings.xml"/></Relationships>`)
-	add("xl/sharedStrings.xml", `<?xml version="1.0" encoding="UTF-8"?><sst `+ns+`>`+sst+`</sst>`)
-	add("xl/worksheets/sheet1.xml", `<?xml version="1.0" encoding="UTF-8"?><worksheet `+ns+`><sheetData>`+
-		rows+`</sheetData></worksheet>`)
-	add("xl/worksheets/sheet2.xml", `<?xml version="1.0" encoding="UTF-8"?><worksheet `+ns+`><sheetData>`+
-		second+`</sheetData></worksheet>`)
-	for i := 0; i+1 < len(extra); i += 2 {
-		add(extra[i], extra[i+1])
 	}
 	require.NoError(t, z.Close())
 	return b.Bytes()
 }
 
-// An Excel file that unpacks to too much, or whose first sheet is too wide
-// to read row by row, is refused before excelize reads it.
+// rawXLSX writes a minimal workbook with the given shared strings and
+// first sheet rows (sheetData XML), a second sheet, and extra parts given as
+// name, content pairs.
+func rawXLSX(t *testing.T, sst, rows, second string, extra ...string) []byte {
+	t.Helper()
+	parts := xlsxTestParts(sst, rows, second)
+	for i := 0; i+1 < len(extra); i += 2 {
+		parts[extra[i]] = extra[i+1]
+	}
+	return zipXLSX(t, parts)
+}
+
+// An Excel file that unpacks to too much, or whose first sheet has a value
+// beyond the widest read, is refused.
 func TestInventoryXLSXLimits(t *testing.T) {
 	header := `<row r="1"><c r="A1" t="inlineStr"><is><t>id</t></is></c>` +
 		`<c r="B1" t="inlineStr"><is><t>name</t></is></c></row>`
@@ -494,14 +566,14 @@ func TestInventoryXLSXLimits(t *testing.T) {
 	parseFails(t, "a.xlsx", rawXLSX(t, part, header+agent+`<row r="3">`+part+`</row>`,
 		`<row r="1">`+part+`</row>`), "unpacks to too much data")
 
-	// Shared strings that excelize would decode into far more memory: too
-	// many strings, or too many elements in them.
+	// Shared strings that would be read into far more memory: too many
+	// strings, or too many elements in them.
 	parseFails(t, "a.xlsx", rawXLSX(t, strings.Repeat(`<si/>`, maxXLSXStrings+1), header+agent, ""),
 		"too many different text values")
 	parseFails(t, "a.xlsx", rawXLSX(t, `<si>`+strings.Repeat(`<r><t/></r>`, maxXLSXStringTags/3+1)+`</si>`,
 		header+agent, ""), "too many different text values")
 
-	// Styles and other parts excelize decodes whole are small.
+	// Styles and other XML parts are small.
 	styles := func(n int) string {
 		return `<?xml version="1.0" encoding="UTF-8"?><styleSheet><cellXfs>` + strings.Repeat(`<xf/>`, n/5) +
 			`</cellXfs></styleSheet>`
@@ -519,38 +591,358 @@ func TestInventoryXLSXLimits(t *testing.T) {
 // A full-size workbook as Excel writes it, with shared strings and a few
 // hundred styles, is read.
 func TestInventoryXLSXFullSize(t *testing.T) {
-	f := excelize.NewFile()
-	defer func() { _ = f.Close() }()
-	header := make([]any, 0, len(inventoryFields))
+	var sst, rows strings.Builder
+	index := map[string]int{}
+	shared := func(s string) int {
+		i, ok := index[s]
+		if !ok {
+			i = len(index)
+			index[s] = i
+			sst.WriteString(`<si><t>`)
+			_ = xml.EscapeText(&sst, []byte(s))
+			sst.WriteString(`</t></si>`)
+		}
+		return i
+	}
+	writeRow := func(r int, values []string) {
+		fmt.Fprintf(&rows, `<row r="%d" spans="1:%d">`, r, len(values))
+		for c, v := range values {
+			fmt.Fprintf(&rows, `<c r="%s%d" s="%d" t="s"><v>%d</v></c>`, xlsxColumnName(c+1), r, r%300, shared(v))
+		}
+		rows.WriteString(`</row>`)
+	}
+	header := make([]string, 0, len(inventoryFields))
 	for _, fl := range inventoryFields {
 		header = append(header, fl.Name)
 	}
-	require.NoError(t, f.SetSheetRow("Sheet1", "A1", &header))
-	styles := make([]int, 0, 300)
-	for i := range 300 {
-		font := &excelize.Font{Size: float64(8 + i%20), Bold: i%2 == 0}
-		id, err := f.NewStyle(&excelize.Style{Font: font, NumFmt: i % 50})
-		require.NoError(t, err)
-		styles = append(styles, id)
-	}
+	writeRow(1, header)
 	for r := 2; r <= MaxInventoryAgents+1; r++ {
-		row := make([]any, 0, len(inventoryFields))
+		row := make([]string, 0, len(inventoryFields))
 		for c := range inventoryFields {
 			row = append(row, fmt.Sprintf("value %d of row %d, column %d", c, r, c))
 		}
 		row[0], row[4] = fmt.Sprintf("agent-%05d", r), fmt.Sprintf("https://agents.example.com/%d", r)
 		row[12], row[13] = "2026-01-15", "team=t; region=eu"
-		cell, err := excelize.CoordinatesToCellName(1, r)
-		require.NoError(t, err)
-		require.NoError(t, f.SetSheetRow("Sheet1", cell, &row))
-		require.NoError(t, f.SetCellStyle("Sheet1", cell, cell, styles[r%len(styles)]))
+		writeRow(r, row)
 	}
-	buf, err := f.WriteToBuffer()
-	require.NoError(t, err)
-	out, err := ParseInventoryFile("agents.xlsx", buf.Bytes())
+	var styles strings.Builder
+	styles.WriteString(`<?xml version="1.0" encoding="UTF-8"?><styleSheet ` + xlsxNS + `><fonts count="300">`)
+	for i := range 300 {
+		fmt.Fprintf(&styles, `<font><sz val="%d"/><name val="Calibri"/></font>`, 8+i%20)
+	}
+	styles.WriteString(`</fonts><cellXfs count="300">`)
+	for i := range 300 {
+		fmt.Fprintf(&styles, `<xf numFmtId="%d" fontId="%d" applyFont="1"/>`, i%50, i)
+	}
+	styles.WriteString(`</cellXfs></styleSheet>`)
+	data := rawXLSX(t, sst.String(), rows.String(), "", "xl/styles.xml", styles.String())
+	require.Less(t, len(data), MaxInventoryFileBytes)
+	out, err := ParseInventoryFile("agents.xlsx", data)
 	require.NoError(t, err)
 	assert.Len(t, out.Findings, MaxInventoryAgents)
 	assert.Zero(t, out.ProblemCount)
+	assert.Equal(t, "value 1 of row 2, column 1", out.Findings[0].DisplayName)
+}
+
+// Workbooks as Excel, LibreOffice, Google Sheets and other tools write them.
+func TestInventoryXLSXShapes(t *testing.T) {
+	inline := func(ref, s string) string {
+		return `<c r="` + ref + `" t="inlineStr"><is><t>` + s + `</t></is></c>`
+	}
+	header := `<row r="1">` + inline("A1", "id") + inline("B1", "name") + `</row>`
+	// Excel: shared strings with rich text and phonetic runs, a dimension and
+	// spans over every column, styled empty cells far right, and formulas
+	// outside the cells.
+	excelSST := `<si><t>id</t></si><si><t>name</t><rPh sb="0" eb="4"><t>ネーム</t></rPh></si><si><t>a1</t></si>` +
+		`<si><r><t>Bot</t></r><r><rPr><b/></rPr><t xml:space="preserve"> One</t></r></si>`
+	excelSheet := func(rows string) string {
+		return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet ` + xlsxNS +
+			` xmlns:x14ac="http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac">` +
+			`<dimension ref="A1:XFD1048576"/><sheetViews><sheetView workbookViewId="0"/></sheetViews>` +
+			`<cols><col min="1" max="16384" width="9"/></cols><sheetData>` + rows + `</sheetData>` +
+			`<extLst><ext uri="{CCE6A557-97BC-4b89-ADB6-D9C93CAAB3DF}"><x14:dataValidations ` +
+			`xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main" ` +
+			`xmlns:xm="http://schemas.microsoft.com/office/excel/2006/main"><x14:dataValidation type="list">` +
+			`<x14:formula1><xm:f>Notes!$A$1:$A$5</xm:f></x14:formula1><xm:sqref>ZZ2:ZZ100</xm:sqref>` +
+			`</x14:dataValidation></x14:dataValidations></ext></extLst></worksheet>`
+	}
+	excelRows := `<row r="1" spans="1:16384" x14ac:dyDescent="0.25"><c r="A1" s="1" t="s"><v>0</v></c>` +
+		`<c r="B1" s="1" t="s"><v>1</v></c><c r="XFD1" s="1"/></row>` +
+		`<row r="2" spans="1:2"><c r="A2" t="s"><v>2</v></c><c r="B2" t="s"><v>3</v></c><c r="ZZ2" s="3"/></row>`
+	wide := `<row r="1"><c r="A1"><v>1</v></c>` + inline("ZZ1", "far") + `</row>`
+	workbook := func(sheets string) string {
+		return `<?xml version="1.0"?><workbook ` + xlsxNS + `><sheets>` + sheets + `</sheets></workbook>`
+	}
+	bom := "\ufeff"
+
+	for _, tc := range []struct {
+		name   string
+		sst    string
+		rows   string
+		change func(parts map[string]string)
+		want   []string // id/name of each agent
+	}{
+		{
+			name: "excel", sst: excelSST, want: []string{"a1/Bot One"},
+			change: func(p map[string]string) {
+				p["xl/worksheets/sheet1.xml"] = excelSheet(excelRows)
+				p["xl/worksheets/sheet2.xml"] = excelSheet(wide)
+				p["xl/workbook.xml"] = workbook(`<sheet name="Agents &amp; R&amp;D ü" sheetId="1" r:id="rId1"/>` +
+					`<sheet name="Notes" sheetId="2" r:id="rId3"/>`)
+			},
+		},
+		{
+			name: "absolute targets and a byte order mark", sst: excelSST, want: []string{"a1/Bot One"},
+			change: func(p map[string]string) {
+				p["xl/worksheets/sheet1.xml"] = bom + excelSheet(excelRows)
+				p["_rels/.rels"] = strings.Replace(p["_rels/.rels"], `"xl/workbook.xml"`, `"/xl/workbook.xml"`, 1)
+				p["xl/_rels/workbook.xml.rels"] = strings.NewReplacer(`"worksheets/`, `"/xl/worksheets/`,
+					`"sharedStrings.xml"`, `"/xl/sharedStrings.xml"`).Replace(p["xl/_rels/workbook.xml.rels"])
+			},
+		},
+		{
+			// Sheets moved in Excel: the first sheet is stored as sheet2.xml.
+			name: "reordered sheets", sst: excelSST, rows: wide, want: []string{"a1/Bot One"},
+			change: func(p map[string]string) {
+				p["xl/worksheets/sheet2.xml"] = excelSheet(excelRows)
+				p["xl/workbook.xml"] = workbook(`<sheet name="Agents" sheetId="2" r:id="rId3"/>` +
+					`<sheet name="Notes" sheetId="1" r:id="rId1"/>`)
+			},
+		},
+		{
+			// Inline strings, as Apache POI's streaming writer writes them; a
+			// formula's text result; a long number stays as written.
+			name: "inline strings, formulas and numbers",
+			rows: header + `<row r="2">` + inline("A2", "p1") +
+				`<c r="B2" t="inlineStr"><is><r><t>Rich</t></r><r><t xml:space="preserve"> inline</t></r></is></c></row>` +
+				`<row r="3"><c r="A3" t="n"><v>12345678901234567890</v></c>` +
+				`<c r="B3" t="str"><f>"x"&amp;"y"</f><v>xy</v></c></row>` +
+				`<row r="4"><c r="A4"><v>123456789012</v></c><c r="B4" t="b"><v>1</v></c></row>` +
+				`<row r="5"><c r="A5" t="e"><v>#N/A</v></c><c r="B5" t="b"><v>0</v></c></row>`,
+			want: []string{"p1/Rich inline", "12345678901234567890/xy", "123456789012/TRUE", "#N/A/FALSE"},
+		},
+		{
+			name: "rows and cells without a reference",
+			rows: `<row><c t="inlineStr"><is><t>id</t></is></c><c t="inlineStr"><is><t>name</t></is></c></row>` +
+				`<row><c t="inlineStr"><is><t>q1</t></is></c><c t="inlineStr"><is><t>NoRef</t></is></c></row>` +
+				`<row r="5"><c r="B5" t="inlineStr"><is><t>No id</t></is></c><c t="inlineStr"><is><t>x</t></is></c>` +
+				`</row><row>` + inline("A6", "q2") + `<c><v>7</v></c></row>`,
+			want: []string{"q1/NoRef", "q2/7"},
+		},
+		{
+			name: "escaped characters",
+			sst:  `<si><t>id</t></si><si><t>name</t></si><si><t>Line_x000D_ one_x005F_x0041_</t></si>`,
+			rows: `<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c></row>` +
+				`<row r="2">` + inline("A2", "e1") + `<c r="B2" t="s"><v>2</v></c></row>`,
+			want: []string{"e1/Line one_x0041_"},
+		},
+		{
+			// An empty value far right, as a formula cell left blank.
+			name: "empty value beyond the widest column",
+			rows: header + `<row r="2">` + inline("A2", "e1") + inline("B2", "E") +
+				`<c r="HA2" t="str"><v></v></c><c r="XFD2" s="2"/></row>`,
+			want: []string{"e1/E"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			parts := xlsxTestParts(tc.sst, tc.rows, "")
+			if tc.change != nil {
+				tc.change(parts)
+			}
+			out, err := ParseInventoryFile("a.xlsx", zipXLSX(t, parts))
+			require.NoError(t, err)
+			got := []string{}
+			for _, f := range out.Findings {
+				got = append(got, f.ExternalID+"/"+f.DisplayName)
+			}
+			assert.Equal(t, tc.want, got)
+			assert.Empty(t, out.IgnoredColumns)
+		})
+	}
+
+	t.Run("left out row is numbered as in the sheet", func(t *testing.T) {
+		out, err := ParseInventoryFile("a.xlsx", rawXLSX(t, "", header+`<row>`+inline("A2", "k")+inline("B2", "K")+
+			`</row><row r="9">`+inline("B9", "No id")+`</row>`, ""))
+		require.NoError(t, err)
+		require.Len(t, out.Problems, 1)
+		assert.Equal(t, 9, out.Problems[0].Row)
+	})
+}
+
+// Dates in Excel files: date cells, in either date system, and dates
+// written as text.
+func TestInventoryXLSXDates(t *testing.T) {
+	rows := `<row r="1"><c r="A1" t="inlineStr"><is><t>id</t></is></c><c r="B1" t="inlineStr"><is><t>name</t></is></c>` +
+		`<c r="C1" t="inlineStr"><is><t>createdAt</t></is></c><c r="D1" t="inlineStr"><is><t>version</t></is></c></row>` +
+		`<row r="2"><c r="A2" t="inlineStr"><is><t>d1</t></is></c><c r="B2" t="inlineStr"><is><t>D</t></is></c>` +
+		`<c r="C2" s="1"><v>%s</v></c><c r="D2" s="1"><v>%s</v></c></row>`
+	for _, tc := range []struct {
+		name, workbookPr, serial string
+		want                     time.Time
+	}{
+		{"1900", "", "46037", time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)},
+		{
+			"1900 with a time", `<workbookPr date1904="0"/>`, "46037.395833333336",
+			time.Date(2026, 1, 15, 9, 30, 0, 0, time.UTC),
+		},
+		{"1904", `<workbookPr date1904="1"/>`, "44575", time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC)},
+		{"1904 as true", `<workbookPr date1904="true"/>`, "44575.5", time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			parts := xlsxTestParts("", fmt.Sprintf(rows, tc.serial, tc.serial), "")
+			parts["xl/workbook.xml"] = strings.Replace(parts["xl/workbook.xml"], "<sheets>", tc.workbookPr+"<sheets>", 1)
+			out, err := ParseInventoryFile("a.xlsx", zipXLSX(t, parts))
+			require.NoError(t, err)
+			f := findingByID(t, out, "d1")
+			require.NotNil(t, f.ProviderCreatedAt)
+			assert.Equal(t, tc.want, *f.ProviderCreatedAt)
+			assert.Equal(t, tc.serial, f.Attributes["agentVersion"], "only createdAt is read as a date")
+		})
+	}
+}
+
+// Files that are zips but not workbooks, or whose first sheet cannot be
+// read, are refused with a message.
+func TestInventoryXLSXBroken(t *testing.T) {
+	header := `<row r="1"><c r="A1" t="inlineStr"><is><t>id</t></is></c>` +
+		`<c r="B1" t="inlineStr"><is><t>name</t></is></c></row>`
+	for _, tc := range []struct {
+		name   string
+		rows   string
+		change func(parts map[string]string)
+		want   string
+	}{
+		{"no workbook", header, func(p map[string]string) { delete(p, "xl/workbook.xml") }, "not a valid Excel workbook"},
+		{
+			"workbook not XML", header, func(p map[string]string) { p["xl/workbook.xml"] = "<workbook><sheets>" },
+			"not a valid Excel workbook",
+		},
+		{"no sheet", header, func(p map[string]string) {
+			p["xl/workbook.xml"] = `<workbook ` + xlsxNS + `><sheets/></workbook>`
+		}, "has no sheet"},
+		{
+			"sheet part missing", header, func(p map[string]string) { delete(p, "xl/worksheets/sheet1.xml") },
+			"first sheet of the Excel workbook cannot be read",
+		},
+		{
+			"workbook relationships missing", header, func(p map[string]string) { delete(p, "xl/_rels/workbook.xml.rels") },
+			"first sheet of the Excel workbook cannot be read",
+		},
+		{
+			"sheet not XML", header + `<row r="2"><c r="A2"><v>1</c></row>`, nil,
+			"first sheet of the Excel workbook cannot be read",
+		},
+		{
+			"shared string out of range", header + `<row r="2"><c r="A2" t="s"><v>5</v></c></row>`, nil,
+			"first sheet of the Excel workbook cannot be read",
+		},
+		{
+			"elements nested too deep", header + `<row r="2"><c r="A2">` + strings.Repeat("<a>", 10000), nil,
+			"first sheet of the Excel workbook cannot be read",
+		},
+		{"no rows", "", nil, "The file is empty"},
+		{"a title row above the column names", `<row r="1"><c r="A1" t="inlineStr"><is><t>Our agents</t></is></c>` +
+			`</row>` + strings.ReplaceAll(header, `1"`, `2"`), nil, "no id column"},
+		{"column names not in row 1", strings.ReplaceAll(header, `1"`, `3"`), nil, "no id column"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			parts := xlsxTestParts("", tc.rows, "")
+			if tc.change != nil {
+				tc.change(parts)
+			}
+			parseFails(t, "a.xlsx", zipXLSX(t, parts), tc.want)
+		})
+	}
+	// The shared strings are counted as they are read too, wherever the
+	// workbook keeps them.
+	parts := xlsxTestParts("", header, "")
+	parts["xl/worksheets/strings.xml"] = `<sst>` + strings.Repeat(`<si/>`, maxXLSXStrings+1) + `</sst>`
+	parts["xl/_rels/workbook.xml.rels"] = strings.Replace(parts["xl/_rels/workbook.xml.rels"],
+		`"sharedStrings.xml"`, `"worksheets/strings.xml"`, 1)
+	parseFails(t, "a.xlsx", zipXLSX(t, parts), "too many different text values")
+	parts["xl/worksheets/strings.xml"] = `<sst><si>` + strings.Repeat(`<r>`, 10000) + `</si></sst>`
+	parseFails(t, "a.xlsx", zipXLSX(t, parts), "not a valid Excel workbook")
+}
+
+func TestXLSXColumnsAndEscapes(t *testing.T) {
+	for ref, col := range map[string]int{"A1": 1, "z9": 26, "AA1": 27, "GR10": 200, "GS1": 201, "XFD1048576": 16384} {
+		got, ok := xlsxCellColumn(ref)
+		require.True(t, ok, ref)
+		assert.Equal(t, col, got, ref)
+		assert.Equal(t, strings.ToUpper(strings.TrimRight(ref, "0123456789")), xlsxColumnName(col))
+	}
+	for _, bad := range []string{"", "A", "1", "XFE1", "AAAA1", "A1B", "$A$1"} {
+		_, ok := xlsxCellColumn(bad)
+		assert.False(t, ok, bad)
+	}
+	assert.Equal(t, "a\rb_c_x00_", xlsxUnescape("a_x000D_b_x005F_c_x00_"))
+	assert.Equal(t, "_x000D_", xlsxUnescape("_x005F_x000D_"))
+}
+
+// The writer's workbook reads back exactly, and has the parts and content
+// types of a minimal workbook.
+func TestWriteXLSX(t *testing.T) {
+	rows := [][]string{
+		{"id", "name", "notes"},
+		{"a&b <c>", " leading and trailing ", "line one\nline two\ttab"},
+		{"ü", "", "\"quoted\""},
+	}
+	data, err := writeXLSX("R&D ü", rows, 24)
+	require.NoError(t, err)
+
+	wb, err := openXLSX(data)
+	require.NoError(t, err)
+	assert.False(t, wb.date1904)
+	assert.Nil(t, wb.sharedStrings)
+	var got [][]string
+	require.NoError(t, wb.eachRow(nil, maxXLSXColumns, func(row int, cells []string) error {
+		assert.Equal(t, len(got)+1, row)
+		got = append(got, append([]string{}, cells...))
+		return nil
+	}))
+	want := [][]string{rows[0], rows[1], {"ü", "", "\"quoted\""}}
+	assert.Equal(t, want, got)
+
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	require.NoError(t, err)
+	parts := map[string]string{}
+	for i, zf := range zr.File {
+		rc, err := zf.Open()
+		require.NoError(t, err)
+		b, err := io.ReadAll(rc)
+		require.NoError(t, err)
+		require.NoError(t, rc.Close())
+		parts[zf.Name] = string(b)
+		if i == 0 {
+			assert.Equal(t, "[Content_Types].xml", zf.Name, "the content types come first")
+		}
+		// Every part is well-formed XML.
+		d := xml.NewDecoder(bytes.NewReader(b))
+		for {
+			_, err := d.Token()
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			require.NoError(t, err, zf.Name)
+		}
+	}
+	assert.Len(t, parts, 6)
+	ct := parts["[Content_Types].xml"]
+	for _, s := range []string{
+		`PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"`,
+		`PartName="/xl/worksheets/sheet1.xml" ` +
+			`ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"`,
+		`PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"`,
+	} {
+		assert.Contains(t, ct, s)
+	}
+	assert.Contains(t, parts["xl/workbook.xml"], `<sheet name="R&amp;D ü" sheetId="1" r:id="rId1"/>`)
+	assert.Contains(t, parts["xl/styles.xml"], `<font><b/>`)
+	sheet := parts["xl/worksheets/sheet1.xml"]
+	assert.Contains(t, sheet, `<c r="A1" s="1" t="inlineStr"><is><t>id</t></is></c>`, "the header is bold")
+	assert.Contains(t, sheet, `<c r="A2" t="inlineStr">`, "other rows are not")
+	assert.Contains(t, sheet, `<t xml:space="preserve"> leading and trailing </t>`)
+	assert.Contains(t, sheet, `<dimension ref="A1:C3"/>`)
 }
 
 // Format from the extension, else from the content; legacy .xls refused.
@@ -635,6 +1027,35 @@ func TestInventoryTemplates(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "id", header[0])
 	assert.Equal(t, "labels", header[len(header)-1])
+
+	body, err = InventoryTemplate(InventoryFormatXLSX)
+	require.NoError(t, err)
+	wb, err := openXLSX(body)
+	require.NoError(t, err)
+	var got [][]string
+	require.NoError(t, wb.eachRow(nil, maxXLSXColumns, func(_ int, cells []string) error {
+		got = append(got, append([]string{}, cells...))
+		return nil
+	}))
+	assert.Equal(t, inventoryTemplateRows(), got, "the Excel template holds the rows as text")
+	zr, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	require.NoError(t, err)
+	for _, zf := range zr.File {
+		if zf.Name != "xl/workbook.xml" && zf.Name != "xl/worksheets/sheet1.xml" {
+			continue
+		}
+		rc, err := zf.Open()
+		require.NoError(t, err)
+		b, err := io.ReadAll(rc)
+		require.NoError(t, err)
+		require.NoError(t, rc.Close())
+		if zf.Name == "xl/workbook.xml" {
+			assert.Contains(t, string(b), `<sheet name="Agents" sheetId="1" r:id="rId1"/>`)
+		} else {
+			assert.Contains(t, string(b), `<col min="1" max="14" width="24" customWidth="1"/>`)
+			assert.Contains(t, string(b), `<c r="N1" s="1" t="inlineStr"><is><t>labels</t></is></c>`)
+		}
+	}
 
 	_, err = InventoryTemplate("xls")
 	require.Error(t, err)
