@@ -338,6 +338,7 @@ The operations below emit a record describing what actually changed, not just th
 | Users | `user:invite` / `:create` / `:delete` | Fail-closed |
 | Agent lifecycle | `agent:delete`, `project:delete` | Fail-closed |
 | Event destinations | `event-destination:create` / `:update` / `:delete` / `:rotate-secret` | Fail-closed |
+| Developer portal webhook secrets | `ai-hub:webhook-secret-create` / `-rotate` / `-delete` (a secret or one of its versions) | Fail-closed |
 | Event subscriptions | `event-subscription:create` / `:update` / `:delete` (organization, project and agent scope) | Fail-closed |
 | Gateways | `ai-gateway:gateways.delete`, `ai-gateway:gateways.set-identity-provider`, `ai-gateway:gateways.remove-identity-provider` | Fail-closed |
 | Gateways | `ai-gateway:gateways.create` / `:update` | Fail-open |

@@ -116,6 +116,23 @@ func TestWebhookSecrets(t *testing.T) {
 		return code == http.StatusOK
 	}
 
+	t.Run("changes are audited fail-closed, as credential changes", func(t *testing.T) {
+		got := map[string]bool{}
+		for _, r := range w.host.Routes(aihub.Name) {
+			if strings.HasPrefix(r.Path, "/webhook-secrets") {
+				got[r.Method+" "+r.Path] = r.AuditFailClosed
+			}
+		}
+		assert.Equal(t, map[string]bool{
+			"POST /webhook-secrets":                                        true,
+			"GET /webhook-secrets":                                         false,
+			"GET /webhook-secrets/{webhookSecretId}":                       false,
+			"DELETE /webhook-secrets/{webhookSecretId}":                    true,
+			"POST /webhook-secrets/{webhookSecretId}/rotate":               true,
+			"DELETE /webhook-secrets/{webhookSecretId}/versions/{version}": true,
+		}, got)
+	})
+
 	var acme, second, globex webhookSecretBody
 	t.Run("create: the value is returned once, then only masked, with the hash deliveries name", func(t *testing.T) {
 		code, body := w.call(t, w.limited, http.MethodPost, webhookSecretsPath, map[string]any{"id": acmePortal})

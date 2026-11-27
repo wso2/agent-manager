@@ -200,14 +200,18 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 		log: log.With("component", "plan-webhook"), now: time.Now,
 	}).ServeHTTP, modkit.Audit(ActionPortalSync))
 	// The organization's webhook secrets, one per developer portal that sends it deliveries, under /m/ai-hub.
+	// Changes to them are credential changes, so they are audited fail-closed, as the AI Gateway's API keys and
+	// gateway tokens are: the core writes an intent record before the handler runs, and answers 503 when it can't.
 	ws := &webhookSecretController{secrets: secrets, core: rt.Core, log: log}
-	rt.Handle(http.MethodPost, "/webhook-secrets", PermWebhookSecretCreate, ws.createSecret)
+	failClosed := modkit.AuditFailClosed()
+	rt.Handle(http.MethodPost, "/webhook-secrets", PermWebhookSecretCreate, ws.createSecret, failClosed)
 	rt.Handle(http.MethodGet, "/webhook-secrets", PermWebhookSecretRead, ws.listSecrets)
 	rt.Handle(http.MethodGet, "/webhook-secrets/{webhookSecretId}", PermWebhookSecretRead, ws.getSecret)
-	rt.Handle(http.MethodDelete, "/webhook-secrets/{webhookSecretId}", PermWebhookSecretDelete, ws.deleteSecret)
-	rt.Handle(http.MethodPost, "/webhook-secrets/{webhookSecretId}/rotate", PermWebhookSecretRotate, ws.rotateSecret)
+	rt.Handle(http.MethodDelete, "/webhook-secrets/{webhookSecretId}", PermWebhookSecretDelete, ws.deleteSecret, failClosed)
+	rt.Handle(http.MethodPost, "/webhook-secrets/{webhookSecretId}/rotate", PermWebhookSecretRotate, ws.rotateSecret,
+		failClosed)
 	rt.Handle(http.MethodDelete, "/webhook-secrets/{webhookSecretId}/versions/{version}", PermWebhookSecretDelete,
-		ws.deleteSecretVersion)
+		ws.deleteSecretVersion, failClosed)
 	// Gateways pull the subscriptions, and the plans they are on, when they connect; the AI Gateway pushes each
 	// subscription change, after its plan, on EventSubscriptionChanged.
 	rt.Provide(subplanv1.ID, planSource{plans: plans, subscriptions: subs})
