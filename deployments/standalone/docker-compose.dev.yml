@@ -37,3 +37,15 @@ services:
     build:
       context: ../../agent-manager-service
       args: { CONSOLE: none }
+
+  # The observability profile's steps run the amp CLI, which amp-api above
+  # doesn't have, so they use amp-init's image.
+  observability-secrets:
+    image: amp-init:dev
+    pull_policy: never
+  observability-secrets-external:
+    image: amp-init:dev
+    pull_policy: never
+  observability-migrate:
+    image: amp-init:dev
+    pull_policy: never

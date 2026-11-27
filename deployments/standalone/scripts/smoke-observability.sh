@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # smoke-observability.sh — smoke-test traces on a stack started with
-# `make up-observability`.
+# `make up-observability` or `make dev-up-observability`.
 #
 #   scripts/smoke-observability.sh
 #
@@ -42,6 +42,11 @@ check() { # NAME WANT GOT
 skip() { echo "SKIP $1"; skipped=$((skipped + 1)); }
 dc() { docker compose --project-directory "$DIR" --profile observability "$@"; }
 ch() { dc exec -T clickhouse clickhouse-client -q "$1"; }
+# amp CLI in amp-api: the release binary, or on the dev stack the one air builds.
+amp_cli() {
+  dc exec -T amp-api sh -c 'if [ -x /go/bin/amp ]; then exec /go/bin/amp "$@"; fi
+    exec su-exec 1000:1000 /app/tmp/agent-manager-service "$@"' amp "$@"
+}
 hex() { od -An -N"$1" -tx1 /dev/urandom | tr -d ' \n'; }
 
 # --- Containers and network ----------------------------------------------------------
@@ -89,7 +94,7 @@ check collector-health-from-amp-api ok \
 # --- Schema and module ---------------------------------------------------------------------
 check span-table 1 "$(ch 'EXISTS TABLE otel.otel_traces')"
 check schema-history 001_otel_traces "$(ch 'SELECT version FROM otel.amp_schema_migrations FINAL ORDER BY version' | xargs)"
-check module-state active "$(dc exec -T amp-api /go/bin/amp module list | awk '$1 == "observability" {print $3}')"
+check module-state active "$(amp_cli module list | awk '$1 == "observability" {print $3}')"
 
 # --- Ingest ----------------------------------------------------------------------------------
 TOKEN=$(jq -n --arg p "$PASSWORD" '{username: "admin", password: $p}' \

@@ -60,6 +60,8 @@ make up-observability       # the full stack, ClickHouse, the collector; install
 make smoke-observability    # ports, network, schema, and a span stored under the right org
 ```
 
+`make dev-up-observability` does the same on the dev stack, with the API hot-reloading under air and the console on :3000; `make smoke-observability` checks it too.
+
 From a release bundle, or without make, set these in `.env` and start as usual:
 
 ```bash

@@ -124,7 +124,8 @@ The `observability` profile adds ClickHouse and the OpenTelemetry collector on a
 
 ```bash
 make up-observability       # also installs the observability module
-make smoke-observability
+make dev-up-observability   # the same on the dev stack (hot reload)
+make smoke-observability    # either one
 ```
 
 Without make, set `COMPOSE_PROFILES=observability` and `AMP_OBSERVABILITY_STORE_URL` in `.env` (the commented lines in `.env.example`), start the stack, then run `docker compose exec amp-api amp module install observability`. To use your own ClickHouse instead, or add observability to an existing install, see [docs/amp-lite/observability.md](../../docs/amp-lite/observability.md).

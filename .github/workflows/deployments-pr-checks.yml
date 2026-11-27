@@ -47,6 +47,7 @@ jobs:
           COMPOSE_PROFILES=postgres docker compose -f docker-compose.yml -f docker-compose.postgres.yml config -q
           COMPOSE_PROFILES=observability docker compose config -q
           COMPOSE_PROFILES=postgres,observability docker compose -f docker-compose.yml -f docker-compose.postgres.yml config -q
+          COMPOSE_PROFILES=observability docker compose -f docker-compose.yml -f docker-compose.build.yml -f docker-compose.dev.yml config -q
         shell: bash
 
       - name: Check the bundled ClickHouse users match the observability module's
