@@ -40,6 +40,7 @@ jobs:
         run: |
           # .env is optional: every variable has a default.
           test -z "$(docker compose config -q 2>&1)"
+          test -z "$(COMPOSE_PROFILES=observability-external docker compose config -q 2>&1)"
           cp .env.example .env
           docker compose config -q
           docker compose -f docker-compose.yml -f docker-compose.build.yml -f docker-compose.dev.yml config -q
@@ -48,6 +49,9 @@ jobs:
           COMPOSE_PROFILES=observability docker compose config -q
           COMPOSE_PROFILES=postgres,observability docker compose -f docker-compose.yml -f docker-compose.postgres.yml config -q
           COMPOSE_PROFILES=observability docker compose -f docker-compose.yml -f docker-compose.build.yml -f docker-compose.dev.yml config -q
+          COMPOSE_PROFILES=observability-external docker compose config -q
+          COMPOSE_PROFILES=postgres,observability-external docker compose -f docker-compose.yml -f docker-compose.postgres.yml config -q
+          COMPOSE_PROFILES=observability-external docker compose -f docker-compose.yml -f docker-compose.build.yml -f docker-compose.dev.yml config -q
         shell: bash
 
       - name: Check the bundled ClickHouse users match the observability module's
