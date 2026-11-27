@@ -77,7 +77,7 @@ type engine struct {
 // Scan implements sa.Connector.
 func (c *Connector) Scan(ctx context.Context, conn sa.Connection) *sa.Result {
 	s := &scanner{
-		c: c, conn: conn, calls: sa.NewCalls(), findings: sa.NewFindings(),
+		c: c, conn: conn, calls: sa.NewCallsFor(ctx), findings: sa.NewFindings(),
 		aliases: map[string]map[string]bool{}, recorded: map[string]bool{}, deferredSkips: map[string]string{},
 		builtins: map[string]string{}, unavailable: map[string][]string{}, firstErr: map[string]error{},
 	}

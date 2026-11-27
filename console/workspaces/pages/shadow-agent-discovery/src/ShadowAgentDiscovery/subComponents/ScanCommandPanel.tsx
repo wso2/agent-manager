@@ -46,14 +46,9 @@ export function directUploadHelp(directUpload: boolean): string {
     : "The command saves a results file on your machine. Upload it from Scans when you're ready.";
 }
 
-/**
- * The AI-enhanced detection switch and, only while it is on, the LLM judge
- * switch, then the Upload results directly switch. Turning AI-enhanced
- * detection off also turns the judge off.
- */
+/** The AI-enhanced detection switch, then the Upload results directly switch. */
 export function ScanOptions({
   aiReview,
-  llmJudge,
   directUpload,
   onChange,
   disabled,
@@ -68,13 +63,7 @@ export function ScanOptions({
         control={
           <Switch
             checked={aiReview}
-            onChange={(e) =>
-              onChange({
-                aiReview: e.target.checked,
-                llmJudge: e.target.checked && llmJudge,
-                directUpload,
-              })
-            }
+            onChange={(e) => onChange({ aiReview: e.target.checked, directUpload })}
           />
         }
         label={
@@ -87,31 +76,12 @@ export function ScanOptions({
           </Stack>
         }
       />
-      {aiReview && (
-        <FormControlLabel
-          disabled={disabled}
-          control={
-            <Switch
-              checked={llmJudge}
-              onChange={(e) => onChange({ aiReview, llmJudge: e.target.checked, directUpload })}
-            />
-          }
-          label={
-            <Stack>
-              <Typography variant="body2">LLM judge</Typography>
-              <Typography variant="caption" color="text.secondary">
-                A second model must agree before an agent is published.
-              </Typography>
-            </Stack>
-          }
-        />
-      )}
       <FormControlLabel
         disabled={disabled}
         control={
           <Switch
             checked={directUpload}
-            onChange={(e) => onChange({ aiReview, llmJudge, directUpload: e.target.checked })}
+            onChange={(e) => onChange({ aiReview, directUpload: e.target.checked })}
           />
         }
         label={
@@ -164,7 +134,6 @@ export function ScanCommandPanel({
   spec,
   draft,
   aiReview,
-  llmJudge,
   directUpload,
   onChange,
   issued,
@@ -182,7 +151,7 @@ export function ScanCommandPanel({
   error?: string | null;
   onRetry?: () => void;
 }) {
-  const options = { aiReview, llmJudge, directUpload };
+  const options = { aiReview, directUpload };
   return (
     <Card variant="outlined">
       <CardContent>
@@ -205,7 +174,7 @@ export function ScanCommandPanel({
             <IssuedNotice
               issued={issued}
               directUpload={directUpload}
-              later="get a new one from the platform's Generate command"
+              later="get a new one from the connector's Generate command"
             />
           ) : (
             <Typography variant="caption" color="text.secondary">

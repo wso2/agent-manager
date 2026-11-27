@@ -20,7 +20,6 @@ import { useId, useState, type ReactNode } from "react";
 import {
   Alert,
   Box,
-  Breadcrumbs,
   Button,
   Chip,
   Collapse,
@@ -61,15 +60,8 @@ import {
   providerLabel,
   shortDate,
 } from "@agent-management-platform/shadow-agent-discovery";
+import { ClampedText, SectionCard, SidebarHeading, TimeAgo } from "../AgentPage/AgentPageParts";
 import { CodeAgentOnboardActions } from "./OnboardActions";
-import {
-  ClampedText,
-  Property,
-  PropertiesSidebar,
-  SectionCard,
-  SidebarHeading,
-  TimeAgo,
-} from "../AgentPage/AgentPageParts";
 
 /** A related agent's relation, as a short label. */
 export function relationLabel(relation: string): string {
@@ -125,8 +117,10 @@ export function attributeLabel(key: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-/** Shown first in What it uses, in this order; the other attributes follow. */
-const LEADING_ATTRIBUTES = ["framework", "model", "language", "branch", "projectPath"];
+/** Reported attributes the Summary shows after the location, in this order. */
+const SUMMARY_FACTS = ["framework", "language", "model", "branch"];
+/** Attributes the Summary shows, so What it uses leaves them out. */
+const IN_SUMMARY = [...SUMMARY_FACTS, "projectPath", "labels"];
 /** Attributes that are lists, shown as chips. */
 const CHIP_ATTRIBUTES = ["tools", "mcpServers", "skills", "protocolType", "labels"];
 /** Long identifiers and URLs, shown under Technical IDs in monospace. */
@@ -145,7 +139,7 @@ const ID_ATTRIBUTES = [
 const NOT_IN_DETAILS = ["description", "reviewedBy"];
 
 export const AI_REVIEW_WARNING = "AI review can make mistakes, so check the evidence.";
-const MERGED_HINT = "Results from these connections were merged into one agent.";
+const MERGED_HINT = "Results from these connectors were merged into one agent.";
 
 function isEmptyValue(v: unknown): boolean {
   if (v === null || v === undefined || v === "") return true;
@@ -257,94 +251,28 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
-/** One line of text cut to `maxWidth`, with the whole text in a tooltip. */
-function Ellipsized({
-  text,
-  maxWidth,
-  mono = false,
-}: {
-  text: string;
-  maxWidth: Record<string, number>;
-  mono?: boolean;
-}) {
+/** The line under the title: what the agent is and where it was found. */
+function HeaderLine({ f }: { f: ShadowFindingDetail }) {
+  const platform = providerLabel(f.provider);
   return (
-    <Tooltip title={text}>
-      <Typography
-        component="span"
-        variant="body2"
-        color="text.secondary"
-        noWrap
-        sx={{
-          display: "block",
-          maxWidth,
-          ...(mono ? { fontFamily: "monospace", fontSize: 12 } : {}),
-        }}
-      >
-        {text}
-      </Typography>
-    </Tooltip>
-  );
-}
-
-function Dot() {
-  return (
-    <Typography component="span" variant="body2" color="text.disabled" aria-hidden>
-      ·
+    <Typography component="span" variant="body2" color="text.secondary">
+      {f.kind === "code_agent"
+        ? `Code agent on ${platform}`
+        : `${kindLabel(f.kind, f.provider)} on ${platform}`}
     </Typography>
   );
 }
 
-/** The line under the title: what and where the agent is. */
-function HeaderLine({ f }: { f: ShadowFindingDetail }) {
-  const isCode = f.kind === "code_agent";
-  const platform = providerLabel(f.provider);
-  const loc = parseCodeLocation(f.externalId);
-  const crumbs = [
-    { text: loc.repository || f.scope, maxWidth: { xs: 120, sm: 220 }, mono: false },
-    { text: loc.path, maxWidth: { xs: 140, sm: 320 }, mono: true },
-    { text: loc.symbol, maxWidth: { xs: 120, sm: 220 }, mono: true },
-  ].filter((c) => c.text);
+/** A file path, symbol or identifier: monospace, wrapping anywhere instead of being cut. */
+function Mono({ children }: { children: ReactNode }) {
   return (
-    <Stack
-      direction="row"
-      alignItems="center"
-      columnGap={1}
-      rowGap={0.5}
-      flexWrap="wrap"
-      sx={{ minWidth: 0 }}
+    <Typography
+      variant="body2"
+      component="span"
+      sx={{ fontFamily: "monospace", fontSize: 13, overflowWrap: "anywhere" }}
     >
-      <Typography component="span" variant="body2" color="text.secondary">
-        {isCode ? `Code agent on ${platform}` : `${kindLabel(f.kind, f.provider)} on ${platform}`}
-      </Typography>
-      {isCode && crumbs.length > 0 && (
-        <>
-          <Dot />
-          <Stack direction="row" alignItems="center" spacing={0.5} sx={{ minWidth: 0 }}>
-            <Breadcrumbs
-              aria-label="Location in code"
-              separator="›"
-              sx={{ typography: "body2", color: "text.secondary", minWidth: 0 }}
-            >
-              {crumbs.map((c, i) => (
-                <Ellipsized
-                  key={`${i}|${c.text}`}
-                  text={c.text}
-                  maxWidth={c.maxWidth}
-                  mono={c.mono}
-                />
-              ))}
-            </Breadcrumbs>
-            <CopyButton text={f.externalId} label="location" />
-          </Stack>
-        </>
-      )}
-      {!isCode && f.scope && (
-        <>
-          <Dot />
-          <Ellipsized text={f.scope} maxWidth={{ xs: 200, sm: 360 }} />
-        </>
-      )}
-    </Stack>
+      {children}
+    </Typography>
   );
 }
 
@@ -419,31 +347,22 @@ function signalSummary(s: ShadowFindingSignal, isCode: boolean): string {
   return s.source ? `In ${s.source}` : "";
 }
 
-function ConfirmedBy({ f }: { f: ShadowFindingDetail }) {
-  if (f.kind !== "code_agent") {
-    return (
-      <Typography variant="body2" color="text.secondary">
-        Listed by {listingInSentence(f.provider)}.
-      </Typography>
-    );
-  }
-  const reviewedBy = reviewedByOf(f);
+/** Who confirmed the agent, or which listing returned it: the evidence card's subheader. */
+function confirmationText(f: ShadowFindingDetail): string {
+  if (f.kind !== "code_agent") return `Listed by ${listingInSentence(f.provider)}.`;
+  return confirmedByText(reviewedByOf(f));
+}
+
+function AiReviewWarning() {
   return (
-    <Box>
-      <Typography variant="body2" color="text.secondary">
-        {confirmedByText(reviewedBy)}
+    <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 2 }}>
+      <Box sx={{ display: "inline-flex", color: "warning.main" }} aria-hidden>
+        <TriangleAlert size={14} />
+      </Box>
+      <Typography variant="caption" color="text.secondary">
+        {AI_REVIEW_WARNING}
       </Typography>
-      {reviewedBy !== "rules" && (
-        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.5 }}>
-          <Box sx={{ display: "inline-flex", color: "warning.main" }} aria-hidden>
-            <TriangleAlert size={14} />
-          </Box>
-          <Typography variant="caption" color="text.secondary">
-            {AI_REVIEW_WARNING}
-          </Typography>
-        </Stack>
-      )}
-    </Box>
+    </Stack>
   );
 }
 
@@ -504,7 +423,8 @@ function MatchedDetails({ signals }: { signals: ShadowFindingSignal[] }) {
 function EvidenceCard({ f }: { f: ShadowFindingDetail }) {
   const isCode = f.kind === "code_agent";
   return (
-    <SectionCard title="Why this is an agent">
+    <SectionCard title="Why this is an agent" hint={confirmationText(f)}>
+      {isCode && reviewedByOf(f) !== "rules" && <AiReviewWarning />}
       {f.signals.length === 0 ? (
         <Typography variant="body2" color="text.secondary">
           No evidence recorded.
@@ -536,10 +456,8 @@ function EvidenceCard({ f }: { f: ShadowFindingDetail }) {
           })}
         </Stack>
       )}
-      <Divider sx={{ my: 2 }} />
-      <ConfirmedBy f={f} />
       {f.signals.length > 0 && (
-        <Box sx={{ mt: 1 }}>
+        <Box sx={{ mt: 2.5 }}>
           <Disclosure label={isCode ? "Show matched code" : "Show listing details"}>
             <MatchedDetails signals={f.signals} />
           </Disclosure>
@@ -572,38 +490,210 @@ function redundantProjectPath(f: ShadowFindingDetail): boolean {
   return folder === "" || path === folder || path.startsWith(`${folder}/`);
 }
 
-/** What the agent is built with and uses: the reported attributes, by their labels. */
-function UsesCard({ f }: { f: ShadowFindingDetail }) {
+/** A grid of label/value pairs. */
+function SummaryGrid({ children }: { children: ReactNode }) {
+  return (
+    <Grid container spacing={2.5}>
+      {children}
+    </Grid>
+  );
+}
+
+/** One label and its value in a SummaryGrid; `wide` takes the full row. */
+function SummaryItem({
+  label,
+  wide = false,
+  children,
+}: {
+  label: string;
+  wide?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <Grid size={wide ? { xs: 12 } : { xs: 12, sm: 6, lg: 4 }}>
+      <Typography variant="caption" color="text.secondary" component="div">
+        {label}
+      </Typography>
+      <Box sx={{ mt: 0.5, minWidth: 0 }}>{children}</Box>
+    </Grid>
+  );
+}
+
+/** Plain value text; "None" (greyed) when empty. */
+function ValueText({ children }: { children?: ReactNode }) {
+  const empty = children === undefined || children === null || children === "";
+  return (
+    <Typography
+      variant="body2"
+      color={empty ? "text.secondary" : "text.primary"}
+      sx={{ overflowWrap: "anywhere" }}
+    >
+      {empty ? "None" : children}
+    </Typography>
+  );
+}
+
+/**
+ * The agent at a glance, first on the page: where it is, what it is built with, who made
+ * it and when it was found. Laid out like the registered agent's Summary.
+ */
+function SummaryCard({ f, agentPath }: { f: ShadowFindingDetail; agentPath: string }) {
   const isCode = f.kind === "code_agent";
   const attrs = f.attributes ?? {};
-  const dropProjectPath = redundantProjectPath(f);
+  const text = (k: string) => (isEmptyValue(attrs[k]) ? "" : scalarText(attrs[k]));
+  const loc = isCode ? parseCodeLocation(f.externalId) : undefined;
+  const owner = ownerLabel(f.ownerHint);
+  const linked =
+    [f.linkedProject, f.linkedAgent].filter(Boolean).join(" / ") || "Unknown agent";
+  const description = text("description").trim();
+  const labels = chipLabels(attrs.labels);
+  const folder = redundantProjectPath(f) ? "" : text("projectPath");
+  return (
+    <Box component="section" aria-label="Summary">
+      <SectionCard
+        title="Summary"
+        hint={
+          isCode
+            ? "Reported by the scan command. Source code, prompts and secrets are never stored."
+            : `Reported by ${providerInSentence(f.provider)}. Instructions, prompts, tool ` +
+              "definitions and secrets are never stored."
+        }
+      >
+        <Stack spacing={2.5}>
+          {description && <ClampedText text={description} />}
+          <SummaryGrid>
+            {loc ? (
+              <>
+                <SummaryItem label="Repository">
+                  <ValueText>{loc.repository || f.scope}</ValueText>
+                </SummaryItem>
+                {text("branch") && (
+                  <SummaryItem label="Branch">
+                    <ValueText>{text("branch")}</ValueText>
+                  </SummaryItem>
+                )}
+              </>
+            ) : (
+              f.scope && (
+                <SummaryItem label="Scope">
+                  <ValueText>{f.scope}</ValueText>
+                </SummaryItem>
+              )
+            )}
+            {SUMMARY_FACTS.filter((k) => text(k) && !(isCode && k === "branch")).map((k) => (
+              <SummaryItem key={k} label={attributeLabel(k)}>
+                <ValueText>{text(k)}</ValueText>
+              </SummaryItem>
+            ))}
+            {folder && (
+              <SummaryItem label="Folder">
+                <ValueText>{folder}</ValueText>
+              </SummaryItem>
+            )}
+            {!isCode && f.state && (
+              <SummaryItem label="State">
+                <ValueText>{f.state}</ValueText>
+              </SummaryItem>
+            )}
+            {f.onboarded && (
+              <SummaryItem label="Managed as">
+                <ValueText>
+                  {agentPath ? (
+                    <Link component={RouterLink} to={agentPath}>
+                      {linked}
+                    </Link>
+                  ) : (
+                    linked
+                  )}
+                  {f.onboardedAt && (
+                    <Typography variant="caption" color="text.secondary" component="span">
+                      {" · "}
+                      <TimeAgo iso={f.onboardedAt} />
+                    </Typography>
+                  )}
+                </ValueText>
+              </SummaryItem>
+            )}
+            {owner && (
+              <SummaryItem label="Created by">
+                <ValueText>{owner}</ValueText>
+                {f.ownerHint?.source && (
+                  <Typography variant="caption" color="text.secondary" component="p">
+                    From {f.ownerHint.source}
+                  </Typography>
+                )}
+              </SummaryItem>
+            )}
+            {!isCode && f.providerCreatedAt && (
+              <SummaryItem label="Created at the platform">
+                <ValueText>
+                  <TimeAgo iso={f.providerCreatedAt} />
+                </ValueText>
+              </SummaryItem>
+            )}
+            <SummaryItem label="Last found">
+              <ValueText>
+                <TimeAgo iso={f.lastSeenAt} />
+              </ValueText>
+            </SummaryItem>
+            <SummaryItem label="First found">
+              <ValueText>
+                <TimeAgo iso={f.firstSeenAt} />
+              </ValueText>
+            </SummaryItem>
+            {loc?.path && (
+              <SummaryItem label="File" wide>
+                <Stack direction="row" alignItems="center" spacing={0.5} sx={{ minWidth: 0 }}>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Mono>{loc.path}</Mono>
+                    {loc.symbol && (
+                      <>
+                        <Typography component="span" color="text.disabled" sx={{ mx: 1 }}>
+                          ›
+                        </Typography>
+                        <Mono>{loc.symbol}</Mono>
+                      </>
+                    )}
+                  </Box>
+                  <CopyButton text={f.externalId} label="location" />
+                </Stack>
+              </SummaryItem>
+            )}
+            {labels.length > 0 && (
+              <SummaryItem label="Labels" wide>
+                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                  {labels.map((label) => (
+                    <Chip key={label} size="small" variant="outlined" label={label} />
+                  ))}
+                </Stack>
+              </SummaryItem>
+            )}
+          </SummaryGrid>
+        </Stack>
+      </SectionCard>
+    </Box>
+  );
+}
+
+/**
+ * What the agent uses beyond the Summary: tools, MCP servers, skills and the other
+ * attributes its listing reports. Not shown when nothing is left to show.
+ */
+function UsesCard({ f }: { f: ShadowFindingDetail }) {
+  const attrs = f.attributes ?? {};
   const shown = Object.keys(attrs).filter(
     (k) =>
       !isEmptyValue(attrs[k]) &&
       !ID_ATTRIBUTES.includes(k) &&
       !NOT_IN_DETAILS.includes(k) &&
-      !(k === "projectPath" && dropProjectPath),
+      !IN_SUMMARY.includes(k),
   );
-  const rank = (k: string) => {
-    const i = LEADING_ATTRIBUTES.indexOf(k);
-    return i < 0 ? LEADING_ATTRIBUTES.length : i;
-  };
-  const ordered = [...shown].sort((a, b) => rank(a) - rank(b));
-  const lists = ordered.filter((k) => CHIP_ATTRIBUTES.includes(k) && chipLabels(attrs[k]).length);
-  const facts = ordered.filter((k) => !CHIP_ATTRIBUTES.includes(k) && scalarText(attrs[k]));
-  const description = typeof attrs.description === "string" ? attrs.description.trim() : "";
+  const lists = shown.filter((k) => CHIP_ATTRIBUTES.includes(k) && chipLabels(attrs[k]).length);
+  const facts = shown.filter((k) => !CHIP_ATTRIBUTES.includes(k) && scalarText(attrs[k]));
+  if (lists.length === 0 && facts.length === 0) return null;
   return (
-    <SectionCard
-      title="What it uses"
-      hint={
-        isCode
-          ? "Reported by the scan command. Source code, prompts and secrets are never stored."
-          : `Reported by ${providerInSentence(f.provider)}. Instructions, prompts, tool ` +
-            "definitions and secrets are never stored."
-      }
-    >
+    <SectionCard title="What it uses">
       <Stack spacing={2.5}>
-        {description && <ClampedText text={description} />}
         {facts.length > 0 && (
           <Grid container spacing={2.5}>
             {facts.map((k) => (
@@ -622,115 +712,50 @@ function UsesCard({ f }: { f: ShadowFindingDetail }) {
             </Stack>
           </Fact>
         ))}
-        {!description && facts.length === 0 && lists.length === 0 && (
-          <Typography variant="body2" color="text.secondary">
-            Nothing more was reported about this agent.
-          </Typography>
-        )}
       </Stack>
     </SectionCard>
   );
 }
 
-function StatusSection({ f, agentPath }: { f: ShadowFindingDetail; agentPath: string }) {
-  const isCode = f.kind === "code_agent";
-  const owner = ownerLabel(f.ownerHint);
-  const linked =
-    [f.linkedProject, f.linkedAgent].filter(Boolean).join(" / ") || "Unknown agent";
-  return (
-    <Box>
-      <SidebarHeading title="Status" />
-      <Stack spacing={1.25}>
-        {f.onboarded ? (
-          <>
-            <Property label="Onboarded as">
-              {agentPath ? (
-                <Link component={RouterLink} to={agentPath}>
-                  {linked}
-                </Link>
-              ) : (
-                linked
-              )}
-            </Property>
-            {f.onboardedAt && (
-              <Property label="Onboarded">
-                <TimeAgo iso={f.onboardedAt} />
-              </Property>
-            )}
-          </>
-        ) : (
-          <Property label="Onboarding">Not onboarded</Property>
-        )}
-        {!isCode && f.state && <Property label="State">{f.state}</Property>}
-        {owner && (
-          <Property label="Created by">
-            {owner}
-            {f.ownerHint?.source && (
-              <Typography variant="caption" color="text.secondary" component="p">
-                From {f.ownerHint.source}
-              </Typography>
-            )}
-          </Property>
-        )}
-        {!isCode && f.providerCreatedAt && (
-          <Property label="Created at the platform">
-            <TimeAgo iso={f.providerCreatedAt} />
-          </Property>
-        )}
-        <Property label="Last found">
-          <TimeAgo iso={f.lastSeenAt} />
-        </Property>
-        <Property label="First found">
-          <TimeAgo iso={f.firstSeenAt} />
-        </Property>
-      </Stack>
-    </Box>
-  );
+/** The connections whose scans found the agent; a single finding is its own source. */
+function foundBy(f: ShadowFindingDetail) {
+  return f.foundBy && f.foundBy.length > 0
+    ? f.foundBy
+    : [
+        {
+          findingId: f.id,
+          connectionId: f.connectionId,
+          connectionName: f.connectionName,
+          present: f.present,
+        },
+      ];
 }
 
-function SourcesSection({ f }: { f: ShadowFindingDetail }) {
+function SourcesList({ f }: { f: ShadowFindingDetail }) {
   const isCode = f.kind === "code_agent";
-  const sources =
-    f.foundBy && f.foundBy.length > 0
-      ? f.foundBy
-      : [
-          {
-            findingId: f.id,
-            connectionId: f.connectionId,
-            connectionName: f.connectionName,
-            present: f.present,
-          },
-        ];
-  const n = sources.length;
   return (
-    <Box>
-      <SidebarHeading
-        title={`Found by ${n} ${n === 1 ? "connection" : "connections"}`}
-        hint={n > 1 ? MERGED_HINT : undefined}
-      />
-      <Stack spacing={1}>
-        {sources.map((src) => (
-          <Stack key={src.findingId} direction="row" spacing={1} alignItems="center">
-            <Box
-              aria-hidden
-              sx={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                flexShrink: 0,
-                bgcolor: src.present ? "success.main" : "warning.main",
-              }}
-            />
-            <Typography variant="body2" noWrap sx={{ minWidth: 0, flex: 1 }}>
-              {src.connectionName}
-            </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
-              {src.present ? (isCode ? "Found" : "Listed") : "Not in latest scan"}
-            </Typography>
-          </Stack>
-        ))}
-      </Stack>
-    </Box>
+    <Stack spacing={1}>
+      {foundBy(f).map((src) => (
+        <Stack key={src.findingId} direction="row" spacing={1} alignItems="center">
+          <Box
+            aria-hidden
+            sx={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              flexShrink: 0,
+              bgcolor: src.present ? "success.main" : "warning.main",
+            }}
+          />
+          <Typography variant="body2" noWrap sx={{ minWidth: 0, flex: 1 }}>
+            {src.connectionName}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
+            {src.present ? (isCode ? "Found" : "Listed") : "Not in latest scan"}
+          </Typography>
+        </Stack>
+      ))}
+    </Stack>
   );
 }
 
@@ -799,29 +824,38 @@ function TechnicalIds({ f }: { f: ShadowFindingDetail }) {
   );
 }
 
-function Sidebar({
-  f,
-  orgName,
-  agentPath,
-}: {
-  f: ShadowFindingDetail;
-  orgName: string;
-  agentPath: string;
-}) {
+/** Beside the evidence: the connections that found the agent, look-alikes and its IDs. */
+function Sidebar({ f, orgName }: { f: ShadowFindingDetail; orgName: string }) {
+  const n = foundBy(f).length;
   return (
-    <PropertiesSidebar>
-      <StatusSection f={f} agentPath={agentPath} />
-      <SourcesSection f={f} />
-      {f.related.length > 0 && <DuplicatesSection f={f} orgName={orgName} />}
-      <TechnicalIds f={f} />
-    </PropertiesSidebar>
+    <Box
+      component="aside"
+      aria-label="Properties"
+      sx={{
+        position: { lg: "sticky" },
+        top: { lg: 24 },
+        maxHeight: { lg: "calc(100vh - 48px)" },
+        overflowY: { lg: "auto" },
+      }}
+    >
+      <SectionCard
+        title={`Found by ${n} ${n === 1 ? "connector" : "connectors"}`}
+        hint={n > 1 ? MERGED_HINT : undefined}
+      >
+        <Stack spacing={2.5} divider={<Divider flexItem />}>
+          <SourcesList f={f} />
+          {f.related.length > 0 && <DuplicatesSection f={f} orgName={orgName} />}
+          <TechnicalIds f={f} />
+        </Stack>
+      </SectionCard>
+    </Box>
   );
 }
 
 /**
- * One unmanaged agent: why it is an agent and what it uses, with its status,
- * connections and IDs beside them, and onboarding it (a code agent can also be
- * deployed as a platform-hosted agent).
+ * One unmanaged agent: a Summary first, then why it is an agent and what it uses,
+ * with the connectors that found it and its IDs beside them, and onboarding it (a code
+ * agent can also be deployed as a platform-hosted agent).
  */
 export function FindingDetail({
   orgName,
@@ -851,7 +885,7 @@ export function FindingDetail({
           icon={SearchX}
           tone="error"
           title="Couldn't load this agent"
-          description="It may have been deleted with its platform. Go back to the unmanaged agents."
+          description="It may have been deleted with its connector. Go back to the unmanaged agents."
         />
       </PageLayout>
     );
@@ -895,7 +929,7 @@ export function FindingDetail({
               variant="contained"
               startIcon={<UserPlus size={16} />}
             >
-              Onboard as external agent
+              Manage as external agent
             </Button>
           )
         )}
@@ -934,6 +968,7 @@ export function FindingDetail({
                 "or it is out of scope."}
           </Alert>
         )}
+        <SummaryCard f={f} agentPath={agentPath} />
         <Grid container spacing={3}>
           <Grid size={{ xs: 12, lg: 8 }}>
             <Stack spacing={3}>
@@ -942,7 +977,7 @@ export function FindingDetail({
             </Stack>
           </Grid>
           <Grid size={{ xs: 12, lg: 4 }}>
-            <Sidebar f={f} orgName={orgName ?? ""} agentPath={agentPath} />
+            <Sidebar f={f} orgName={orgName ?? ""} />
           </Grid>
         </Grid>
       </Stack>

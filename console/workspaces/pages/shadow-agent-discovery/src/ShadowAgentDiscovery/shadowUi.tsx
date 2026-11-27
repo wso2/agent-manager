@@ -19,6 +19,7 @@
 import { useState } from "react";
 import { Box, Chip, IconButton, Tooltip } from "@wso2/oxygen-ui";
 import {
+  Ban,
   Check,
   CircleCheck,
   CircleDashed,
@@ -133,10 +134,13 @@ export const KIND_LABELS: Record<ShadowFindingKind, string> = {
   code_agent: "Agent in code",
 };
 
-/** What an agent is at its platform, in the platform's own words. */
+/**
+ * What an agent is at its platform. Anthropic's is a "Claude agent", not its product name
+ * "Managed Agent", which would read as Agent Manager's Managed status.
+ */
 const PLATFORM_KIND_LABELS: Record<string, Partial<Record<ShadowFindingKind, string>>> = {
   openai: { platform_agent: "Agent" },
-  anthropic: { platform_agent: "Managed Agent" },
+  anthropic: { platform_agent: "Claude agent" },
   bedrock: { runtime: "AgentCore runtime", platform_agent: "Bedrock agent" },
   google: { runtime: "Agent Runtime engine", platform_agent: "Agent Registry agent" },
   foundry: { platform_agent: "Foundry agent" },
@@ -152,7 +156,7 @@ export function kindLabel(k: string, provider?: string): string {
   );
 }
 
-/** Whether an agent is onboarded as an external agent. */
+/** Whether an agent is managed: onboarded into Agent Manager as an external agent. */
 export function OnboardingChip({ onboarded }: { onboarded: boolean }) {
   return onboarded ? (
     <Chip
@@ -160,10 +164,10 @@ export function OnboardingChip({ onboarded }: { onboarded: boolean }) {
       color="success"
       variant="outlined"
       icon={<CircleCheck size={14} />}
-      label="Onboarded"
+      label="Managed"
     />
   ) : (
-    <Chip size="small" variant="outlined" icon={<CircleDashed size={14} />} label="Not onboarded" />
+    <Chip size="small" variant="outlined" icon={<CircleDashed size={14} />} label="Unmanaged" />
   );
 }
 
@@ -252,7 +256,20 @@ export const SCAN_STATUS_LABELS: Record<ShadowScanStatus, string> = {
   failed: "Failed",
 };
 
-export function ScanStatusChip({ status }: { status: ShadowScanStatus }) {
+/**
+ * A scan's status. A cancelled scan is Failed in the API; `cancelled` shows it
+ * as Cancelled, since the user stopped it.
+ */
+export function ScanStatusChip({
+  status,
+  cancelled = false,
+}: {
+  status: ShadowScanStatus;
+  cancelled?: boolean;
+}) {
+  if (cancelled) {
+    return <Chip size="small" variant="outlined" icon={<Ban size={14} />} label="Cancelled" />;
+  }
   const color =
     status === "succeeded"
       ? "success"
@@ -296,6 +313,13 @@ const OUTCOME_LABELS: Record<ShadowCallOutcome, string> = {
   failed: "Failed",
 };
 
+/** The label of a call's or a connection's outcome. */
+export function outcomeLabel(outcome: string): string {
+  return outcome === "partial"
+    ? "Partly failed"
+    : (OUTCOME_LABELS[outcome as ShadowCallOutcome] ?? outcome);
+}
+
 export function OutcomeChip({ outcome }: { outcome: string }) {
   const color =
     outcome === "ok"
@@ -305,11 +329,7 @@ export function OutcomeChip({ outcome }: { outcome: string }) {
         : outcome === "partial" || outcome === "rate_limited" || outcome === "not_found"
           ? "warning"
           : "error";
-  const label =
-    outcome === "partial"
-      ? "Partly failed"
-      : (OUTCOME_LABELS[outcome as ShadowCallOutcome] ?? outcome);
-  return <Chip size="small" variant="outlined" color={color} label={label} />;
+  return <Chip size="small" variant="outlined" color={color} label={outcomeLabel(outcome)} />;
 }
 
 /** The best single line to name who created an agent. */

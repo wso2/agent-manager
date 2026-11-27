@@ -45,6 +45,7 @@ import {
   useConfirmationDialog,
 } from "@agent-management-platform/shared-component";
 import type { ShadowFindingListQuery, ShadowFindingSummary } from "@agent-management-platform/types";
+import { ProviderLogo } from "../providerLogos";
 import {
   AGENT_PLATFORMS,
   AiReviewChip,
@@ -144,7 +145,7 @@ export function FindingsTab({
     addConfirmation({
       title: `Delete ${f.displayName}?`,
       description:
-        `The agent and its evidence are deleted from Agent Manager, for every platform that found it (${sourceLabel(f)}). ` +
+        `The agent and its evidence are deleted from Agent Manager, for every connector that found it (${sourceLabel(f)}). ` +
         "Nothing changes on the platform: a later scan lists the agent again if the platform still has it.",
       confirmButtonText: "Delete",
       confirmButtonColor: "error",
@@ -154,9 +155,9 @@ export function FindingsTab({
     addConfirmation({
       title: "Delete all unmanaged agents?",
       description:
-        "Every agent and its evidence is deleted from Agent Manager, on every platform, whatever the filters show, " +
+        "Every agent and its evidence is deleted from Agent Manager, for every connector, whatever the filters show, " +
         "including the agents their platforms no longer list. " +
-        "Platforms and scan history are kept, and nothing changes on the platforms: a later scan lists the agents they still have again. " +
+        "Connectors and scan history are kept, and nothing changes on the platforms: a later scan lists the agents they still have again. " +
         "This can't be undone.",
       confirmButtonText: "Delete all",
       confirmButtonColor: "error",
@@ -193,7 +194,7 @@ export function FindingsTab({
       <Box sx={{ minWidth: 170 }}>
         <TextInput
           select
-          aria-label="Onboarding status"
+          aria-label="Management"
           value={onboarded}
           onChange={(e) => {
             setOnboarded(e.target.value as "" | "true" | "false");
@@ -201,24 +202,24 @@ export function FindingsTab({
           }}
           size="small"
           slotProps={{
-            select: { displayEmpty: true, inputProps: { "aria-label": "Onboarding status" } },
+            select: { displayEmpty: true, inputProps: { "aria-label": "Management" } },
           }}
         >
           <MenuItem value="">All agents</MenuItem>
-          <MenuItem value="false">Not onboarded</MenuItem>
-          <MenuItem value="true">Onboarded</MenuItem>
+          <MenuItem value="false">Unmanaged</MenuItem>
+          <MenuItem value="true">Managed</MenuItem>
         </TextInput>
       </Box>
       <Box sx={{ minWidth: 220 }}>
         <TextInput
           select
-          aria-label="Platform"
+          aria-label="Source"
           value={provider}
           onChange={(e) => setProvider(e.target.value)}
           size="small"
-          slotProps={{ select: { displayEmpty: true, inputProps: { "aria-label": "Platform" } } }}
+          slotProps={{ select: { displayEmpty: true, inputProps: { "aria-label": "Source" } } }}
         >
-          <MenuItem value="">All platforms</MenuItem>
+          <MenuItem value="">All sources</MenuItem>
           {[...AGENT_PLATFORMS, ...SOURCE_HOSTS].map((p) => (
             <MenuItem key={p} value={p}>
               {providerLabel(p)}
@@ -260,15 +261,15 @@ export function FindingsTab({
         description: emptyText
           ? emptyText.description
           : scanId
-            ? "No platform of this scan listed an agent. Open the scan details to see each call."
-            : "Add a platform and run a scan. The agents your platforms list show up here, once each.",
+            ? "No connector of this scan listed an agent. Open the scan details to see each call."
+            : "Add a source and run a scan. The agents your connectors find show up here, once each.",
         action: emptyAction,
       }}
       searchEmptyState={{
         illustration: <ScanSearch size={64} />,
-        title: onlyNotOnboarded ? "Every agent is onboarded" : "No agents match your filters",
+        title: onlyNotOnboarded ? "Every agent is managed" : "No agents match your filters",
         description: onlyNotOnboarded
-          ? "No agent is waiting to be onboarded. Choose All agents to see the onboarded ones."
+          ? "No unmanaged agent is left. Choose All agents to see the managed ones."
           : "Try other search keywords or clear the filters.",
       }}
     >
@@ -276,10 +277,10 @@ export function FindingsTab({
         <ListingTable.Head>
           <ListingTable.Row>
             <ListingTable.Cell>Agent</ListingTable.Cell>
-            <ListingTable.Cell>Platform</ListingTable.Cell>
             <ListingTable.Cell>Source</ListingTable.Cell>
+            <ListingTable.Cell>Connector</ListingTable.Cell>
             <ListingTable.Cell>Last seen</ListingTable.Cell>
-            <ListingTable.Cell>Onboarding status</ListingTable.Cell>
+            <ListingTable.Cell>Status</ListingTable.Cell>
             {canDelete && <ListingTable.Cell align="right" aria-label="Delete" />}
           </ListingTable.Row>
         </ListingTable.Head>
@@ -314,7 +315,12 @@ export function FindingsTab({
                 </Typography>
               </ListingTable.Cell>
               <ListingTable.Cell>
-                <Typography variant="body2">{providerLabel(f.provider)}</Typography>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <ProviderLogo provider={f.provider} size={18} />
+                  <Typography variant="body2" noWrap>
+                    {providerLabel(f.provider)}
+                  </Typography>
+                </Stack>
               </ListingTable.Cell>
               <ListingTable.Cell sx={{ maxWidth: 240 }}>
                 <Typography variant="body2" color="text.secondary" noWrap title={sourceLabel(f)}>

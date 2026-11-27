@@ -70,6 +70,7 @@ const hoisted = vi.hoisted(() => ({
 
 vi.mock("@agent-management-platform/api-client", () => ({
   useShadowScans: () => ({ data: { scans: hoisted.scans }, isLoading: false, error: null }),
+  useShadowConnections: () => ({ data: { connections: [] }, isLoading: false, error: null }),
   useShadowScan: (_org: string | undefined, id: string | undefined) => {
     hoisted.lookupIds.push(id);
     return id ? hoisted.lookup : { data: undefined, isLoading: false, error: null };
@@ -190,7 +191,7 @@ describe("uploadErrorMessage", () => {
   it("explains the server's refusals", () => {
     expect(
       uploadErrorMessage(err(409, "a newer scan of this platform has already published results")),
-    ).toMatch(/A newer scan of this platform has already uploaded its results/);
+    ).toMatch(/A newer scan of this connector has already uploaded its results/);
     expect(uploadErrorMessage(err(409, "the scan is not waiting for results"))).toBe(
       "This scan is no longer waiting for results.",
     );
@@ -315,7 +316,7 @@ describe("UploadResultsDialog", () => {
         }),
       ),
     );
-    expect(screen.getByText(/A newer scan of this platform/)).toBeInTheDocument();
+    expect(screen.getByText(/A newer scan of this connector/)).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
   });
 });

@@ -32,6 +32,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	sa "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // Scan worker settings.
@@ -44,7 +45,18 @@ const (
 	// shadowConnectionTimeout bounds one connection's scan.
 	shadowConnectionTimeout = 30 * time.Minute
 	shadowConnectionWorkers = 4
+	// shadowScanProgressEvery bounds how often a running scan writes the
+	// calls its connections made so far; a connection starting or ending is
+	// written at once.
+	shadowScanProgressEvery = 2 * time.Second
+	// shadowScanWatchEvery is how often a running scan checks it was not
+	// cancelled.
+	shadowScanWatchEvery = 3 * time.Second
 )
+
+// errShadowScanCancelled is the cause of a scan's context when the user
+// cancelled the scan.
+var errShadowScanCancelled = errors.New("the scan was cancelled")
 
 // Connection outcomes in a scan result.
 const (
@@ -70,6 +82,8 @@ type shadowAgentScanner struct {
 	encryptionKey []byte
 	logger        *slog.Logger
 	now           func() time.Time
+	progressEvery time.Duration
+	watchEvery    time.Duration
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -83,6 +97,7 @@ func NewShadowAgentScanner(
 	return &shadowAgentScanner{
 		repo: repo, connectors: connectors, encryptionKey: encryptionKey,
 		logger: logger.With("component", "shadow-agent-scanner"), now: time.Now,
+		progressEvery: shadowScanProgressEvery, watchEvery: shadowScanWatchEvery,
 	}
 }
 
@@ -141,30 +156,28 @@ func (s *shadowAgentScanner) RunOnce(ctx context.Context) {
 	}
 }
 
-// runScan runs every connection of a scan, keeps its lease alive, and
-// records the outcome.
+// runScan runs every connection of a scan, keeps its lease alive, writes
+// its progress, stops when the user cancels it, and records the outcome.
 func (s *shadowAgentScanner) runScan(ctx context.Context, scan *models.ShadowScan) {
 	log := s.logger.With("orgId", scan.OUID, "scanId", scan.ID)
 	// Record the outcome even when the worker is shutting down.
 	record := context.WithoutCancel(ctx)
 	if scan.Attempts > shadowScanMaxAttempts {
-		scan.Status = models.ShadowScanFailed
-		finished := s.now().UTC()
-		scan.FinishedAt = &finished
-		scan.Results = append(scan.Results, models.ShadowScanConnectionResult{
-			Outcome: shadowConnectionFailed, Message: fmt.Sprintf("gave up after %d attempts", shadowScanMaxAttempts),
-			Calls: []models.ShadowScanCallResult{},
-		})
-		if err := s.repo.FinishScan(record, scan); err != nil {
-			log.Error("Failed to record an abandoned scan", "error", err)
-		}
+		s.giveUp(record, scan, log)
 		return
 	}
 	log.Info("Shadow agent scan started", "connections", len(scan.ConnectionIDs))
 
-	leaseCtx, stopLease := context.WithCancel(ctx)
-	go s.keepLease(leaseCtx, scan.ID, log)
-	defer stopLease()
+	scanCtx, cancelScan := context.WithCancelCause(ctx)
+	defer cancelScan(nil)
+	progress := newShadowScanProgress(scan, s.repo, cancelScan, log)
+	progress.flush(record)
+	watchCtx, stopWatch := context.WithCancel(scanCtx)
+	watched := make(chan struct{})
+	go func() {
+		defer close(watched)
+		s.watchScan(watchCtx, scan.ID, progress, cancelScan, log)
+	}()
 
 	startedAt := s.now().UTC()
 	if scan.StartedAt != nil {
@@ -180,10 +193,31 @@ func (s *shadowAgentScanner) runScan(ctx context.Context, scan *models.ShadowSca
 		go func(i int, idStr string) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			results[i] = s.scanConnection(ctx, record, scan, idStr, startedAt, log)
+			res := s.scanConnection(scanCtx, record, scan, i, idStr, startedAt, progress, log)
+			if errors.Is(context.Cause(scanCtx), errShadowScanCancelled) {
+				return // the cancel recorded the scan's results
+			}
+			if res.FinishedAt == nil {
+				finished := s.now().UTC()
+				res.FinishedAt = &finished
+			}
+			results[i] = res
+			progress.finish(record, i, res)
 		}(i, idStr)
 	}
 	wg.Wait()
+	stopWatch()
+	<-watched
+
+	if errors.Is(context.Cause(scanCtx), errShadowScanCancelled) {
+		// The cancel recorded the scan's results; agents of the connections
+		// that finished before it are kept.
+		if err := s.correlate(record, scan.OUID); err != nil {
+			log.Error("Failed to correlate agents across connections", "error", err)
+		}
+		log.Info("Shadow agent scan cancelled")
+		return
+	}
 
 	total := 0
 	okCount, failCount := 0, 0
@@ -212,21 +246,73 @@ func (s *shadowAgentScanner) runScan(ctx context.Context, scan *models.ShadowSca
 	default:
 		scan.Status = models.ShadowScanPartial
 	}
-	if err := s.repo.FinishScan(record, scan); err != nil {
+	ok, err := s.repo.FinishScan(record, scan)
+	if err != nil {
 		log.Error("Failed to record the scan outcome", "error", err)
+		return
+	}
+	if !ok {
+		log.Info("Shadow agent scan was cancelled before it finished; its outcome is not recorded")
 		return
 	}
 	log.Info("Shadow agent scan finished", "status", scan.Status, "agents", total)
 }
 
-func (s *shadowAgentScanner) keepLease(ctx context.Context, id uuid.UUID, log *slog.Logger) {
-	t := time.NewTicker(shadowScanRenewEvery)
-	defer t.Stop()
+// giveUp fails a scan whose workers stopped too many times: each connection
+// the last attempt did not finish fails.
+func (s *shadowAgentScanner) giveUp(ctx context.Context, scan *models.ShadowScan, log *slog.Logger) {
+	msg := fmt.Sprintf("gave up after %d attempts", shadowScanMaxAttempts)
+	scan.Status = models.ShadowScanFailed
+	finished := s.now().UTC()
+	scan.FinishedAt = &finished
+	conns, err := s.repo.ListConnections(ctx, scan.OUID)
+	if err != nil {
+		log.Warn("Failed to list the connections of an abandoned scan", "error", err)
+	}
+	results, _ := repositories.FailUnfinishedScanResults(scan, conns, msg)
+	if len(results) == 0 {
+		results = append(results, models.ShadowScanConnectionResult{
+			Outcome: shadowConnectionFailed, Message: msg, Calls: []models.ShadowScanCallResult{},
+		})
+	}
+	scan.Results = results
+	// Connections that finished saved their agents.
+	scan.FindingsCount = repositories.ShadowResultsFindingsCount(results)
+	if _, err := s.repo.FinishScan(ctx, scan); err != nil {
+		log.Error("Failed to record an abandoned scan", "error", err)
+	}
+}
+
+// watchScan runs while a scan runs: it writes the scan's progress, renews
+// its lease, and cancels the scan when it is no longer running (the user
+// cancelled it).
+func (s *shadowAgentScanner) watchScan(
+	ctx context.Context, id uuid.UUID, progress *shadowScanProgress, cancelScan context.CancelCauseFunc, log *slog.Logger,
+) {
+	progressTick := time.NewTicker(s.progressEvery)
+	defer progressTick.Stop()
+	watchTick := time.NewTicker(s.watchEvery)
+	defer watchTick.Stop()
+	leaseTick := time.NewTicker(shadowScanRenewEvery)
+	defer leaseTick.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-t.C:
+		case <-progressTick.C:
+			progress.flush(ctx)
+		case <-watchTick.C:
+			running, err := s.repo.ScanRunning(ctx, id)
+			switch {
+			case err != nil:
+				if ctx.Err() == nil {
+					log.Warn("Failed to check whether the scan was cancelled", "error", err)
+				}
+			case !running:
+				cancelScan(errShadowScanCancelled)
+				return
+			}
+		case <-leaseTick.C:
 			if err := s.repo.RenewScanLease(ctx, id, s.now().UTC().Add(shadowScanLease)); err != nil && ctx.Err() == nil {
 				log.Warn("Failed to renew the scan lease", "error", err)
 			}
@@ -234,12 +320,132 @@ func (s *shadowAgentScanner) keepLease(ctx context.Context, id uuid.UUID, log *s
 	}
 }
 
+// shadowScanProgress holds a running scan's results so far, one per
+// connection, and writes them to the scan. Connections run concurrently, so
+// every change takes mu; writes take writeMu, so a write never replaces a
+// newer one.
+type shadowScanProgress struct {
+	scanID     uuid.UUID
+	repo       repositories.ShadowAgentRepository
+	cancelScan context.CancelCauseFunc
+	log        *slog.Logger
+
+	writeMu sync.Mutex
+	mu      sync.Mutex
+	results []models.ShadowScanConnectionResult
+	dirty   bool
+}
+
+func newShadowScanProgress(
+	scan *models.ShadowScan, repo repositories.ShadowAgentRepository, cancelScan context.CancelCauseFunc, log *slog.Logger,
+) *shadowScanProgress {
+	p := &shadowScanProgress{
+		scanID: scan.ID, repo: repo, cancelScan: cancelScan, log: log,
+		results: make([]models.ShadowScanConnectionResult, len(scan.ConnectionIDs)), dirty: true,
+	}
+	for i, id := range scan.ConnectionIDs {
+		p.results[i] = models.ShadowScanConnectionResult{
+			ConnectionID: id, Outcome: models.ShadowConnectionQueued, Calls: []models.ShadowScanCallResult{},
+		}
+	}
+	return p
+}
+
+// start marks connection i running and writes the progress.
+func (p *shadowScanProgress) start(ctx context.Context, i int, name, provider string, at time.Time) {
+	p.mu.Lock()
+	r := &p.results[i]
+	r.ConnectionName, r.Provider, r.Outcome, r.StartedAt = name, provider, models.ShadowConnectionRunning, &at
+	p.dirty = true
+	p.mu.Unlock()
+	p.flush(ctx)
+}
+
+// calls records the calls connection i made so far; the next tick writes
+// them.
+func (p *shadowScanProgress) calls(i int, calls []models.ShadowScanCallResult) {
+	calls = sanitizeCalls(calls)
+	p.mu.Lock()
+	p.results[i].Calls = calls
+	p.dirty = true
+	p.mu.Unlock()
+}
+
+// applyFinal runs apply, which saves connection i's agents and its final
+// result in one transaction, and on success keeps final (with the agents
+// written) as i's result. It holds the write lock throughout, so no progress
+// snapshot taken before the apply is written after it.
+func (p *shadowScanProgress) applyFinal(
+	i int, final models.ShadowScanConnectionResult, apply func() (int, error),
+) (int, error) {
+	p.writeMu.Lock()
+	defer p.writeMu.Unlock()
+	n, err := apply()
+	if err != nil {
+		return n, err
+	}
+	final.FindingsCount = n
+	p.mu.Lock()
+	p.results[i] = final
+	p.mu.Unlock()
+	return n, nil
+}
+
+// finish records connection i's result and writes the progress.
+func (p *shadowScanProgress) finish(ctx context.Context, i int, res models.ShadowScanConnectionResult) {
+	p.mu.Lock()
+	p.results[i] = res
+	p.dirty = true
+	p.mu.Unlock()
+	p.flush(ctx)
+}
+
+// flush writes the progress when it changed. A failed write is retried by
+// the next one and never fails the scan; a scan that is no longer running
+// was cancelled, so its context is cancelled.
+func (p *shadowScanProgress) flush(ctx context.Context) {
+	p.writeMu.Lock()
+	defer p.writeMu.Unlock()
+	p.mu.Lock()
+	if !p.dirty {
+		p.mu.Unlock()
+		return
+	}
+	snapshot := append([]models.ShadowScanConnectionResult(nil), p.results...)
+	p.dirty = false
+	p.mu.Unlock()
+	running, err := p.repo.UpdateScanProgress(ctx, p.scanID, snapshot)
+	if err != nil {
+		p.mu.Lock()
+		p.dirty = true
+		p.mu.Unlock()
+		if ctx.Err() == nil {
+			p.log.Warn("Failed to record the scan progress", "error", err)
+		}
+		return
+	}
+	if !running {
+		p.cancelScan(errShadowScanCancelled)
+	}
+}
+
 // scanConnection runs one connection and writes what it found. A failure
 // here fails only this connection's part of the scan.
+//
+// ctx is the scan's context: when the user cancels the scan, its cause is
+// errShadowScanCancelled and nothing the connection found is saved.
 func (s *shadowAgentScanner) scanConnection(
-	ctx, record context.Context, scan *models.ShadowScan, idStr string, startedAt time.Time, log *slog.Logger,
+	ctx, record context.Context, scan *models.ShadowScan, i int, idStr string, startedAt time.Time,
+	progress *shadowScanProgress, log *slog.Logger,
 ) models.ShadowScanConnectionResult {
-	res := models.ShadowScanConnectionResult{ConnectionID: idStr, Outcome: shadowConnectionFailed, Calls: []models.ShadowScanCallResult{}}
+	connStarted := s.now().UTC()
+	res := models.ShadowScanConnectionResult{
+		ConnectionID: idStr, Outcome: shadowConnectionFailed, Calls: []models.ShadowScanCallResult{}, StartedAt: &connStarted,
+	}
+	if errors.Is(context.Cause(ctx), errShadowScanCancelled) {
+		res.Message = models.ShadowConnectionCancelledMessage
+		return res
+	}
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		res.Message = "invalid connection ID"
@@ -267,17 +473,37 @@ func (s *shadowAgentScanner) scanConnection(
 		log.Error("Failed to decrypt a connection credential", "connectionId", id, "error", err)
 		return res
 	}
+	progress.start(record, i, c.Name, c.Provider, connStarted)
 	cctx, cancel := context.WithTimeout(ctx, shadowConnectionTimeout)
 	defer cancel()
+	cctx = sa.WithCallObserver(cctx, func(calls []models.ShadowScanCallResult) { progress.calls(i, calls) })
 	out := runConnector(cctx, connector, conn, log)
 	res.Calls = sanitizeCalls(out.Calls)
+	if errors.Is(context.Cause(ctx), errShadowScanCancelled) {
+		// Cancelled while it ran: what it found is not saved.
+		res.Message = models.ShadowConnectionCancelledMessage
+		return res
+	}
 	res.Outcome, res.Message = connectionOutcome(res.Calls)
 	// A listing is complete only when every call succeeded (or was skipped
 	// on purpose) and the scan was not cut short.
 	complete := res.Outcome == shadowConnectionOK && cctx.Err() == nil
-	in := toShadowApply(scan, c, out, startedAt, s.now().UTC(), complete, log)
-	n, err := s.repo.ApplyConnectionResult(record, in)
-	if err != nil {
+	finished := s.now().UTC()
+	res.FinishedAt = &finished
+	in := toShadowApply(scan, c, out, startedAt, finished, complete, log)
+	// The agents and the connection's final result are saved together, and
+	// only while the scan is still running.
+	final := res
+	in.Result, in.ResultIndex = &final, i
+	n, err := progress.applyFinal(i, final, func() (int, error) { return s.repo.ApplyConnectionResult(record, in) })
+	switch {
+	case errors.Is(err, utils.ErrShadowScanNotRunning):
+		// The user cancelled the scan before its agents were saved.
+		progress.cancelScan(errShadowScanCancelled)
+		res.Message, res.FinishedAt = models.ShadowConnectionCancelledMessage, nil
+		res.Outcome = shadowConnectionFailed
+		return res
+	case err != nil:
 		res.Outcome = shadowConnectionFailed
 		res.Message = "failed to save what the scan found"
 		log.Error("Failed to save a connection's scan result", "connectionId", id, "error", err)

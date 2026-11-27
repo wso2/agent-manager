@@ -15239,11 +15239,21 @@ paths:
     post:
       tags:
         - Shadow Agent Discovery
-      summary: Cancel a source code scan
+      summary: Cancel a scan
       description: |
-        Fails a pending source code scan that is waiting for its results, with
-        the message "cancelled: no results uploaded". Results published or
-        uploaded for it later are refused.
+        Cancels a pending, queued or running scan. The scan fails at once, so
+        a new scan can start.
+
+        - A pending source code scan that is waiting for its results fails
+          with the message "cancelled: no results uploaded". Results published
+          or uploaded for it later are refused.
+        - A queued scan fails with every connection's outcome "failed" and the
+          message "cancelled".
+        - A running scan keeps the results of the connections that finished,
+          and their agents. Each connection still queued or running becomes
+          "failed" with the message "cancelled", keeping the calls it made so
+          far. The scan worker stops its calls within a few seconds and saves
+          no agents from them.
       operationId: cancelShadowScan
       responses:
         "200":
@@ -15253,13 +15263,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ShadowScanResponse"
         "404":
-          description: No such source code scan in the organization
+          description: No such scan in the organization
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: The scan is not waiting for results
+          description: The scan has already finished (succeeded, partial or failed, cancelled or expired)
           content:
             application/json:
               schema:
@@ -25517,8 +25527,14 @@ components:
           type: string
         provider:
           type: string
+          description: Empty while the connection is queued.
         outcome:
           type: string
+          description: |
+            The connection's outcome. While the scan runs: queued (not started
+            yet; connectionName and provider are empty) or running (calls lists
+            the calls made so far). When the connection ends: ok, partial,
+            failed, auth_failed or skipped.
         message:
           type: string
         findingsCount:
@@ -25527,6 +25543,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ShadowScanCallResult"
+        startedAt:
+          type: string
+          format: date-time
+          description: When the scan worker started this connection. Cloud scans only.
+        finishedAt:
+          type: string
+          format: date-time
+          description: When this connection ended. Cloud scans only; a connection cancelled while it ran has none.
         scannedRepositories:
           type: array
           description: The repositories a source code scan command scanned (GitHub repository names). Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.

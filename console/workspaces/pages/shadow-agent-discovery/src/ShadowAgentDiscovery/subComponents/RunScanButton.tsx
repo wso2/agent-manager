@@ -41,8 +41,9 @@ import {
 import { providerLabel, SOURCE_HOSTS } from "../shadowUi";
 
 /**
- * The page's primary action: scan every platform, or the platforms chosen
- * in the dialog. One platform can also be scanned from its row in Platforms.
+ * Scans the AI platform and inventory connectors: all of them, or the ones chosen
+ * in the dialog. Source code repositories are never part of it. Shown with the AI
+ * platforms on the Sources tab, where one connector can also be scanned from its row.
  */
 export function RunScanButton({ orgName }: { orgName: string | undefined }) {
   const [open, setOpen] = useState(false);
@@ -56,6 +57,7 @@ export function RunScanButton({ orgName }: { orgName: string | undefined }) {
   // Source repository hosts are not part of a scan: their repositories are
   // scanned by the scan command on the customer's machine.
   const choosable = all.filter((c) => !SOURCE_HOSTS.includes(c.provider));
+  const hasSourceHosts = choosable.length < all.length;
   const none = choosable.length === 0;
   const canStart = scope === "all" || selected.length > 0;
 
@@ -83,7 +85,11 @@ export function RunScanButton({ orgName }: { orgName: string | undefined }) {
         <DialogContent>
           <Stack spacing={1.5} sx={{ pt: 1 }}>
             <Typography variant="body2" color="text.secondary">
-              Lists the agents of each platform with read-only calls, in the background.
+              Lists the agents of each AI platform connector with read-only calls, in the
+              background.
+              {hasSourceHosts &&
+                " Source code repositories are not included: they are scanned by the command" +
+                  " you run on your machine."}
             </Typography>
             <RadioGroup
               value={scope}
@@ -92,9 +98,9 @@ export function RunScanButton({ orgName }: { orgName: string | undefined }) {
               <FormControlLabel
                 value="all"
                 control={<Radio />}
-                label={`All platforms (${all.length})`}
+                label={`All connectors (${choosable.length})`}
               />
-              <FormControlLabel value="selected" control={<Radio />} label="Choose platforms" />
+              <FormControlLabel value="selected" control={<Radio />} label="Choose connectors" />
             </RadioGroup>
             {scope === "selected" && (
               <Stack sx={{ pl: 4 }}>

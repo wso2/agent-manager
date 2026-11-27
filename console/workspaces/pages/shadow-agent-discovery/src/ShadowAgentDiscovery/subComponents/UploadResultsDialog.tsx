@@ -111,7 +111,7 @@ export function uploadErrorMessage(e: unknown): string {
   switch (status) {
     case 409:
       return /newer/i.test(message)
-        ? "A newer scan of this platform has already uploaded its results, so these are out " +
+        ? "A newer scan of this connector has already uploaded its results, so these are out " +
             "of date. Run a new scan."
         : "This scan is no longer waiting for results.";
     case 413:
@@ -386,23 +386,26 @@ export function UploadResultsDialog({
 }
 
 /**
- * Cancel scan: asks to confirm, then the waiting scan becomes Failed.
- * Returns the function that asks.
+ * Cancel scan: asks to confirm, then cancels a scan that is waiting for
+ * results, queued or running. Returns the function that asks.
  */
 export function useConfirmCancelScan(orgName: string | undefined) {
   const cancel = useCancelShadowScan(orgName);
   const { addConfirmation } = useConfirmationDialog();
-  return (scan: ShadowScanResponse, onDone?: () => void) =>
+  return (scan: ShadowScanResponse, onDone?: () => void) => {
+    const waiting = scan.status === "pending";
     addConfirmation({
       title: "Cancel this scan?",
-      description:
-        "The scan stops waiting for results and shows as Failed. Its results file can no " +
-        "longer be uploaded. To scan again, generate a new command.",
+      description: waiting
+        ? "The scan stops waiting for results and shows as Failed. Its results file can no " +
+          "longer be uploaded. To scan again, generate a new command."
+        : "Agents already found stay. Connectors not finished yet are not scanned.",
       confirmButtonText: "Cancel scan",
-      cancelButtonText: "Keep waiting",
+      cancelButtonText: waiting ? "Keep waiting" : "Keep scanning",
       confirmButtonColor: "error",
       onConfirm: () => cancel.mutate(scan.id, { onSuccess: () => onDone?.() }),
     });
+  };
 }
 
 export default UploadResultsDialog;

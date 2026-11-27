@@ -35,5 +35,6 @@ export { ShadowAgentDiscovery };
 // Shared with the agent registry, which lists and opens the unmanaged agents.
 export * from "./ShadowAgentDiscovery/shadowUi";
 export { useShadowAccess } from "./ShadowAgentDiscovery/useShadowAccess";
+export { ProviderLogo } from "./ShadowAgentDiscovery/providerLogos";
 
 export default ShadowAgentDiscovery;

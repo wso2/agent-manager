@@ -102,6 +102,9 @@ services:
       - IDP_ORG_TOKEN_ENDPOINT_ENABLED=false
       # Local development turns the Shadow Agent Discovery source code scan on.
       - AMP_SHADOW_RUNNER_ENABLED=true
+      # The scan command runs in its own container, where localhost is not this
+      # machine, so it publishes to the host's address instead of SERVER_PUBLIC_URL.
+      - AMP_SHADOW_RUNNER_AMP_URL=http://host.docker.internal:9000
       - IDP_CLIENT_ID=amp-api-client
       # For direct Compose startup, provide both client values in the environment or .env.
       - IDP_CLIENT_SECRET

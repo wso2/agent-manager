@@ -323,6 +323,7 @@ func loadEnvs() {
 	config.ShadowRunner = ShadowRunnerConfig{
 		Enabled:  r.readOptionalBool("AMP_SHADOW_RUNNER_ENABLED", false),
 		Image:    shadowRunnerImage(r.readOptionalString("AMP_SHADOW_RUNNER_IMAGE", "")),
+		AMPURL:   strings.TrimSpace(r.readOptionalString("AMP_SHADOW_RUNNER_AMP_URL", "")),
 		Resource: strings.TrimSpace(r.readOptionalString("AMP_SHADOW_RUNNER_RESOURCE", "")),
 	}
 	validateShadowRunnerConfig(config, r)
@@ -802,19 +803,26 @@ func validateOpenChoreoBuildWorkflowKind(cfg *Config, r *configReader) {
 }
 
 func validateServerPublicURL(cfg *Config, r *configReader) {
-	if cfg.ServerPublicURL == "" {
+	validateHTTPURLSetting(r, "SERVER_PUBLIC_URL", cfg.ServerPublicURL)
+	validateHTTPURLSetting(r, "AMP_SHADOW_RUNNER_AMP_URL", cfg.ShadowRunner.AMPURL)
+}
+
+// validateHTTPURLSetting reports a set URL setting that is not an http or
+// https URL with a host. An empty value is not checked.
+func validateHTTPURLSetting(r *configReader, name, value string) {
+	if value == "" {
 		return
 	}
-	u, err := url.Parse(cfg.ServerPublicURL)
+	u, err := url.Parse(value)
 	if err != nil {
-		r.errors = append(r.errors, fmt.Errorf("SERVER_PUBLIC_URL %q is not a valid URL: %w", cfg.ServerPublicURL, err))
+		r.errors = append(r.errors, fmt.Errorf("%s %q is not a valid URL: %w", name, value, err))
 		return
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		r.errors = append(r.errors, fmt.Errorf("SERVER_PUBLIC_URL %q must use http or https scheme", cfg.ServerPublicURL))
+		r.errors = append(r.errors, fmt.Errorf("%s %q must use http or https scheme", name, value))
 	}
 	if u.Host == "" {
-		r.errors = append(r.errors, fmt.Errorf("SERVER_PUBLIC_URL %q must have a non-empty host", cfg.ServerPublicURL))
+		r.errors = append(r.errors, fmt.Errorf("%s %q must have a non-empty host", name, value))
 	}
 }
 

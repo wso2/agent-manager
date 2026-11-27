@@ -742,7 +742,6 @@ export function ConnectionEditor({
   // (the form is then locked) and the command issued for it. The command
   // holds a scan token, so it lives only in this state.
   const [aiReview, setAiReview] = useState(false);
-  const [llmJudge, setLlmJudge] = useState(false);
   const [directUpload, setDirectUpload] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [issued, setIssued] = useState<ShadowRunnerScanResponse | null>(null);
@@ -794,7 +793,7 @@ export function ConnectionEditor({
     const d = initialDraft(p, undefined);
     d.name =
       draft?.name ||
-      (p.provider === CUSTOM_PLATFORM ? "My agent inventory" : `${p.displayName} connection`);
+      (p.provider === CUSTOM_PLATFORM ? "My agent inventory" : `${p.displayName} connector`);
     setDraft(d);
     setErrors({});
   };
@@ -803,7 +802,7 @@ export function ConnectionEditor({
   const issueCommand = (id: string) => {
     setScanError(null);
     runner.mutate(
-      { connectionId: id, aiReview, llmJudge: aiReview && llmJudge, directUpload },
+      { connectionId: id, aiReview, llmJudge: false, directUpload },
       {
         onSuccess: (r) => {
           setIssued(r);
@@ -813,7 +812,7 @@ export function ConnectionEditor({
         onError: (e) =>
           setScanError(
             (e as { message?: string })?.message ??
-              "The platform is saved, but the scan command could not be generated.",
+              "The connector is saved, but the scan command could not be generated.",
           ),
       },
     );
@@ -836,7 +835,7 @@ export function ConnectionEditor({
     const onError = (e: unknown) =>
       setServerError(
         (e as { message?: string })?.message ??
-          "The platform could not be saved. Check the values and try again.",
+          "The connector could not be saved. Check the values and try again.",
       );
     if (spec.sourceHost) {
       // Saved: lock the form, then issue the scan command for it.
@@ -855,7 +854,7 @@ export function ConnectionEditor({
     else create.mutate(body, { onSuccess, onError });
   };
 
-  const title = isEdit ? `Edit ${existing.data?.name ?? "platform"}` : "Add a platform";
+  const title = isEdit ? `Edit ${existing.data?.name ?? "connector"}` : "Add a source";
   const back = { backHref: returnTo, backLabel: "Back to Shadow Agent Discovery" };
 
   if (providers.isLoading || (isEdit && existing.isLoading) || !draft) {
@@ -1111,10 +1110,10 @@ export function ConnectionEditor({
                       {spec.sourceHost
                         ? isEdit
                           ? "Save and get command"
-                          : "Add platform and get command"
+                          : "Add source and get command"
                         : isEdit
                           ? "Save"
-                          : "Add platform"}
+                          : "Add source"}
                     </Button>
                     <Button
                       variant="outlined"
@@ -1138,11 +1137,9 @@ export function ConnectionEditor({
                   }
                 }
                 aiReview={aiReview}
-                llmJudge={llmJudge}
                 directUpload={directUpload}
                 onChange={(next) => {
                   setAiReview(next.aiReview);
-                  setLlmJudge(next.llmJudge);
                   setDirectUpload(next.directUpload);
                 }}
                 issued={issued}

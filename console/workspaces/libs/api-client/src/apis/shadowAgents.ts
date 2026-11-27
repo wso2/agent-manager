@@ -202,7 +202,11 @@ export async function uploadShadowScanResults(
   return res.json();
 }
 
-/** Cancels a source code scan that is waiting for results; it becomes Failed. */
+/**
+ * Cancels a scan that is waiting for results, queued or running; it becomes
+ * Failed. Connections already finished keep their results; the others fail
+ * with the message "cancelled". A finished scan gives 409.
+ */
 export async function cancelShadowScan(
   orgName: string | undefined,
   scanId: string,

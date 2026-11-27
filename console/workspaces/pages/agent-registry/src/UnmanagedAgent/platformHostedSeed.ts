@@ -44,8 +44,8 @@ export function platformHostedBlocker(
   if (f.provider !== "github") return NOT_GITHUB_COM;
   if (!connection) {
     return connectionFailed
-      ? "Could not load the platform's details. Try again later."
-      : "Loading the platform details.";
+      ? "Could not load the connector's details. Try again later."
+      : "Loading the connector details.";
   }
   const api = (connection.endpoints?.api ?? GITHUB_COM_API).replace(/\/+$/, "");
   if (api !== GITHUB_COM_API || !githubOrganization(connection) || !f.scope) {

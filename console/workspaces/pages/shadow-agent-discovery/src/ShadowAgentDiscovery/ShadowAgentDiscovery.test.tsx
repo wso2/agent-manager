@@ -85,6 +85,68 @@ const scan = (over: Partial<ShadowScanResponse> = {}): ShadowScanResponse => ({
   ...over,
 });
 
+/**
+ * A scan of OpenAI prod (done, 2 agents), AWS prod (being scanned) and Inventory (not
+ * started). Its findingsCount is the sum of the finished connections'.
+ */
+const runningScan = (over: Partial<ShadowScanResponse> = {}): ShadowScanResponse =>
+  scan({
+    status: "running",
+    connectionIds: ["c1", "c2", "c3"],
+    startedAt: "2026-11-10T00:00:00Z",
+    findingsCount: 2,
+    results: [
+      {
+        connectionId: "c1",
+        connectionName: "OpenAI prod",
+        provider: "openai",
+        outcome: "ok",
+        findingsCount: 2,
+        calls: [],
+      },
+      {
+        connectionId: "c2",
+        connectionName: "AWS prod",
+        provider: "bedrock",
+        outcome: "running",
+        findingsCount: 0,
+        startedAt: "2026-11-10T00:01:00Z",
+        calls: [
+          { call: "ListAgents", outcome: "ok", items: 2 },
+          { call: "ListKnowledgeBases", outcome: "permission_denied", items: 0 },
+          { call: "ListAgentRuntimes", outcome: "ok", items: 5 },
+        ],
+      },
+      {
+        connectionId: "c3",
+        connectionName: "",
+        provider: "",
+        outcome: "queued",
+        findingsCount: 0,
+        calls: [],
+      },
+    ],
+    ...over,
+  });
+
+/**
+ * runningScan once cancelled: AWS prod and Inventory did not finish. As the API
+ * reports it, the scan's findingsCount is the sum of the results kept.
+ */
+const cancelledScan = (): ShadowScanResponse => {
+  const results = runningScan().results.map((x) =>
+    x.outcome === "ok"
+      ? x
+      : { ...x, outcome: "failed", message: "cancelled", findingsCount: 0 },
+  );
+  return {
+    ...runningScan(),
+    status: "failed",
+    results,
+    findingsCount: results.reduce((n, x) => n + x.findingsCount, 0),
+  };
+};
+
 const hoisted = vi.hoisted(() => ({
   findings: [] as ShadowFindingSummary[],
   findingsError: null as unknown,
@@ -108,6 +170,7 @@ const hoisted = vi.hoisted(() => ({
   start: vi.fn(),
   clear: vi.fn(),
   cancel: vi.fn(),
+  refreshFindings: vi.fn(),
   upload: vi.fn(),
   resetUpload: vi.fn(),
   deleteAgent: vi.fn(),
@@ -174,6 +237,7 @@ vi.mock("@agent-management-platform/api-client", () => ({
   },
   useClearShadowScans: () => ({ mutate: hoisted.clear, isPending: false }),
   useCancelShadowScan: () => ({ mutate: hoisted.cancel, isPending: false }),
+  useRefreshShadowFindings: () => hoisted.refreshFindings,
   useUploadShadowScanResults: () => ({
     mutate: hoisted.upload,
     reset: hoisted.resetUpload,
@@ -228,7 +292,9 @@ import { FindingsTab } from "./subComponents/FindingsTab";
 import { OverviewPanel } from "./subComponents/OverviewPanel";
 import { RunScanButton } from "./subComponents/RunScanButton";
 import { ConnectionsTab, ScopedKeysChip } from "./subComponents/ConnectionsTab";
-import { ScanDetailsDrawer, ScansTab } from "./subComponents/ScansTab";
+import { ScansTab } from "./subComponents/ScansTab";
+import { ScanProgressCard } from "./subComponents/ScanProgress";
+import { ScanFindings } from "./subComponents/ScanFindings";
 import { ShadowAgentDiscovery } from "./ShadowAgentDiscovery";
 import { AnalyzeSection } from "./subComponents/AnalyzeSection";
 import { ScanStatusChip } from "./shadowUi";
@@ -306,9 +372,11 @@ describe("ShadowAgentDiscovery page", () => {
     page();
     expect(screen.getByRole("heading", { name: "Shadow Agent Discovery" })).toBeInTheDocument();
     const tabs = screen.getAllByRole("tab").map((t) => t.textContent);
-    expect(tabs).toEqual(["Overview", "Scans", "Platforms"]);
+    expect(tabs).toEqual(["Overview", "Sources", "Scans"]);
     expect(screen.queryByRole("tab", { name: "Connections" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Findings" })).not.toBeInTheDocument();
+    // Run scan is with the AI platforms on the Sources tab, not on the whole page.
+    expect(screen.queryByRole("button", { name: "Run scan" })).not.toBeInTheDocument();
   });
 
   it("opens the Overview for an old link to the Unmanaged Agents tab", () => {
@@ -318,7 +386,7 @@ describe("ShadowAgentDiscovery page", () => {
 
   it("switches tabs through the URL", () => {
     page();
-    fireEvent.click(screen.getByRole("tab", { name: "Platforms" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Sources" }));
     expect(screen.getByTestId("location")).toHaveTextContent("?tab=platforms");
     fireEvent.click(screen.getByRole("tab", { name: "Scans" }));
     expect(screen.getByTestId("location")).toHaveTextContent("?tab=scans");
@@ -338,16 +406,16 @@ describe("OverviewPanel", () => {
   it("asks to add a platform first, with the steps to follow", () => {
     hoisted.summary = { totalFindings: 0, byProvider: {}, onboarded: 0, connections: 0 };
     router(<OverviewPanel {...props} />);
-    expect(screen.getByText("Add a platform to start")).toBeInTheDocument();
+    expect(screen.getByText("Add a source to start")).toBeInTheDocument();
     for (const step of [
-      "Add a platform",
-      "Test the connection",
+      "Add a source",
+      "Test the connector",
       "Run a scan",
       "Onboard the unmanaged agents",
     ]) {
       expect(screen.getAllByText(step).length).toBeGreaterThan(0);
     }
-    fireEvent.click(screen.getByRole("button", { name: "Add platform" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
     expect(props.onConnect).toHaveBeenCalled();
   });
 
@@ -356,7 +424,7 @@ describe("OverviewPanel", () => {
     router(<OverviewPanel {...props} />);
     expect(screen.getByText("No scan yet.")).toBeInTheDocument();
     expect(screen.getByText("Get started")).toBeInTheDocument();
-    expect(screen.queryByText("Agents by platform")).not.toBeInTheDocument();
+    expect(screen.queryByText("Agents by source")).not.toBeInTheDocument();
   });
 
   it("shows the agents found, by platform, and the latest scan, without scores", () => {
@@ -369,11 +437,11 @@ describe("OverviewPanel", () => {
     };
     router(<OverviewPanel {...props} />);
     expect(screen.getByText("Unmanaged agents")).toBeInTheDocument();
-    expect(screen.getByText("Onboarded")).toBeInTheDocument();
-    expect(screen.getByText("Platforms connected")).toBeInTheDocument();
+    expect(screen.getByText("Managed")).toBeInTheDocument();
+    expect(screen.getByText("Connectors")).toBeInTheDocument();
     expect(screen.getByText("4")).toBeInTheDocument();
     expect(screen.getByText("1")).toBeInTheDocument();
-    expect(screen.getByText(/Latest scan .* 2 platforms/)).toBeInTheDocument();
+    expect(screen.getByText(/Latest scan .* 2 connectors/)).toBeInTheDocument();
     expect(screen.queryByText(/score/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/verdict/i)).not.toBeInTheDocument();
     expect(screen.queryByText("Get started")).not.toBeInTheDocument();
@@ -415,7 +483,7 @@ describe("FindingsTab", () => {
     ];
     router(<FindingsTab orgName="acme" />);
     const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
-    expect(headers).toEqual(["Agent", "Platform", "Source", "Last seen", "Onboarding status"]);
+    expect(headers).toEqual(["Agent", "Source", "Connector", "Last seen", "Status"]);
     expect(lastQuery()).toMatchObject({ onboarded: "false" });
     expect(screen.getByText("Support Bot")).toBeInTheDocument();
     // The second line is the type only; the scope, state and IDs are on the agent's page.
@@ -424,9 +492,9 @@ describe("FindingsTab", () => {
     expect(screen.queryByText("READY")).not.toBeInTheDocument();
     expect(screen.getByText("Amazon Bedrock")).toBeInTheDocument();
     expect(screen.getByText("AWS prod, AWS audit")).toBeInTheDocument();
-    expect(screen.getByText("Onboarded")).toBeInTheDocument();
+    expect(screen.getByText("Managed")).toBeInTheDocument();
     // The default filter and the support bot's chip.
-    expect(screen.getAllByText("Not onboarded")).toHaveLength(2);
+    expect(screen.getAllByText("Unmanaged")).toHaveLength(2);
     expect(screen.queryByText(/Reviewed|Dismissed/)).not.toBeInTheDocument();
     expect(screen.queryByText("No longer listed")).not.toBeInTheDocument();
   });
@@ -483,13 +551,13 @@ describe("FindingsTab", () => {
     router(<FindingsTab orgName="acme" canManage />);
     const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
     // The delete column has no title; each row keeps its delete button.
-    expect(headers).toEqual(["Agent", "Platform", "Source", "Last seen", "Onboarding status", ""]);
+    expect(headers).toEqual(["Agent", "Source", "Connector", "Last seen", "Status", ""]);
     fireEvent.click(screen.getByRole("button", { name: "Delete Support Bot" }));
     expect(screen.getByTestId("location")).toHaveTextContent("/");
     expect(screen.getByTestId("location")).not.toHaveTextContent("/agents/");
     const opts = hoisted.addConfirmation.mock.calls[0][0];
     expect(opts.title).toBe("Delete Support Bot?");
-    expect(opts.description).toContain("for every platform that found it");
+    expect(opts.description).toContain("for every connector that found it");
     expect(opts.description).toContain("a later scan lists the agent again");
     expect(hoisted.deleteAgent).not.toHaveBeenCalled();
     opts.onConfirm();
@@ -502,9 +570,9 @@ describe("FindingsTab", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete all" }));
     const opts = hoisted.addConfirmation.mock.calls[0][0];
     expect(opts.title).toBe("Delete all unmanaged agents?");
-    expect(opts.description).toContain("on every platform, whatever the filters show");
+    expect(opts.description).toContain("for every connector, whatever the filters show");
     expect(opts.description).toContain("including the agents their platforms no longer list");
-    expect(opts.description).toContain("Platforms and scan history are kept");
+    expect(opts.description).toContain("Connectors and scan history are kept");
     expect(opts.confirmButtonText).toBe("Delete all");
     expect(hoisted.deleteAll).not.toHaveBeenCalled();
     opts.onConfirm();
@@ -531,8 +599,8 @@ describe("FindingsTab", () => {
   it("filters by the agent platforms, the source hosts and onboarding", () => {
     hoisted.findings = [finding()];
     router(<FindingsTab orgName="acme" />);
-    expect(openSelect("Platform")).toEqual([
-      "All platforms",
+    expect(openSelect("Source")).toEqual([
+      "All sources",
       "OpenAI",
       "Anthropic",
       "Amazon Bedrock",
@@ -543,11 +611,11 @@ describe("FindingsTab", () => {
     ]);
     fireEvent.click(screen.getByRole("option", { name: "Microsoft Foundry" }));
     expect(lastQuery()).toMatchObject({ provider: "foundry", offset: 0, onboarded: "false" });
-    expect(openSelect("Onboarding status")).toEqual(["All agents", "Not onboarded", "Onboarded"]);
+    expect(openSelect("Management")).toEqual(["All agents", "Unmanaged", "Managed"]);
     fireEvent.click(screen.getByRole("option", { name: "All agents" }));
     expect(lastQuery()).toMatchObject({ provider: "foundry", onboarded: undefined });
-    openSelect("Onboarding status");
-    fireEvent.click(screen.getByRole("option", { name: "Onboarded" }));
+    openSelect("Management");
+    fireEvent.click(screen.getByRole("option", { name: "Managed" }));
     expect(lastQuery()).toMatchObject({ provider: "foundry", onboarded: "true" });
   });
 
@@ -575,7 +643,7 @@ describe("RunScanButton", () => {
   it("scans every platform", () => {
     router(<RunScanButton orgName="acme" />);
     fireEvent.click(screen.getByRole("button", { name: "Run scan" }));
-    expect(screen.getByLabelText("All platforms (2)")).toBeChecked();
+    expect(screen.getByLabelText("All connectors (2)")).toBeChecked();
     fireEvent.click(screen.getByRole("button", { name: "Start scan" }));
     expect(hoisted.start).toHaveBeenCalledWith({}, expect.anything());
   });
@@ -583,11 +651,26 @@ describe("RunScanButton", () => {
   it("scans only the platforms chosen", () => {
     router(<RunScanButton orgName="acme" />);
     fireEvent.click(screen.getByRole("button", { name: "Run scan" }));
-    fireEvent.click(screen.getByLabelText("Choose platforms"));
+    fireEvent.click(screen.getByLabelText("Choose connectors"));
     expect(screen.getByRole("button", { name: "Start scan" })).toBeDisabled();
     fireEvent.click(screen.getByLabelText("AWS prod · Amazon Bedrock"));
     fireEvent.click(screen.getByRole("button", { name: "Start scan" }));
     expect(hoisted.start).toHaveBeenCalledWith({ connectionIds: ["c2"] }, expect.anything());
+  });
+
+  it("counts only the connectors a scan calls, not the source code repositories", () => {
+    hoisted.connections = [
+      ...hoisted.connections,
+      connection({ id: "c3", name: "Repos", provider: "github" }),
+    ];
+    router(<RunScanButton orgName="acme" />);
+    fireEvent.click(screen.getByRole("button", { name: "Run scan" }));
+    expect(screen.getByLabelText("All connectors (2)")).toBeChecked();
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "Source code repositories are not included",
+    );
+    fireEvent.click(screen.getByLabelText("Choose connectors"));
+    expect(screen.queryByLabelText(/^Repos/)).not.toBeInTheDocument();
   });
 
   it("is disabled while a scan runs or with no platform", () => {
@@ -628,27 +711,31 @@ describe("ConnectionsTab (Platforms)", () => {
       }),
     ];
     renderTab();
-    expect(screen.getByRole("button", { name: "Add platform" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add source" })).toBeInTheDocument();
     expect(screen.getByText("AI platforms")).toBeInTheDocument();
     expect(screen.getByText("Source code repositories")).toBeInTheDocument();
     const [ai, source] = screen.getAllByRole("table");
     expect(within(ai).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
       "Name",
-      "Platform",
+      "Source",
       "Last test",
       "Created",
       "",
     ]);
     expect(within(source).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
       "Name",
-      "Host",
+      "Source",
       "What it scans",
       "Created",
       "",
     ]);
     expect(within(source).getByText("acme · All repositories · Private and public")).toBeInTheDocument();
+    // Run scan is in the AI platforms section only.
+    const runScan = screen.getByRole("button", { name: "Run scan" });
+    expect(runScan.compareDocumentPosition(ai) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Run scan" })).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Scan OpenAI prod" }));
-    expect(hoisted.start).toHaveBeenCalledWith({ connectionIds: ["c1"] });
+    expect(hoisted.start).toHaveBeenCalledWith({ connectionIds: ["c1"] }, expect.anything());
     // A source host has no credential to test and no cloud scan.
     expect(screen.queryByRole("button", { name: "Scan Repos" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Test Repos" })).not.toBeInTheDocument();
@@ -672,8 +759,24 @@ describe("ConnectionsTab (Platforms)", () => {
     expect(within(custom).getByText("Your inventory")).toBeInTheDocument();
     // Your inventory is scanned and tested like an AI platform.
     fireEvent.click(within(custom).getByRole("button", { name: "Scan Inventory" }));
-    expect(hoisted.start).toHaveBeenCalledWith({ connectionIds: ["c3"] });
+    expect(hoisted.start).toHaveBeenCalledWith({ connectionIds: ["c3"] }, expect.anything());
     expect(within(custom).getByRole("button", { name: "Test Inventory" })).toBeInTheDocument();
+  });
+
+  it("puts Run scan with Bring your own inventory when there is no AI platform, never with repositories", () => {
+    hoisted.connections = [connection({ id: "c2", name: "Repos", provider: "github" })];
+    const { unmount } = renderTab();
+    expect(screen.queryByRole("button", { name: "Run scan" })).not.toBeInTheDocument();
+    unmount();
+    hoisted.connections = [
+      connection({ id: "c2", name: "Repos", provider: "github" }),
+      connection({ id: "c3", name: "Inventory", provider: "custom" }),
+    ];
+    renderTab();
+    const [source, custom] = screen.getAllByRole("table");
+    const runScan = screen.getByRole("button", { name: "Run scan" });
+    expect(runScan.compareDocumentPosition(source) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    expect(runScan.compareDocumentPosition(custom) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("opens Generate command from a source code repository row", () => {
@@ -704,6 +807,82 @@ describe("ConnectionsTab (Platforms)", () => {
     expect(screen.getByRole("button", { name: "Scan OpenAI prod" })).toBeDisabled();
   });
 
+  it("says which connector a running scan covers, marks its row and links to the scan", () => {
+    hoisted.connections = [connection(), connection({ id: "c2", name: "AWS prod", provider: "bedrock" })];
+    hoisted.summary = {
+      totalFindings: 0,
+      byProvider: {},
+      onboarded: 0,
+      connections: 2,
+      latestScan: scan({ status: "running", results: [] }),
+    };
+    renderTab();
+    const notice = screen.getByRole("alert");
+    expect(notice).toHaveTextContent(/^Scanning OpenAI prod, started/);
+    expect(screen.getAllByText("Scanning")).toHaveLength(1);
+    fireEvent.click(within(notice).getByRole("button", { name: "View scan" }));
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/organizations/acme/shadow-agent-discovery/scans/s1",
+    );
+  });
+
+  it("says a scan is starting while the request is on its way, and marks the row", () => {
+    hoisted.connections = [connection()];
+    renderTab();
+    fireEvent.click(screen.getByRole("button", { name: "Scan OpenAI prod" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Starting a scan of OpenAI prod…");
+    expect(screen.getByText("Scanning")).toBeInTheDocument();
+  });
+
+  it("shows the scan it just started at once, before the summary catches up", () => {
+    hoisted.connections = [connection()];
+    hoisted.summary = {
+      totalFindings: 0,
+      byProvider: {},
+      onboarded: 0,
+      connections: 1,
+      latestScan: scan({ id: "s0" }),
+    };
+    hoisted.start.mockImplementationOnce(
+      (_body: unknown, opts: { onSuccess: (s: ShadowScanResponse) => void }) =>
+        opts.onSuccess(scan({ id: "s9", status: "queued", results: [], findingsCount: 0 })),
+    );
+    renderTab();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Scan OpenAI prod" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(/^Scanning OpenAI prod, started/);
+    expect(screen.getByRole("button", { name: "Scan OpenAI prod" })).toBeDisabled();
+  });
+
+  it("says how a scan it saw running ended, until dismissed, and nothing for older scans", () => {
+    hoisted.connections = [connection()];
+    const summary = (status: ShadowScanResponse["status"]) => ({
+      totalFindings: 3,
+      byProvider: {},
+      onboarded: 0,
+      connections: 1,
+      latestScan: scan({ status }),
+    });
+    hoisted.summary = summary("succeeded");
+    const ui = () => (
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <ConnectionsTab orgName="acme" canManage onAdd={vi.fn()} onEdit={vi.fn()} />
+      </MemoryRouter>
+    );
+    const { rerender } = render(ui());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    hoisted.summary = summary("running");
+    rerender(ui());
+    hoisted.summary = summary("succeeded");
+    rerender(ui());
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Scan of OpenAI prod finished: 3 agents found.",
+    );
+    expect(screen.queryByText("Scanning")).not.toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole("alert")).getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("deletes a platform after saying what is removed", () => {
     hoisted.connections = [
       connection(),
@@ -713,7 +892,7 @@ describe("ConnectionsTab (Platforms)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete OpenAI prod" }));
     expect(hoisted.addConfirmation).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        description: expect.stringContaining("every agent this platform found"),
+        description: expect.stringContaining("every agent this connector found"),
       }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Delete Repos" }));
@@ -722,6 +901,116 @@ describe("ConnectionsTab (Platforms)", () => {
         description: expect.stringContaining("Every agent found in these repositories"),
       }),
     );
+  });
+
+  it("shows how far a running scan got: the connectors done and the last step", () => {
+    hoisted.connections = [
+      connection(),
+      connection({ id: "c2", name: "AWS prod", provider: "bedrock" }),
+      connection({ id: "c3", name: "Inventory", provider: "custom" }),
+    ];
+    hoisted.summary = {
+      totalFindings: 2,
+      byProvider: {},
+      onboarded: 0,
+      connections: 3,
+      latestScan: runningScan(),
+    };
+    const { unmount } = renderTab();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "1 of 3 connectors done · AWS prod: 3 steps done · last: ListAgentRuntimes (5 items)",
+    );
+    // Only the connectors still running or waiting are marked; OpenAI prod is done.
+    expect(screen.getAllByText("Scanning")).toHaveLength(2);
+    unmount();
+    // One connector: its steps only; a step that failed shows its outcome.
+    const one = runningScan().results[1];
+    hoisted.summary = {
+      totalFindings: 0,
+      byProvider: {},
+      onboarded: 0,
+      connections: 3,
+      latestScan: scan({
+        status: "running",
+        connectionIds: ["c2"],
+        results: [{ ...one, calls: one.calls.slice(0, 2) }],
+      }),
+    };
+    renderTab();
+    const notice = screen.getByRole("alert");
+    expect(notice).toHaveTextContent(/^Scanning AWS prod, started/);
+    expect(notice).toHaveTextContent("2 steps done · last: ListKnowledgeBases (Permission denied)");
+    expect(notice).not.toHaveTextContent("connectors done");
+  });
+
+  it("says a queued scan is waiting to start", () => {
+    hoisted.connections = [connection()];
+    hoisted.summary = {
+      totalFindings: 0,
+      byProvider: {},
+      onboarded: 0,
+      connections: 1,
+      latestScan: scan({ status: "queued", results: [] }),
+    };
+    renderTab();
+    expect(screen.getByRole("alert")).toHaveTextContent("Waiting to start");
+  });
+
+  it("cancels a running scan after confirming, only with the manage permission", () => {
+    hoisted.connections = [connection()];
+    hoisted.summary = {
+      totalFindings: 0,
+      byProvider: {},
+      onboarded: 0,
+      connections: 1,
+      latestScan: scan({ status: "running" }),
+    };
+    const { unmount } = router(
+      <ConnectionsTab orgName="acme" canManage={false} onAdd={vi.fn()} onEdit={vi.fn()} />,
+    );
+    expect(screen.queryByRole("button", { name: "Cancel scan" })).not.toBeInTheDocument();
+    unmount();
+    renderTab();
+    fireEvent.click(within(screen.getByRole("alert")).getByRole("button", { name: "Cancel scan" }));
+    const opts = hoisted.addConfirmation.mock.calls[0][0];
+    expect(opts.title).toBe("Cancel this scan?");
+    expect(opts.description).toBe(
+      "Agents already found stay. Connectors not finished yet are not scanned.",
+    );
+    expect(opts.cancelButtonText).toBe("Keep scanning");
+    expect(hoisted.cancel).not.toHaveBeenCalled();
+    opts.onConfirm();
+    expect(hoisted.cancel).toHaveBeenCalledWith("s1", expect.anything());
+  });
+
+  it("says a scan it saw running was cancelled, not that it failed", () => {
+    hoisted.connections = [
+      connection(),
+      connection({ id: "c2", name: "AWS prod", provider: "bedrock" }),
+      connection({ id: "c3", name: "Inventory", provider: "custom" }),
+    ];
+    const summary = (latestScan: ShadowScanResponse) => ({
+      totalFindings: latestScan.findingsCount,
+      byProvider: {},
+      onboarded: 0,
+      connections: 3,
+      latestScan,
+    });
+    const ui = () => (
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <ConnectionsTab orgName="acme" canManage onAdd={vi.fn()} onEdit={vi.fn()} />
+      </MemoryRouter>
+    );
+    hoisted.summary = summary(runningScan());
+    const { rerender } = render(ui());
+    hoisted.summary = summary(cancelledScan());
+    rerender(ui());
+    const notice = screen.getByRole("alert");
+    expect(notice).toHaveTextContent(
+      "Scan of 3 connectors cancelled: 2 agents found before it stopped.",
+    );
+    expect(notice).not.toHaveTextContent("failed");
+    expect(within(notice).queryByRole("button", { name: "Cancel scan" })).not.toBeInTheDocument();
   });
 });
 
@@ -747,10 +1036,20 @@ describe("ScansTab", () => {
     hoisted.scans = [scan()];
     router(<ScansTab orgName="acme" canManage />);
     const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
-    expect(headers).toEqual(["Started", "Status", "Platforms scanned", "Agents found", ""]);
+    expect(headers).toEqual(["Started", "Status", "Connectors scanned", "Agents found", ""]);
     expect(screen.queryByText(/History read|days of history/)).not.toBeInTheDocument();
     expect(screen.getAllByText("OpenAI prod").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: /View agents of the scan/ }));
+    fireEvent.click(screen.getByRole("button", { name: /View the scan started/ }));
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/organizations/acme/shadow-agent-discovery/scans/s1",
+    );
+  });
+
+  it("opens the scan's page when its row is clicked, with no drawer", () => {
+    hoisted.scans = [scan()];
+    router(<ScansTab orgName="acme" canManage />);
+    fireEvent.click(screen.getAllByRole("row")[1]);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByTestId("location")).toHaveTextContent(
       "/organizations/acme/shadow-agent-discovery/scans/s1",
     );
@@ -759,11 +1058,26 @@ describe("ScansTab", () => {
   it("opens the unmanaged agents in the agent registry, even without the manage permission", () => {
     hoisted.scans = [scan()];
     router(<ScansTab orgName="acme" canManage={false} />);
+    expect(screen.queryByRole("button", { name: "Upload results" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Clear scans" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "View unmanaged agents" }));
     expect(screen.getByTestId("location")).toHaveTextContent(
       "/organizations/acme/agent-registry?management=unmanaged",
     );
+  });
+
+  it("puts its actions in the slot the page gives, and no search above the table", () => {
+    hoisted.scans = [scan()];
+    const slot = document.createElement("div");
+    document.body.appendChild(slot);
+    router(<ScansTab orgName="acme" canManage actionsSlot={slot} />);
+    const inSlot = within(slot);
+    expect(inSlot.getByRole("button", { name: "View unmanaged agents" })).toBeInTheDocument();
+    expect(inSlot.getByRole("button", { name: "Upload results" })).toBeInTheDocument();
+    expect(inSlot.getByRole("button", { name: "Clear scans" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Upload results" })).toHaveLength(1);
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    slot.remove();
   });
 
   it("clears the finished scans after saying the agents are kept", () => {
@@ -777,80 +1091,51 @@ describe("ScansTab", () => {
     expect(hoisted.clear).toHaveBeenCalledTimes(1);
   });
 
-  const github = {
-    connectionId: "c2",
-    connectionName: "GitHub acme",
-    provider: "github",
-    outcome: "ok",
-    findingsCount: 1,
-    calls: [],
-  };
-  const openGithubScan = () => {
-    router(<ScansTab orgName="acme" canManage />);
-    fireEvent.click(screen.getByText("GitHub acme"));
-    return screen.getByRole("dialog", { name: "Scan details" });
-  };
-
-  it("opens a scan with its detail, which has the repositories", () => {
-    hoisted.scans = [scan({ id: "s2", connectionIds: ["c2"], results: [github] })];
-    hoisted.scanDetail = scan({
-      id: "s2",
-      connectionIds: ["c2"],
-      results: [{ ...github, scannedRepositories: ["acme/api"] }],
-    });
-    router(<ScansTab orgName="acme" canManage />);
-    expect(hoisted.scanIds.filter(Boolean)).toEqual([]);
-    fireEvent.click(screen.getByText("GitHub acme"));
-    expect(hoisted.scanIds).toContain("s2");
-    const drawer = screen.getByRole("dialog", { name: "Scan details" });
-    expect(within(drawer).getByText("1 scanned")).toBeInTheDocument();
-  });
-
-  it("shows the list item, not a detail of another scan", () => {
-    hoisted.scans = [scan({ id: "s2", connectionIds: ["c2"], results: [github] })];
-    hoisted.scanDetail = scan({
-      id: "s9",
-      connectionIds: ["c2"],
-      results: [{ ...github, scannedRepositories: ["acme/other"] }],
-    });
-    const drawer = openGithubScan();
-    expect(within(drawer).getByText("GitHub acme")).toBeInTheDocument();
-    expect(within(drawer).queryByText("Repositories")).not.toBeInTheDocument();
-  });
-
-  it("says the repositories are loading while the detail loads", () => {
-    hoisted.scans = [scan({ id: "s2", connectionIds: ["c2"], results: [github] })];
-    hoisted.scanLoading = true;
-    const drawer = openGithubScan();
-    expect(within(drawer).getByText("Loading repositories…")).toBeInTheDocument();
-  });
-
-  it("says the repositories could not be loaded when the detail fails", () => {
-    hoisted.scans = [scan({ id: "s2", connectionIds: ["c2"], results: [github] })];
-    hoisted.scanError = new Error("boom");
-    const drawer = openGithubScan();
-    expect(
-      within(drawer).getByText("Couldn't load the repositories. Close and reopen to try again."),
-    ).toBeInTheDocument();
-  });
-
-  it("says nothing about repositories for an AI platform while the detail loads", () => {
-    hoisted.scans = [scan()];
-    hoisted.scanLoading = true;
-    router(<ScansTab orgName="acme" canManage />);
-    fireEvent.click(screen.getAllByText("OpenAI prod")[0]);
-    const drawer = screen.getByRole("dialog", { name: "Scan details" });
-    expect(within(drawer).queryByText("Loading repositories…")).not.toBeInTheDocument();
-  });
-
   it("keeps a pending scan when clearing", () => {
     hoisted.scans = [scan({ id: "s2", status: "pending" })];
     router(<ScansTab orgName="acme" canManage />);
     expect(screen.getByRole("button", { name: "Clear scans" })).toBeDisabled();
   });
+
+  it("shows a running scan's progress and cancels it from its row", () => {
+    hoisted.scans = [runningScan()];
+    router(<ScansTab orgName="acme" canManage />);
+    const row = screen.getAllByRole("row")[1];
+    expect(within(row).getByText("Running")).toBeInTheDocument();
+    expect(within(row).getByText("1 of 3 connectors done")).toBeInTheDocument();
+    // A queued connector has no name yet: the row counts the connectors.
+    expect(within(row).getByText("3 connectors")).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: /Upload results/ })).not.toBeInTheDocument();
+    fireEvent.click(within(row).getByRole("button", { name: /Cancel the scan started/ }));
+    // Cancel does not also open the scan.
+    expect(screen.getByTestId("location")).not.toHaveTextContent("/scans/");
+    const opts = hoisted.addConfirmation.mock.calls[0][0];
+    expect(opts.description).toContain("Agents already found stay");
+    opts.onConfirm();
+    expect(hoisted.cancel).toHaveBeenCalledWith("s1", expect.anything());
+  });
+
+  it("offers Cancel for a queued scan's row, and none for a finished one", () => {
+    hoisted.scans = [scan({ id: "s2", status: "queued", results: [] }), scan()];
+    router(<ScansTab orgName="acme" canManage />);
+    const [queued, finished] = screen.getAllByRole("row").slice(1);
+    expect(within(finished).queryByRole("button", { name: /Cancel the scan/ })).toBeNull();
+    fireEvent.click(within(queued).getByRole("button", { name: /Cancel the scan started/ }));
+    hoisted.addConfirmation.mock.calls[0][0].onConfirm();
+    expect(hoisted.cancel).toHaveBeenCalledWith("s2", expect.anything());
+  });
+
+  it("shows a cancelled scan as Cancelled", () => {
+    hoisted.scans = [cancelledScan()];
+    router(<ScansTab orgName="acme" canManage />);
+    const row = screen.getAllByRole("row")[1];
+    expect(within(row).getByText("Cancelled")).toBeInTheDocument();
+    expect(within(row).queryByText("Failed")).not.toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: /Cancel the scan/ })).not.toBeInTheDocument();
+  });
 });
 
-describe("ScanDetailsDrawer", () => {
+describe("ScanProgressCard", () => {
   const sourceScan = () =>
     scan({
       connectionIds: ["c2"],
@@ -869,16 +1154,15 @@ describe("ScanDetailsDrawer", () => {
     });
 
   it("shows the failed repositories with their reasons", () => {
-    render(<ScanDetailsDrawer scan={sourceScan()} onClose={() => undefined} />);
-    expect(screen.getByText("Repositories")).toBeInTheDocument();
-    expect(screen.getByText("2 scanned, 1 failed")).toBeInTheDocument();
+    render(<ScanProgressCard scan={sourceScan()} connections={[]} />);
+    expect(screen.getByText("Repositories: 2 scanned, 1 failed")).toBeInTheDocument();
     const failed = screen.getByRole("list", { name: "Failed repositories" });
     expect(within(failed).getByText("acme/big")).toBeInTheDocument();
     expect(within(failed).getByText("clone timed out")).toBeInTheDocument();
   });
 
   it("lists the scanned repositories on request", () => {
-    render(<ScanDetailsDrawer scan={sourceScan()} onClose={() => undefined} />);
+    render(<ScanProgressCard scan={sourceScan()} connections={[]} />);
     expect(screen.queryByText("acme/api")).not.toBeInTheDocument();
     const toggle = screen.getByRole("button", { name: "Show 2 scanned repositories" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
@@ -893,10 +1177,59 @@ describe("ScanDetailsDrawer", () => {
     expect(screen.queryByText("acme/api")).not.toBeInTheDocument();
   });
 
+  it("names a connection the scan has no name for from the connections", () => {
+    render(
+      <ScanProgressCard
+        scan={runningScan()}
+        connections={[connection({ id: "c3", name: "Inventory", provider: "custom" })]}
+      />,
+    );
+    expect(screen.getByText("Inventory")).toBeInTheDocument();
+    expect(screen.getByText("Your inventory · Not started")).toBeInTheDocument();
+    expect(screen.queryByText("c3")).not.toBeInTheDocument();
+    expect(screen.getByText("Waiting")).toBeInTheDocument();
+  });
+
+  it("stays after the scan ends: how long it took, what it found, and each connector's steps", () => {
+    const finished = scan({
+      startedAt: "2026-11-10T00:00:00Z",
+      finishedAt: "2026-11-10T00:03:12Z",
+      findingsCount: 3,
+      results: [
+        {
+          connectionId: "c1",
+          connectionName: "OpenAI prod",
+          provider: "openai",
+          outcome: "ok",
+          findingsCount: 3,
+          calls: [{ call: "GET /v1/agents", outcome: "ok", items: 3 }],
+        },
+      ],
+    });
+    render(<ScanProgressCard scan={finished} connections={[]} />);
+    expect(screen.getByText("Progress")).toBeInTheDocument();
+    expect(screen.getByText(/3 min 12 s taken$/)).toBeInTheDocument();
+    expect(screen.getByText("1 connector scanned · 3 agents found.")).toBeInTheDocument();
+    expect(screen.getByText("OpenAI · Done · 3 agents found")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show 1 step" }));
+    const steps = screen.getByRole("list", { name: "Steps done" });
+    expect(within(steps).getByText("GET /v1/agents")).toBeInTheDocument();
+  });
+
+  it("marks the connectors a cancel stopped as Cancelled", () => {
+    render(<ScanProgressCard scan={cancelledScan()} connections={[]} />);
+    // The scan's status and the two connectors that did not finish.
+    expect(screen.getAllByText("Cancelled")).toHaveLength(3);
+    expect(screen.queryByText("cancelled")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/^1 of 3 connectors finished before the scan was cancelled/),
+    ).toBeInTheDocument();
+  });
+
   it("shows no repositories for an AI platform", () => {
-    render(<ScanDetailsDrawer scan={scan()} onClose={() => undefined} />);
+    render(<ScanProgressCard scan={scan()} connections={[]} />);
     expect(screen.getByText("OpenAI prod")).toBeInTheDocument();
-    expect(screen.queryByText("Repositories")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Repositories/)).not.toBeInTheDocument();
   });
 });
 
@@ -904,6 +1237,128 @@ describe("ScanStatusChip", () => {
   it("shows a scan waiting for its scan command as Waiting for results", () => {
     render(<ScanStatusChip status="pending" />);
     expect(screen.getByText("Waiting for results")).toBeInTheDocument();
+  });
+});
+
+describe("ScanFindings (scan page)", () => {
+  const scanPage = (canManage = true) =>
+    router(
+      <Routes>
+        <Route
+          path="/organizations/:orgId/shadow-agent-discovery/scans/:scanId"
+          element={
+            <ScanFindings
+              orgName="acme"
+              listPath="/organizations/acme/shadow-agent-discovery"
+              canManage={canManage}
+            />
+          }
+        />
+      </Routes>,
+      "/organizations/acme/shadow-agent-discovery/scans/s1",
+    );
+
+  it("shows a running scan's progress, one row per connector", () => {
+    hoisted.connections = [connection({ id: "c3", name: "Inventory", provider: "custom" })];
+    hoisted.scanDetail = runningScan();
+    scanPage();
+    expect(screen.getByText("Progress")).toBeInTheDocument();
+    expect(screen.getByText("1 of 3 connectors done.", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText(/elapsed$/)).toBeInTheDocument();
+    const rows = within(screen.getByRole("list", { name: "Connectors" })).getAllByRole("listitem");
+    expect(rows).toHaveLength(3);
+    const [done, scanning, waiting] = rows;
+    expect(within(done).getByText("OpenAI prod")).toBeInTheDocument();
+    expect(within(done).getByText("OK")).toBeInTheDocument();
+    expect(within(done).getByText("OpenAI · Done · 2 agents found")).toBeInTheDocument();
+    expect(within(scanning).getByText("Scanning")).toBeInTheDocument();
+    expect(
+      within(scanning).getByText("Last step: ListAgentRuntimes (5 items)"),
+    ).toBeInTheDocument();
+    // A queued connector has no name in the scan yet: it comes from the connectors.
+    expect(within(waiting).getByText("Inventory")).toBeInTheDocument();
+    expect(within(waiting).getByText("Waiting")).toBeInTheDocument();
+  });
+
+  it("refreshes the scan's agents when a connector finishes or the scan ends, not on each poll", () => {
+    hoisted.scanDetail = runningScan();
+    const ui = () => (
+      <MemoryRouter
+        initialEntries={["/organizations/acme/shadow-agent-discovery/scans/s1"]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <Routes>
+          <Route
+            path="/organizations/:orgId/shadow-agent-discovery/scans/:scanId"
+            element={<ScanFindings orgName="acme" listPath="/x" canManage />}
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+    const { rerender } = render(ui());
+    expect(hoisted.refreshFindings).not.toHaveBeenCalled();
+    // A poll with one more step done: same connectors done.
+    const polled = runningScan();
+    polled.results[1].calls = [...polled.results[1].calls, { call: "X", outcome: "ok", items: 1 }];
+    hoisted.scanDetail = polled;
+    rerender(ui());
+    expect(hoisted.refreshFindings).not.toHaveBeenCalled();
+    // AWS prod finished.
+    const next = runningScan();
+    next.results[1] = { ...next.results[1], outcome: "ok", findingsCount: 4 };
+    hoisted.scanDetail = next;
+    rerender(ui());
+    expect(hoisted.refreshFindings).toHaveBeenCalledTimes(1);
+    // The scan ended.
+    hoisted.scanDetail = { ...next, status: "succeeded" };
+    rerender(ui());
+    expect(hoisted.refreshFindings).toHaveBeenCalledTimes(2);
+  });
+
+  it("lists the steps a connector finished on request", () => {
+    hoisted.scanDetail = runningScan();
+    scanPage();
+    expect(screen.queryByRole("list", { name: "Steps done" })).not.toBeInTheDocument();
+    const toggle = screen.getByRole("button", { name: "Show 3 steps done" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    const steps = screen.getByRole("list", { name: "Steps done" });
+    expect(toggle).toHaveAttribute("aria-controls", steps.id);
+    expect(within(steps).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(steps).getByText("Permission denied")).toBeInTheDocument();
+  });
+
+  it("cancels a running scan after confirming, only with the manage permission", () => {
+    hoisted.scanDetail = runningScan();
+    const { unmount } = scanPage(false);
+    expect(screen.queryByRole("button", { name: "Cancel scan" })).not.toBeInTheDocument();
+    unmount();
+    scanPage();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel scan" }));
+    const opts = hoisted.addConfirmation.mock.calls[0][0];
+    expect(opts.title).toBe("Cancel this scan?");
+    opts.onConfirm();
+    expect(hoisted.cancel).toHaveBeenCalledWith("s1", expect.anything());
+  });
+
+  it("keeps the progress of a cancelled scan, with no Cancel scan or Scan details", () => {
+    hoisted.scanDetail = cancelledScan();
+    scanPage();
+    expect(screen.getByText("Progress")).toBeInTheDocument();
+    expect(
+      screen.getByText(/^1 of 3 connectors finished before the scan was cancelled/),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel scan" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Scan details" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the pending scan's cancel wording", () => {
+    hoisted.scanDetail = scan({ status: "pending", results: [] });
+    scanPage();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel scan" }));
+    const opts = hoisted.addConfirmation.mock.calls[0][0];
+    expect(opts.description).toContain("stops waiting for results");
+    expect(opts.cancelButtonText).toBe("Keep waiting");
   });
 });
 
@@ -1050,42 +1505,17 @@ describe("GenerateCommandDialog", () => {
   });
   const spec = sourceHostSpec();
 
-  it("shows the LLM judge only with AI-enhanced detection, with no AI warning", () => {
+  it("offers AI-enhanced detection with no LLM judge and no AI warning", () => {
     render(
       <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={vi.fn()} />,
     );
-    const ai = screen.getByRole("switch", { name: /^AI-enhanced detection/ });
-    expect(screen.queryByRole("switch", { name: /^LLM judge/ })).not.toBeInTheDocument();
-    fireEvent.click(ai);
-    const judge = screen.getByRole("switch", { name: /^LLM judge/ });
-    expect(judge).toBeEnabled();
-    expect(
-      screen.getByText("A second model must agree before an agent is published."),
-    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("switch", { name: /^AI-enhanced detection/ }));
+    expect(screen.queryByRole("switch", { name: /LLM judge/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/second model/)).not.toBeInTheDocument();
     expect(screen.queryByText(/can make mistakes/)).not.toBeInTheDocument();
-    fireEvent.click(judge);
     fireEvent.click(screen.getByRole("button", { name: "Generate" }));
     expect(hoisted.generate).toHaveBeenLastCalledWith(
-      { connectionId: "c2", aiReview: true, llmJudge: true, directUpload: false },
-      expect.anything(),
-    );
-  });
-
-  it("turns the LLM judge off when AI-enhanced detection is turned off", () => {
-    render(
-      <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={vi.fn()} />,
-    );
-    const ai = screen.getByRole("switch", { name: /^AI-enhanced detection/ });
-    fireEvent.click(ai);
-    fireEvent.click(screen.getByRole("switch", { name: /^LLM judge/ }));
-    fireEvent.click(ai);
-    expect(screen.queryByRole("switch", { name: /^LLM judge/ })).not.toBeInTheDocument();
-    fireEvent.click(ai);
-    expect(screen.getByRole("switch", { name: /^LLM judge/ })).not.toBeChecked();
-    fireEvent.click(ai);
-    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
-    expect(hoisted.generate).toHaveBeenLastCalledWith(
-      { connectionId: "c2", aiReview: false, llmJudge: false, directUpload: false },
+      { connectionId: "c2", aiReview: true, llmJudge: false, directUpload: false },
       expect.anything(),
     );
   });
@@ -1279,23 +1709,18 @@ describe("ConnectionEditor (source code repositories)", () => {
     fireEvent.keyDown(card, { key: " " });
     fireEvent.keyUp(card, { key: " " });
     expect(screen.queryByRole("button", { name: "Connect OpenAI" })).not.toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: /Name/ })).toHaveValue("OpenAI connection");
+    expect(screen.getByRole("textbox", { name: /Name/ })).toHaveValue("OpenAI connector");
   });
 
-  it("hides the LLM judge until AI-enhanced detection is on, and resets it", () => {
+  it("adds --ai-review with AI-enhanced detection, and never offers the LLM judge", () => {
     openNew();
-    expect(screen.queryByRole("switch", { name: /^LLM judge/ })).not.toBeInTheDocument();
     const ai = screen.getByRole("switch", { name: /^AI-enhanced detection/ });
     fireEvent.click(ai);
-    fireEvent.click(screen.getByRole("switch", { name: /^LLM judge/ }));
     expect(commandText()).toContain("--ai-review");
-    expect(commandText()).toContain("--judge");
-    fireEvent.click(ai);
-    expect(screen.queryByRole("switch", { name: /^LLM judge/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: /LLM judge/ })).not.toBeInTheDocument();
     expect(commandText()).not.toContain("--judge");
     fireEvent.click(ai);
-    expect(screen.getByRole("switch", { name: /^LLM judge/ })).not.toBeChecked();
-    expect(commandText()).not.toContain("--judge");
+    expect(commandText()).not.toContain("--ai-review");
   });
 
   it("shows the scan command next to the form, following the organization field", () => {
@@ -1326,7 +1751,7 @@ describe("ConnectionEditor (source code repositories)", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Scan every repository" }));
     fireEvent.click(screen.getByRole("switch", { name: /^AI-enhanced detection/ }));
     fireEvent.click(screen.getByRole("switch", { name: /^Upload results directly/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Add platform and get command" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add source and get command" }));
     expect(hoisted.createConnection).toHaveBeenCalledTimes(1);
     expect(hoisted.createConnection.mock.lastCall?.[0]).toMatchObject({
       provider: "github",
@@ -1351,7 +1776,7 @@ describe("ConnectionEditor (source code repositories)", () => {
     expect(screen.getByText(/Shown once: copy it now/)).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: /Organization or user account/ })).toBeDisabled();
     expect(
-      screen.queryByRole("button", { name: "Add platform and get command" }),
+      screen.queryByRole("button", { name: "Add source and get command" }),
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(screen.getByTestId("location")).toHaveTextContent("/list?tab=platforms");
@@ -1363,7 +1788,7 @@ describe("ConnectionEditor (source code repositories)", () => {
       target: { value: "acme" },
     });
     fireEvent.click(screen.getByRole("checkbox", { name: "Scan every repository" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add platform and get command" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add source and get command" }));
     const created = hoisted.createConnection.mock.lastCall?.[1] as {
       onSuccess: (c: { id: string; name: string }) => void;
     };
@@ -1390,7 +1815,7 @@ describe("ConnectionEditor (source code repositories)", () => {
     fireEvent.keyDown(repos, { key: "Enter" });
     // Removable while the form is open.
     expect(screen.getByRole("button", { name: "payments" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Add platform and get command" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add source and get command" }));
     const created = hoisted.createConnection.mock.lastCall?.[1] as {
       onSuccess: (c: { id: string; name: string }) => void;
     };

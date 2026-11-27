@@ -16,25 +16,22 @@
  * under the License.
  */
 
-import { useId, useState } from "react";
+import { useState } from "react";
+import { createPortal } from "react-dom";
 import {
-  Box,
   Button,
-  Divider,
-  Drawer,
   IconButton,
   ListingTable,
   Stack,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Ban, History, Library, Trash2, Upload, X } from "@wso2/oxygen-ui-icons-react";
+import { Ban, History, Library, Trash2, Upload } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useLocation, useNavigate } from "react-router-dom";
 import { returnToState } from "@agent-management-platform/views";
 import {
   isShadowScanActive,
   useClearShadowScans,
-  useShadowScan,
   useShadowScans,
 } from "@agent-management-platform/api-client";
 import {
@@ -43,23 +40,12 @@ import {
   ResourceListShell,
   useConfirmationDialog,
 } from "@agent-management-platform/shared-component";
-import {
-  absoluteRouteMap,
-  type ShadowScanConnectionResult,
-  type ShadowScanResponse,
-} from "@agent-management-platform/types";
-import {
-  formatCount,
-  itemCount,
-  OutcomeChip,
-  providerLabel,
-  ScanStatusChip,
-  SOURCE_HOSTS,
-  unmanagedAgentsPath,
-} from "../shadowUi";
+import { absoluteRouteMap, type ShadowScanResponse } from "@agent-management-platform/types";
+import { ScanStatusChip, unmanagedAgentsPath } from "../shadowUi";
 import { UploadResultsDialog, useConfirmCancelScan } from "./UploadResultsDialog";
+import { finishedCount, isCancelledScan } from "./ScanProgress";
 
-/** The path of a scan's agents page. */
+/** The path of a scan's page: its progress and its agents. */
 export function scanFindingsPath(orgName: string, scanId: string): string {
   return generatePath(
     absoluteRouteMap.children.org.children.shadowAgentDiscovery.children.scan.path,
@@ -70,283 +56,44 @@ export function scanFindingsPath(orgName: string, scanId: string): string {
   );
 }
 
-const monoCaptionSx = { fontFamily: "monospace", wordBreak: "break-all" } as const;
-
-/**
- * A plain scrollable list: a scan can report thousands of repositories, so
- * rows are bare list items rather than components.
- */
-const repoListSx = {
-  typography: "caption",
-  m: 0,
-  p: 0,
-  listStyle: "none",
-  maxHeight: 320,
-  overflowY: "auto",
-  "& .repo": monoCaptionSx,
-  "& .reason": { color: "text.secondary" },
-  "& li + li": { mt: 0.5 },
-} as const;
-
-/** How loading the scan detail, which has the repositories, is going. */
-export interface RepositoriesLoad {
-  isLoading: boolean;
-  failed: boolean;
+/** Whether a scan can be cancelled: waiting for results, queued or running. */
+export function isCancellable(s: ShadowScanResponse): boolean {
+  return s.status === "pending" || isShadowScanActive(s.status);
 }
 
 /**
- * The repositories a source code scan scanned and could not scan. Only the
- * scan detail has them; a list item or a scan that never published has none.
+ * The connectors a scan covered: their names once it ran, else how many. A
+ * queued connector may have no name yet.
  */
-function ScanRepositories({
-  result,
-  load,
-}: {
-  result: ShadowScanConnectionResult;
-  load?: RepositoriesLoad;
-}) {
-  const [showScanned, setShowScanned] = useState(false);
-  const listId = useId();
-  const scanned = result.scannedRepositories ?? [];
-  const failed = result.failedRepositories ?? [];
-  if (scanned.length === 0 && failed.length === 0) {
-    if (!load || !SOURCE_HOSTS.includes(result.provider)) return null;
-    const note = load.isLoading
-      ? "Loading repositories…"
-      : load.failed
-        ? "Couldn't load the repositories. Close and reopen to try again."
-        : "";
-    if (!note) return null;
-    return (
-      <>
-        <Divider />
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          component="p"
-          sx={{ px: 1.5, py: 1 }}
-        >
-          {note}
-        </Typography>
-      </>
-    );
-  }
-  const n = scanned.length;
-  return (
-    <>
-      <Divider />
-      <Box sx={{ px: 1.5, py: 1 }}>
-        <Typography variant="body2" fontWeight={500}>
-          Repositories
-        </Typography>
-        <Typography variant="caption" color="text.secondary" component="p">
-          {formatCount(n)} scanned
-          {failed.length > 0 && `, ${formatCount(failed.length)} failed`}
-        </Typography>
-        {failed.length > 0 && (
-          <Box
-            component="ul"
-            aria-label="Failed repositories"
-            tabIndex={0}
-            sx={{ ...repoListSx, mt: 1 }}
-          >
-            {failed.map((f) => (
-              <li key={f.name}>
-                <div className="repo">{f.name}</div>
-                {f.message && <div className="reason">{f.message}</div>}
-              </li>
-            ))}
-          </Box>
-        )}
-        {n > 0 && (
-          <>
-            <Button
-              variant="text"
-              size="small"
-              sx={{ mt: 0.5, px: 0 }}
-              aria-expanded={showScanned}
-              aria-controls={listId}
-              onClick={() => setShowScanned((v) => !v)}
-            >
-              {showScanned
-                ? "Hide scanned repositories"
-                : `Show ${formatCount(n)} scanned ${n === 1 ? "repository" : "repositories"}`}
-            </Button>
-            {showScanned && (
-              <Box
-                component="ul"
-                id={listId}
-                aria-label="Scanned repositories"
-                tabIndex={0}
-                sx={repoListSx}
-              >
-                {scanned.map((name) => (
-                  <li key={name} className="repo">
-                    {name}
-                  </li>
-                ))}
-              </Box>
-            )}
-          </>
-        )}
-      </Box>
-    </>
-  );
-}
-
-/**
- * The outcome of every platform call of a scan, per connection. A scan
- * waiting for results offers Upload results and Cancel scan when the caller
- * handles them.
- */
-export function ScanDetailsDrawer({
-  scan,
-  onClose,
-  repositoriesLoad,
-  onUpload,
-  onCancel,
-}: {
-  scan: ShadowScanResponse | null;
-  onClose: () => void;
-  /** Set when the scan shown may be a list item, which has no repositories. */
-  repositoriesLoad?: RepositoriesLoad;
-  onUpload?: (scan: ShadowScanResponse) => void;
-  onCancel?: (scan: ShadowScanResponse) => void;
-}) {
-  return (
-    <Drawer anchor="right" open={!!scan} onClose={onClose}>
-      <Box sx={{ width: { xs: "100vw", sm: 560 }, p: 3 }} role="dialog" aria-label="Scan details">
-        <Stack direction="row" alignItems="center" justifyContent="space-between">
-          <Typography variant="h6">Scan details</Typography>
-          <IconButton aria-label="Close" onClick={onClose}>
-            <X size={18} />
-          </IconButton>
-        </Stack>
-        {scan && (
-          <Stack spacing={2} sx={{ mt: 2 }}>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <ScanStatusChip status={scan.status} />
-              <Typography variant="body2" color="text.secondary">
-                {scan.connectionIds.length}{" "}
-                {scan.connectionIds.length === 1 ? "platform" : "platforms"} scanned
-              </Typography>
-            </Stack>
-            {scan.status === "pending" && (onUpload || onCancel) && (
-              <Stack direction="row" spacing={1}>
-                {onUpload && (
-                  <Button
-                    variant="contained"
-                    startIcon={<Upload size={16} />}
-                    onClick={() => onUpload(scan)}
-                  >
-                    Upload results
-                  </Button>
-                )}
-                {onCancel && (
-                  <Button variant="outlined" color="error" onClick={() => onCancel(scan)}>
-                    Cancel scan
-                  </Button>
-                )}
-              </Stack>
-            )}
-            {scan.results.length === 0 && (
-              <Typography variant="body2" color="text.secondary">
-                {scan.status === "pending"
-                  ? "The scan is waiting for the results of its scan command."
-                  : "The scan has not finished any connection yet."}
-              </Typography>
-            )}
-            {scan.results.map((r) => (
-              <Box key={r.connectionId} sx={{ border: 1, borderColor: "divider", borderRadius: 1 }}>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ p: 1.5 }}>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="body2" fontWeight={500} noWrap>
-                      {r.connectionName || r.connectionId}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {providerLabel(r.provider)} · {r.findingsCount}{" "}
-                      {r.findingsCount === 1 ? "agent" : "agents"}
-                    </Typography>
-                  </Box>
-                  <OutcomeChip outcome={r.outcome} />
-                </Stack>
-                {r.message && (
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    component="p"
-                    sx={{ px: 1.5, pb: 1 }}
-                  >
-                    {r.message}
-                  </Typography>
-                )}
-                {(r.calls ?? []).length > 0 && <Divider />}
-                <Stack divider={<Divider />}>
-                  {(r.calls ?? []).map((c) => (
-                    <Box key={c.call} sx={{ px: 1.5, py: 1 }}>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <Typography
-                          variant="caption"
-                          sx={{ flex: 1, minWidth: 0, ...monoCaptionSx }}
-                        >
-                          {c.call}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {itemCount(c.items)}
-                        </Typography>
-                        <OutcomeChip outcome={c.outcome} />
-                      </Stack>
-                      {c.message && (
-                        <Typography variant="caption" color="text.secondary" component="p">
-                          {c.message}
-                        </Typography>
-                      )}
-                    </Box>
-                  ))}
-                </Stack>
-                <ScanRepositories result={r} load={repositoriesLoad} />
-              </Box>
-            ))}
-          </Stack>
-        )}
-      </Box>
-    </Drawer>
-  );
-}
-
-/** The platforms a scan covered: their names once it ran, else how many. */
 function scannedLabel(s: ShadowScanResponse): string {
-  const names = s.results.map((r) => r.connectionName).filter(Boolean);
-  if (names.length > 0) return names.join(", ");
+  const names = s.results.map((r) => r.connectionName);
+  if (names.length > 0 && names.every(Boolean)) return names.join(", ");
   const n = s.connectionIds.length;
-  return `${n} ${n === 1 ? "platform" : "platforms"}`;
+  return `${n} ${n === 1 ? "connector" : "connectors"}`;
 }
 
 /**
- * The scan history, newest first. A row opens the outcome of every platform
- * call; View agents opens the agents the scan found.
+ * The scan history, newest first. A row opens the scan's page: its progress per
+ * connector and the agents it found.
  */
 export function ScansTab({
   orgName,
   canManage,
+  actionsSlot,
 }: {
   orgName: string | undefined;
   canManage: boolean;
+  /** Where the tab's actions go (the page's tab row); without it they sit above the table. */
+  actionsSlot?: HTMLElement | null;
 }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { data, isLoading, error } = useShadowScans(orgName);
   const clear = useClearShadowScans(orgName);
   const { addConfirmation } = useConfirmationDialog();
-  const [open, setOpen] = useState<ShadowScanResponse | null>(null);
-  // The list omits a source code scan's repositories; the scan detail has them.
-  const detail = useShadowScan(orgName, open?.id);
   const scans = data?.scans ?? [];
-  const current = open
-    ? detail.data?.id === open.id
-      ? detail.data
-      : (scans.find((s) => s.id === open.id) ?? open)
-    : null;
+  const openScan = (s: ShadowScanResponse) =>
+    navigate(scanFindingsPath(orgName ?? "", s.id), { state: returnToState(location) });
   // Clear scans keeps a scan that is queued, running or waiting for results.
   const finished = scans.filter(
     (s) => !isShadowScanActive(s.status) && s.status !== "pending",
@@ -366,17 +113,17 @@ export function ScansTab({
         "This can't be undone.",
       confirmButtonText: "Clear scans",
       confirmButtonColor: "error",
-      onConfirm: () => {
-        setOpen(null);
-        clear.mutate();
-      },
+      onConfirm: () => clear.mutate(),
     });
 
-  const toolbar = (
-    <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ width: "100%" }}>
+  // Small actions; Clear scans is quiet (its dialog carries the warning). They sit in the
+  // page's tab row when the page gives a slot for them, else above the table.
+  const actions = (
+    <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
       {/* The agents the scans found are listed in the agent registry. */}
       <Button
-        variant="outlined"
+        variant="text"
+        size="small"
         startIcon={<Library size={16} />}
         onClick={() => navigate(unmanagedAgentsPath(orgName ?? ""))}
       >
@@ -386,17 +133,19 @@ export function ScansTab({
         <>
           <Button
             variant="outlined"
+            size="small"
             startIcon={<Upload size={16} />}
             onClick={() => setUpload({ scan: null })}
           >
             Upload results
           </Button>
           <Button
-            variant="outlined"
-            color="error"
+            variant="text"
+            size="small"
             startIcon={<Trash2 size={16} />}
             disabled={finished === 0 || clear.isPending}
             onClick={handleClear}
+            sx={{ color: "text.secondary" }}
           >
             Clear scans
           </Button>
@@ -404,9 +153,12 @@ export function ScansTab({
       )}
     </Stack>
   );
+  // Not undefined when the actions are in the slot: the list shell would show its search bar.
+  const toolbar = actionsSlot ? <></> : actions;
 
   return (
     <>
+      {actionsSlot && createPortal(actions, actionsSlot)}
       <ResourceListShell
         resourceName="shadow-agent-scans"
         disablePaper
@@ -419,7 +171,7 @@ export function ScansTab({
         emptyState={{
           illustration: <History size={64} />,
           title: "No scans yet",
-          description: "Run a scan from the top of this page once a platform is added.",
+          description: "Run a scan from the top of this page once a source is added.",
         }}
       >
         <ListingTable>
@@ -427,7 +179,7 @@ export function ScansTab({
             <ListingTable.Row>
               <ListingTable.Cell>Started</ListingTable.Cell>
               <ListingTable.Cell>Status</ListingTable.Cell>
-              <ListingTable.Cell>Platforms scanned</ListingTable.Cell>
+              <ListingTable.Cell>Connectors scanned</ListingTable.Cell>
               <ListingTable.Cell>Agents found</ListingTable.Cell>
               <ListingTable.Cell align="right" />
             </ListingTable.Row>
@@ -438,7 +190,7 @@ export function ScansTab({
                 key={s.id}
                 hover
                 sx={{ cursor: "pointer" }}
-                onClick={() => setOpen(s)}
+                onClick={() => openScan(s)}
               >
                 <ListingTable.Cell>
                   <Typography variant="body2">
@@ -446,7 +198,15 @@ export function ScansTab({
                   </Typography>
                 </ListingTable.Cell>
                 <ListingTable.Cell>
-                  <ScanStatusChip status={s.status} />
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                    <ScanStatusChip status={s.status} cancelled={isCancelledScan(s)} />
+                    {s.status === "running" && (
+                      <Typography variant="caption" color="text.secondary">
+                        {finishedCount(s)} of {s.connectionIds.length}{" "}
+                        {s.connectionIds.length === 1 ? "connector" : "connectors"} done
+                      </Typography>
+                    )}
+                  </Stack>
                 </ListingTable.Cell>
                 <ListingTable.Cell>
                   <Typography variant="body2">{scannedLabel(s)}</Typography>
@@ -462,51 +222,50 @@ export function ScansTab({
                     alignItems="center"
                   >
                     {canManage && s.status === "pending" && (
-                      <>
-                        <Tooltip title="Upload results">
-                          <IconButton
-                            size="small"
-                            aria-label={`Upload results of the scan started ${formatRelativeTime(
-                            s.startedAt ?? s.createdAt,
-                          )}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setUpload({ scan: s });
-                            }}
-                          >
-                            <Upload size={16} />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Cancel scan">
-                          <IconButton
-                            size="small"
-                            aria-label={`Cancel the scan started ${formatRelativeTime(
-                            s.startedAt ?? s.createdAt,
-                          )}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              confirmCancel(s);
-                            }}
-                          >
-                            <Ban size={16} />
-                          </IconButton>
-                        </Tooltip>
-                      </>
+                      <Tooltip title="Upload results">
+                        <IconButton
+                          size="small"
+                          aria-label={`Upload results of the scan started ${formatRelativeTime(
+                          s.startedAt ?? s.createdAt,
+                        )}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setUpload({ scan: s });
+                          }}
+                        >
+                          <Upload size={16} />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                    {canManage && isCancellable(s) && (
+                      <Tooltip title="Cancel scan">
+                        <IconButton
+                          size="small"
+                          aria-label={`Cancel the scan started ${formatRelativeTime(
+                          s.startedAt ?? s.createdAt,
+                        )}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            confirmCancel(s);
+                          }}
+                        >
+                          <Ban size={16} />
+                        </IconButton>
+                      </Tooltip>
                     )}
                     <Button
                       variant="outlined"
                       size="small"
-                      aria-label={`View agents of the scan started ${formatRelativeTime(
+                      sx={{ whiteSpace: "nowrap", flexShrink: 0 }}
+                      aria-label={`View the scan started ${formatRelativeTime(
                         s.startedAt ?? s.createdAt,
                       )}`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate(scanFindingsPath(orgName ?? "", s.id), {
-                          state: returnToState(location),
-                        });
+                        openScan(s);
                       }}
                     >
-                      View agents
+                      View scan
                     </Button>
                   </Stack>
                 </ListingTable.Cell>
@@ -516,13 +275,6 @@ export function ScansTab({
         </ListingTable>
       </ResourceListShell>
 
-      <ScanDetailsDrawer
-        scan={current}
-        onClose={() => setOpen(null)}
-        repositoriesLoad={{ isLoading: detail.isLoading, failed: !!detail.error }}
-        onUpload={canManage ? (sc) => setUpload({ scan: sc }) : undefined}
-        onCancel={canManage ? (sc) => confirmCancel(sc) : undefined}
-      />
       <UploadResultsDialog
         orgName={orgName}
         open={!!upload}

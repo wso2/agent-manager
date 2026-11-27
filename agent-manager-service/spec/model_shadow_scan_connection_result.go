@@ -12,6 +12,7 @@ package spec
 
 import (
 	"encoding/json"
+	"time"
 )
 
 // checks if the ShadowScanConnectionResult type satisfies the MappedNullable interface at compile time
@@ -19,13 +20,19 @@ var _ MappedNullable = &ShadowScanConnectionResult{}
 
 // ShadowScanConnectionResult struct for ShadowScanConnectionResult
 type ShadowScanConnectionResult struct {
-	ConnectionId   string                 `json:"connectionId"`
-	ConnectionName string                 `json:"connectionName"`
-	Provider       string                 `json:"provider"`
-	Outcome        string                 `json:"outcome"`
-	Message        *string                `json:"message,omitempty"`
-	FindingsCount  int32                  `json:"findingsCount"`
-	Calls          []ShadowScanCallResult `json:"calls"`
+	ConnectionId   string `json:"connectionId"`
+	ConnectionName string `json:"connectionName"`
+	// Empty while the connection is queued.
+	Provider string `json:"provider"`
+	// The connection's outcome. While the scan runs: queued (not started yet; connectionName and provider are empty) or running (calls lists the calls made so far). When the connection ends: ok, partial, failed, auth_failed or skipped.
+	Outcome       string                 `json:"outcome"`
+	Message       *string                `json:"message,omitempty"`
+	FindingsCount int32                  `json:"findingsCount"`
+	Calls         []ShadowScanCallResult `json:"calls"`
+	// When the scan worker started this connection. Cloud scans only.
+	StartedAt *time.Time `json:"startedAt,omitempty"`
+	// When this connection ended. Cloud scans only; a connection cancelled while it ran has none.
+	FinishedAt *time.Time `json:"finishedAt,omitempty"`
 	// The repositories a source code scan command scanned (GitHub repository names). Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
 	ScannedRepositories []string `json:"scannedRepositories,omitempty"`
 	// The repositories a source code scan command could not scan. Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
@@ -231,6 +238,70 @@ func (o *ShadowScanConnectionResult) SetCalls(v []ShadowScanCallResult) {
 	o.Calls = v
 }
 
+// GetStartedAt returns the StartedAt field value if set, zero value otherwise.
+func (o *ShadowScanConnectionResult) GetStartedAt() time.Time {
+	if o == nil || IsNil(o.StartedAt) {
+		var ret time.Time
+		return ret
+	}
+	return *o.StartedAt
+}
+
+// GetStartedAtOk returns a tuple with the StartedAt field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ShadowScanConnectionResult) GetStartedAtOk() (*time.Time, bool) {
+	if o == nil || IsNil(o.StartedAt) {
+		return nil, false
+	}
+	return o.StartedAt, true
+}
+
+// HasStartedAt returns a boolean if a field has been set.
+func (o *ShadowScanConnectionResult) HasStartedAt() bool {
+	if o != nil && !IsNil(o.StartedAt) {
+		return true
+	}
+
+	return false
+}
+
+// SetStartedAt gets a reference to the given time.Time and assigns it to the StartedAt field.
+func (o *ShadowScanConnectionResult) SetStartedAt(v time.Time) {
+	o.StartedAt = &v
+}
+
+// GetFinishedAt returns the FinishedAt field value if set, zero value otherwise.
+func (o *ShadowScanConnectionResult) GetFinishedAt() time.Time {
+	if o == nil || IsNil(o.FinishedAt) {
+		var ret time.Time
+		return ret
+	}
+	return *o.FinishedAt
+}
+
+// GetFinishedAtOk returns a tuple with the FinishedAt field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ShadowScanConnectionResult) GetFinishedAtOk() (*time.Time, bool) {
+	if o == nil || IsNil(o.FinishedAt) {
+		return nil, false
+	}
+	return o.FinishedAt, true
+}
+
+// HasFinishedAt returns a boolean if a field has been set.
+func (o *ShadowScanConnectionResult) HasFinishedAt() bool {
+	if o != nil && !IsNil(o.FinishedAt) {
+		return true
+	}
+
+	return false
+}
+
+// SetFinishedAt gets a reference to the given time.Time and assigns it to the FinishedAt field.
+func (o *ShadowScanConnectionResult) SetFinishedAt(v time.Time) {
+	o.FinishedAt = &v
+}
+
 // GetScannedRepositories returns the ScannedRepositories field value if set, zero value otherwise.
 func (o *ShadowScanConnectionResult) GetScannedRepositories() []string {
 	if o == nil || IsNil(o.ScannedRepositories) {
@@ -314,6 +385,12 @@ func (o ShadowScanConnectionResult) ToMap() (map[string]interface{}, error) {
 	}
 	toSerialize["findingsCount"] = o.FindingsCount
 	toSerialize["calls"] = o.Calls
+	if !IsNil(o.StartedAt) {
+		toSerialize["startedAt"] = o.StartedAt
+	}
+	if !IsNil(o.FinishedAt) {
+		toSerialize["finishedAt"] = o.FinishedAt
+	}
 	if !IsNil(o.ScannedRepositories) {
 		toSerialize["scannedRepositories"] = o.ScannedRepositories
 	}

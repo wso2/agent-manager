@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Box, ListingTable, Stack, TablePagination, Typography } from "@wso2/oxygen-ui";
 import { EntityAvatar } from "@agent-management-platform/views";
 import { formatRelativeTime } from "@agent-management-platform/shared-component";
+import { ProviderLogo } from "@agent-management-platform/shadow-agent-discovery";
 import type {
   AgentRegistryEntry,
   AgentRegistryManagement,
@@ -121,7 +122,7 @@ function ManagedRows({ orgId, agents }: { orgId: string; agents: AgentRegistryEn
 
 /**
  * Unmanaged (shadow) agents: the agent (its scope under it), its source (the platform it
- * was found on), the connections that found it (Connection) and when a scan last saw it.
+ * was found on), the connectors that found it (Connector) and when a scan last saw it.
  */
 function UnmanagedRows({ orgId, agents }: { orgId: string; agents: AgentRegistryEntry[] }) {
   const openAgent = useOpenAgent(orgId);
@@ -131,7 +132,7 @@ function UnmanagedRows({ orgId, agents }: { orgId: string; agents: AgentRegistry
         <ListingTable.Row>
           <ListingTable.Cell>Agent</ListingTable.Cell>
           <ListingTable.Cell>Source</ListingTable.Cell>
-          <ListingTable.Cell>Connection</ListingTable.Cell>
+          <ListingTable.Cell>Connector</ListingTable.Cell>
           <ListingTable.Cell align="right">Last seen</ListingTable.Cell>
         </ListingTable.Row>
       </ListingTable.Head>
@@ -153,9 +154,16 @@ function UnmanagedRows({ orgId, agents }: { orgId: string; agents: AgentRegistry
                 <AgentCell agent={agent} detail={detail} />
               </ListingTable.Cell>
               <ListingTable.Cell>
-                <Typography variant="body2" noWrap>
-                  {discovery?.providerDisplayName ?? "—"}
-                </Typography>
+                {discovery ? (
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <ProviderLogo provider={discovery.provider} size={18} />
+                    <Typography variant="body2" noWrap>
+                      {discovery.providerDisplayName}
+                    </Typography>
+                  </Stack>
+                ) : (
+                  <Typography variant="body2">—</Typography>
+                )}
               </ListingTable.Cell>
               <ListingTable.Cell>
                 <Typography variant="body2" color="text.secondary" noWrap>

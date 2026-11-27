@@ -102,7 +102,7 @@ func NewShadowScanRunner(cfg config.Config, logger *slog.Logger) ShadowScanRunne
 		Enabled:     cfg.ShadowRunner.Enabled,
 		Issuer:      nil,
 		ClientID:    strings.TrimSpace(cfg.IDP.ClientID),
-		AMPURL:      strings.TrimRight(strings.TrimSpace(cfg.ServerPublicURL), "/"),
+		AMPURL:      shadowRunnerAMPURL(cfg),
 		Image:       cfg.ShadowRunner.Image,
 		unavailable: "",
 	}
@@ -130,6 +130,16 @@ func NewShadowScanRunner(cfg config.Config, logger *slog.Logger) ShadowScanRunne
 		logger.Info("Source code scan commands are off", "reason", runner.unavailable)
 	}
 	return runner
+}
+
+// shadowRunnerAMPURL is the address the scan command publishes to:
+// AMP_SHADOW_RUNNER_AMP_URL when set, else SERVER_PUBLIC_URL.
+func shadowRunnerAMPURL(cfg config.Config) string {
+	u := strings.TrimSpace(cfg.ShadowRunner.AMPURL)
+	if u == "" {
+		u = strings.TrimSpace(cfg.ServerPublicURL)
+	}
+	return strings.TrimRight(u, "/")
 }
 
 type shadowScanTokenIssuer struct {
@@ -252,23 +262,34 @@ func (s *shadowAgentService) createPendingRunnerScan(
 	}, nil
 }
 
-// CancelRunnerScan fails a pending source code scan of the org with no
-// results: its results file will not be uploaded. Results published or
-// uploaded for it later are refused. A scan that is not pending is refused
-// with utils.ErrShadowScanNotPending.
+// CancelRunnerScan cancels a scan of the org. A pending source code scan
+// fails with no results: its results file will not be uploaded, and results
+// published or uploaded for it later are refused. A queued or running cloud
+// scan fails at once (see repositories.ShadowAgentRepository.CancelActiveScan);
+// its worker stops within a few seconds. A scan that has finished is refused
+// with utils.ErrShadowScanFinished, or utils.ErrShadowScanNotPending when it
+// was a pending scan that was cancelled or expired.
 func (s *shadowAgentService) CancelRunnerScan(ctx context.Context, ouID string, scanID uuid.UUID) (*models.ShadowScan, error) {
 	scan, err := s.GetScan(ctx, ouID, scanID)
 	if err != nil {
 		return nil, err
 	}
-	if err := repositories.ShadowScanNotPendingError(scan); err != nil {
-		return nil, err
+	switch scan.Status {
+	case models.ShadowScanPending:
+		return s.cancelPendingScan(ctx, ouID, scanID)
+	case models.ShadowScanQueued, models.ShadowScanRunning:
+		return s.cancelActiveScan(ctx, ouID, scanID)
+	default:
+		return nil, shadowScanFinishedError(scan)
 	}
+}
+
+func (s *shadowAgentService) cancelPendingScan(ctx context.Context, ouID string, scanID uuid.UUID) (*models.ShadowScan, error) {
 	cancelled, err := s.repo.CancelPendingScan(ctx, ouID, scanID, s.now().UTC())
 	if err != nil {
 		return nil, fmt.Errorf("failed to cancel the scan: %w", err)
 	}
-	scan, err = s.GetScan(ctx, ouID, scanID)
+	scan, err := s.GetScan(ctx, ouID, scanID)
 	if err != nil {
 		return nil, err
 	}
@@ -280,4 +301,36 @@ func (s *shadowAgentService) CancelRunnerScan(ctx context.Context, ouID string, 
 		return nil, fmt.Errorf("failed to cancel the scan %s: it is still pending", scanID)
 	}
 	return scan, nil
+}
+
+func (s *shadowAgentService) cancelActiveScan(ctx context.Context, ouID string, scanID uuid.UUID) (*models.ShadowScan, error) {
+	cancelled, err := s.repo.CancelActiveScan(ctx, ouID, scanID, s.now().UTC())
+	if err != nil {
+		return nil, fmt.Errorf("failed to cancel the scan: %w", err)
+	}
+	scan, err := s.GetScan(ctx, ouID, scanID)
+	if err != nil {
+		return nil, err
+	}
+	if !cancelled {
+		if scan.Status == models.ShadowScanQueued || scan.Status == models.ShadowScanRunning {
+			// Every connection has finished; the worker is recording the scan.
+			return nil, fmt.Errorf("%w: every platform has been scanned", utils.ErrShadowScanFinished)
+		}
+		// It finished in the meantime.
+		return nil, shadowScanFinishedError(scan)
+	}
+	return scan, nil
+}
+
+// shadowScanFinishedError is the error for cancelling a scan that has
+// finished. A pending scan that was cancelled or expired says so, as a
+// publish to it does.
+func shadowScanFinishedError(scan *models.ShadowScan) error {
+	for _, r := range scan.Results {
+		if r.Message == models.ShadowScanExpiredMessage || r.Message == models.ShadowScanCancelledMessage {
+			return repositories.ShadowScanNotPendingError(scan)
+		}
+	}
+	return fmt.Errorf("%w: %s", utils.ErrShadowScanFinished, scan.Status)
 }

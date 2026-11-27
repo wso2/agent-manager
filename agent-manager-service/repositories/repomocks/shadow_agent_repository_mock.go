@@ -25,6 +25,9 @@ import (
 //			ApplyCorrelationFunc: func(ctx context.Context, ouID string, relations map[uuid.UUID][]models.ShadowFindingRelation, signals map[uuid.UUID][]models.ShadowFindingSignal) error {
 //				panic("mock out the ApplyCorrelation method")
 //			},
+//			CancelActiveScanFunc: func(ctx context.Context, ouID string, id uuid.UUID, now time.Time) (bool, error) {
+//				panic("mock out the CancelActiveScan method")
+//			},
 //			CancelPendingScanFunc: func(ctx context.Context, ouID string, id uuid.UUID, now time.Time) (bool, error) {
 //				panic("mock out the CancelPendingScan method")
 //			},
@@ -49,7 +52,7 @@ import (
 //			DeleteFinishedScansFunc: func(ctx context.Context, ouID string) (int64, error) {
 //				panic("mock out the DeleteFinishedScans method")
 //			},
-//			FinishScanFunc: func(ctx context.Context, s *models.ShadowScan) error {
+//			FinishScanFunc: func(ctx context.Context, s *models.ShadowScan) (bool, error) {
 //				panic("mock out the FinishScan method")
 //			},
 //			GetConnectionFunc: func(ctx context.Context, ouID string, id uuid.UUID) (*models.ShadowConnection, error) {
@@ -91,6 +94,9 @@ import (
 //			SaveConnectionTestFunc: func(ctx context.Context, ouID string, id uuid.UUID, at time.Time, result models.ShadowConnectionTestInfo) error {
 //				panic("mock out the SaveConnectionTest method")
 //			},
+//			ScanRunningFunc: func(ctx context.Context, id uuid.UUID) (bool, error) {
+//				panic("mock out the ScanRunning method")
+//			},
 //			SetFindingHiddenFunc: func(ctx context.Context, ouID string, id uuid.UUID, hidden bool, by string, at time.Time) error {
 //				panic("mock out the SetFindingHidden method")
 //			},
@@ -99,6 +105,9 @@ import (
 //			},
 //			UpdateConnectionFunc: func(ctx context.Context, c *models.ShadowConnection) error {
 //				panic("mock out the UpdateConnection method")
+//			},
+//			UpdateScanProgressFunc: func(ctx context.Context, id uuid.UUID, results []models.ShadowScanConnectionResult) (bool, error) {
+//				panic("mock out the UpdateScanProgress method")
 //			},
 //		}
 //
@@ -112,6 +121,9 @@ type ShadowAgentRepositoryMock struct {
 
 	// ApplyCorrelationFunc mocks the ApplyCorrelation method.
 	ApplyCorrelationFunc func(ctx context.Context, ouID string, relations map[uuid.UUID][]models.ShadowFindingRelation, signals map[uuid.UUID][]models.ShadowFindingSignal) error
+
+	// CancelActiveScanFunc mocks the CancelActiveScan method.
+	CancelActiveScanFunc func(ctx context.Context, ouID string, id uuid.UUID, now time.Time) (bool, error)
 
 	// CancelPendingScanFunc mocks the CancelPendingScan method.
 	CancelPendingScanFunc func(ctx context.Context, ouID string, id uuid.UUID, now time.Time) (bool, error)
@@ -138,7 +150,7 @@ type ShadowAgentRepositoryMock struct {
 	DeleteFinishedScansFunc func(ctx context.Context, ouID string) (int64, error)
 
 	// FinishScanFunc mocks the FinishScan method.
-	FinishScanFunc func(ctx context.Context, s *models.ShadowScan) error
+	FinishScanFunc func(ctx context.Context, s *models.ShadowScan) (bool, error)
 
 	// GetConnectionFunc mocks the GetConnection method.
 	GetConnectionFunc func(ctx context.Context, ouID string, id uuid.UUID) (*models.ShadowConnection, error)
@@ -179,6 +191,9 @@ type ShadowAgentRepositoryMock struct {
 	// SaveConnectionTestFunc mocks the SaveConnectionTest method.
 	SaveConnectionTestFunc func(ctx context.Context, ouID string, id uuid.UUID, at time.Time, result models.ShadowConnectionTestInfo) error
 
+	// ScanRunningFunc mocks the ScanRunning method.
+	ScanRunningFunc func(ctx context.Context, id uuid.UUID) (bool, error)
+
 	// SetFindingHiddenFunc mocks the SetFindingHidden method.
 	SetFindingHiddenFunc func(ctx context.Context, ouID string, id uuid.UUID, hidden bool, by string, at time.Time) error
 
@@ -187,6 +202,9 @@ type ShadowAgentRepositoryMock struct {
 
 	// UpdateConnectionFunc mocks the UpdateConnection method.
 	UpdateConnectionFunc func(ctx context.Context, c *models.ShadowConnection) error
+
+	// UpdateScanProgressFunc mocks the UpdateScanProgress method.
+	UpdateScanProgressFunc func(ctx context.Context, id uuid.UUID, results []models.ShadowScanConnectionResult) (bool, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -207,6 +225,17 @@ type ShadowAgentRepositoryMock struct {
 			Relations map[uuid.UUID][]models.ShadowFindingRelation
 			// Signals is the signals argument value.
 			Signals map[uuid.UUID][]models.ShadowFindingSignal
+		}
+		// CancelActiveScan holds details about calls to the CancelActiveScan method.
+		CancelActiveScan []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ID is the id argument value.
+			ID uuid.UUID
+			// Now is the now argument value.
+			Now time.Time
 		}
 		// CancelPendingScan holds details about calls to the CancelPendingScan method.
 		CancelPendingScan []struct {
@@ -404,6 +433,13 @@ type ShadowAgentRepositoryMock struct {
 			// Result is the result argument value.
 			Result models.ShadowConnectionTestInfo
 		}
+		// ScanRunning holds details about calls to the ScanRunning method.
+		ScanRunning []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// ID is the id argument value.
+			ID uuid.UUID
+		}
 		// SetFindingHidden holds details about calls to the SetFindingHidden method.
 		SetFindingHidden []struct {
 			// Ctx is the ctx argument value.
@@ -433,9 +469,19 @@ type ShadowAgentRepositoryMock struct {
 			// C is the c argument value.
 			C *models.ShadowConnection
 		}
+		// UpdateScanProgress holds details about calls to the UpdateScanProgress method.
+		UpdateScanProgress []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// ID is the id argument value.
+			ID uuid.UUID
+			// Results is the results argument value.
+			Results []models.ShadowScanConnectionResult
+		}
 	}
 	lockApplyConnectionResult sync.RWMutex
 	lockApplyCorrelation      sync.RWMutex
+	lockCancelActiveScan      sync.RWMutex
 	lockCancelPendingScan     sync.RWMutex
 	lockClaimDueScans         sync.RWMutex
 	lockCreateConnection      sync.RWMutex
@@ -458,9 +504,11 @@ type ShadowAgentRepositoryMock struct {
 	lockPublishScanResults    sync.RWMutex
 	lockRenewScanLease        sync.RWMutex
 	lockSaveConnectionTest    sync.RWMutex
+	lockScanRunning           sync.RWMutex
 	lockSetFindingHidden      sync.RWMutex
 	lockSummary               sync.RWMutex
 	lockUpdateConnection      sync.RWMutex
+	lockUpdateScanProgress    sync.RWMutex
 }
 
 // ApplyConnectionResult calls ApplyConnectionResultFunc.
@@ -540,6 +588,50 @@ func (mock *ShadowAgentRepositoryMock) ApplyCorrelationCalls() []struct {
 	mock.lockApplyCorrelation.RLock()
 	calls = mock.calls.ApplyCorrelation
 	mock.lockApplyCorrelation.RUnlock()
+	return calls
+}
+
+// CancelActiveScan calls CancelActiveScanFunc.
+func (mock *ShadowAgentRepositoryMock) CancelActiveScan(ctx context.Context, ouID string, id uuid.UUID, now time.Time) (bool, error) {
+	if mock.CancelActiveScanFunc == nil {
+		panic("ShadowAgentRepositoryMock.CancelActiveScanFunc: method is nil but ShadowAgentRepository.CancelActiveScan was just called")
+	}
+	callInfo := struct {
+		Ctx  context.Context
+		OuID string
+		ID   uuid.UUID
+		Now  time.Time
+	}{
+		Ctx:  ctx,
+		OuID: ouID,
+		ID:   id,
+		Now:  now,
+	}
+	mock.lockCancelActiveScan.Lock()
+	mock.calls.CancelActiveScan = append(mock.calls.CancelActiveScan, callInfo)
+	mock.lockCancelActiveScan.Unlock()
+	return mock.CancelActiveScanFunc(ctx, ouID, id, now)
+}
+
+// CancelActiveScanCalls gets all the calls that were made to CancelActiveScan.
+// Check the length with:
+//
+//	len(mockedShadowAgentRepository.CancelActiveScanCalls())
+func (mock *ShadowAgentRepositoryMock) CancelActiveScanCalls() []struct {
+	Ctx  context.Context
+	OuID string
+	ID   uuid.UUID
+	Now  time.Time
+} {
+	var calls []struct {
+		Ctx  context.Context
+		OuID string
+		ID   uuid.UUID
+		Now  time.Time
+	}
+	mock.lockCancelActiveScan.RLock()
+	calls = mock.calls.CancelActiveScan
+	mock.lockCancelActiveScan.RUnlock()
 	return calls
 }
 
@@ -856,7 +948,7 @@ func (mock *ShadowAgentRepositoryMock) DeleteFinishedScansCalls() []struct {
 }
 
 // FinishScan calls FinishScanFunc.
-func (mock *ShadowAgentRepositoryMock) FinishScan(ctx context.Context, s *models.ShadowScan) error {
+func (mock *ShadowAgentRepositoryMock) FinishScan(ctx context.Context, s *models.ShadowScan) (bool, error) {
 	if mock.FinishScanFunc == nil {
 		panic("ShadowAgentRepositoryMock.FinishScanFunc: method is nil but ShadowAgentRepository.FinishScan was just called")
 	}
@@ -1419,6 +1511,42 @@ func (mock *ShadowAgentRepositoryMock) SaveConnectionTestCalls() []struct {
 	return calls
 }
 
+// ScanRunning calls ScanRunningFunc.
+func (mock *ShadowAgentRepositoryMock) ScanRunning(ctx context.Context, id uuid.UUID) (bool, error) {
+	if mock.ScanRunningFunc == nil {
+		panic("ShadowAgentRepositoryMock.ScanRunningFunc: method is nil but ShadowAgentRepository.ScanRunning was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		ID  uuid.UUID
+	}{
+		Ctx: ctx,
+		ID:  id,
+	}
+	mock.lockScanRunning.Lock()
+	mock.calls.ScanRunning = append(mock.calls.ScanRunning, callInfo)
+	mock.lockScanRunning.Unlock()
+	return mock.ScanRunningFunc(ctx, id)
+}
+
+// ScanRunningCalls gets all the calls that were made to ScanRunning.
+// Check the length with:
+//
+//	len(mockedShadowAgentRepository.ScanRunningCalls())
+func (mock *ShadowAgentRepositoryMock) ScanRunningCalls() []struct {
+	Ctx context.Context
+	ID  uuid.UUID
+} {
+	var calls []struct {
+		Ctx context.Context
+		ID  uuid.UUID
+	}
+	mock.lockScanRunning.RLock()
+	calls = mock.calls.ScanRunning
+	mock.lockScanRunning.RUnlock()
+	return calls
+}
+
 // SetFindingHidden calls SetFindingHiddenFunc.
 func (mock *ShadowAgentRepositoryMock) SetFindingHidden(ctx context.Context, ouID string, id uuid.UUID, hidden bool, by string, at time.Time) error {
 	if mock.SetFindingHiddenFunc == nil {
@@ -1540,5 +1668,45 @@ func (mock *ShadowAgentRepositoryMock) UpdateConnectionCalls() []struct {
 	mock.lockUpdateConnection.RLock()
 	calls = mock.calls.UpdateConnection
 	mock.lockUpdateConnection.RUnlock()
+	return calls
+}
+
+// UpdateScanProgress calls UpdateScanProgressFunc.
+func (mock *ShadowAgentRepositoryMock) UpdateScanProgress(ctx context.Context, id uuid.UUID, results []models.ShadowScanConnectionResult) (bool, error) {
+	if mock.UpdateScanProgressFunc == nil {
+		panic("ShadowAgentRepositoryMock.UpdateScanProgressFunc: method is nil but ShadowAgentRepository.UpdateScanProgress was just called")
+	}
+	callInfo := struct {
+		Ctx     context.Context
+		ID      uuid.UUID
+		Results []models.ShadowScanConnectionResult
+	}{
+		Ctx:     ctx,
+		ID:      id,
+		Results: results,
+	}
+	mock.lockUpdateScanProgress.Lock()
+	mock.calls.UpdateScanProgress = append(mock.calls.UpdateScanProgress, callInfo)
+	mock.lockUpdateScanProgress.Unlock()
+	return mock.UpdateScanProgressFunc(ctx, id, results)
+}
+
+// UpdateScanProgressCalls gets all the calls that were made to UpdateScanProgress.
+// Check the length with:
+//
+//	len(mockedShadowAgentRepository.UpdateScanProgressCalls())
+func (mock *ShadowAgentRepositoryMock) UpdateScanProgressCalls() []struct {
+	Ctx     context.Context
+	ID      uuid.UUID
+	Results []models.ShadowScanConnectionResult
+} {
+	var calls []struct {
+		Ctx     context.Context
+		ID      uuid.UUID
+		Results []models.ShadowScanConnectionResult
+	}
+	mock.lockUpdateScanProgress.RLock()
+	calls = mock.calls.UpdateScanProgress
+	mock.lockUpdateScanProgress.RUnlock()
 	return calls
 }

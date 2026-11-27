@@ -34,16 +34,28 @@ func (r ApiCancelShadowScanRequest) Execute() (*ShadowScanResponse, *http.Respon
 }
 
 /*
-CancelShadowScan Cancel a source code scan
+CancelShadowScan Cancel a scan
 
-Fails a pending source code scan that is waiting for its results, with
-the message "cancelled: no results uploaded". Results published or
-uploaded for it later are refused.
+Cancels a pending, queued or running scan. The scan fails at once, so
+a new scan can start.
 
-	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param scanId Scan ID
-	@return ApiCancelShadowScanRequest
+  - A pending source code scan that is waiting for its results fails
+    with the message "cancelled: no results uploaded". Results published
+    or uploaded for it later are refused.
+
+  - A queued scan fails with every connection's outcome "failed" and the
+    message "cancelled".
+
+  - A running scan keeps the results of the connections that finished,
+    and their agents. Each connection still queued or running becomes
+    "failed" with the message "cancelled", keeping the calls it made so
+    far. The scan worker stops its calls within a few seconds and saves
+    no agents from them.
+
+    @param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+    @param orgName Organization name
+    @param scanId Scan ID
+    @return ApiCancelShadowScanRequest
 */
 func (a *ShadowAgentDiscoveryAPIService) CancelShadowScan(ctx context.Context, orgName string, scanId string) ApiCancelShadowScanRequest {
 	return ApiCancelShadowScanRequest{

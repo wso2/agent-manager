@@ -16,19 +16,23 @@
  * under the License.
  */
 
-import { useState } from "react";
-import { Button, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
+import { useEffect, useRef, useState } from "react";
+import { Button, Skeleton, Stack } from "@wso2/oxygen-ui";
 import { SearchX, Upload } from "@wso2/oxygen-ui-icons-react";
 import { useParams } from "react-router-dom";
 import { PageLayout, StateNotice, useReturnTo } from "@agent-management-platform/views";
-import { useShadowScan } from "@agent-management-platform/api-client";
+import {
+  useRefreshShadowFindings,
+  useShadowConnections,
+  useShadowScan,
+} from "@agent-management-platform/api-client";
 import { formatRelativeTime } from "@agent-management-platform/shared-component";
-import { ScanStatusChip } from "../shadowUi";
 import { FindingsTab } from "./FindingsTab";
-import { ScanDetailsDrawer } from "./ScansTab";
+import { isCancellable } from "./ScansTab";
+import { finishedCount, ScanProgressCard } from "./ScanProgress";
 import { UploadResultsDialog, useConfirmCancelScan } from "./UploadResultsDialog";
 
-/** The agents one scan found (scans/:scanId), with the scan's call details. */
+/** One scan (scans/:scanId): its progress per connector, kept after it ends, and its agents. */
 export function ScanFindings({
   orgName,
   listPath,
@@ -36,15 +40,27 @@ export function ScanFindings({
 }: {
   orgName: string | undefined;
   listPath: string;
-  /** May upload results to, or cancel, a scan waiting for results. */
+  /** May upload results to a scan waiting for results, or cancel a scan that has not finished. */
   canManage?: boolean;
 }) {
   const { scanId } = useParams<{ scanId: string }>();
   const returnTo = useReturnTo(`${listPath}?tab=scans`);
+  // Polls while the scan is queued or running.
   const scan = useShadowScan(orgName, scanId);
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  // A queued connector may have no name or provider in the scan yet.
+  const connections = useShadowConnections(orgName);
   const [uploadOpen, setUploadOpen] = useState(false);
   const confirmCancel = useConfirmCancelScan(orgName);
+  // Only the scan is polled: refresh its agents (and the summary) when a connector
+  // finishes or the scan ends, so they show up below without a reload.
+  const refreshFindings = useRefreshShadowFindings(orgName);
+  const progress = scan.data ? `${scan.data.status}:${finishedCount(scan.data)}` : undefined;
+  const lastProgress = useRef(progress);
+  useEffect(() => {
+    const before = lastProgress.current;
+    lastProgress.current = progress;
+    if (before !== undefined && progress !== undefined && before !== progress) refreshFindings();
+  }, [progress, refreshFindings]);
   const back = { backHref: returnTo, backLabel: "Back to scans" };
 
   if (scan.isLoading) {
@@ -68,6 +84,7 @@ export function ScanFindings({
   const s = scan.data;
   const started = formatRelativeTime(s.startedAt ?? s.createdAt);
   const waiting = canManage && s.status === "pending";
+  const cancellable = canManage && isCancellable(s);
 
   return (
     <PageLayout
@@ -76,9 +93,9 @@ export function ScanFindings({
       disableIcon
       {...back}
       actions={
-        <Stack direction="row" spacing={1}>
-          {waiting && (
-            <>
+        waiting || cancellable ? (
+          <Stack direction="row" spacing={1}>
+            {waiting && (
               <Button
                 variant="contained"
                 startIcon={<Upload size={16} />}
@@ -86,25 +103,18 @@ export function ScanFindings({
               >
                 Upload results
               </Button>
+            )}
+            {cancellable && (
               <Button variant="outlined" color="error" onClick={() => confirmCancel(s)}>
                 Cancel scan
               </Button>
-            </>
-          )}
-          <Button variant="outlined" onClick={() => setDetailsOpen(true)}>
-            Scan details
-          </Button>
-        </Stack>
+            )}
+          </Stack>
+        ) : undefined
       }
     >
       <Stack spacing={3}>
-        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-          <ScanStatusChip status={s.status} />
-          <Typography variant="body2" color="text.secondary">
-            {s.connectionIds.length} {s.connectionIds.length === 1 ? "platform" : "platforms"}{" "}
-            scanned
-          </Typography>
-        </Stack>
+        <ScanProgressCard scan={s} connections={connections.data?.connections ?? []} />
         <FindingsTab
           orgName={orgName}
           scanId={s.id}
@@ -113,18 +123,12 @@ export function ScanFindings({
               ? {
                   title: "Agents were not recorded for this scan",
                   description:
-                    "This scan ran before Agent Manager recorded each scan's agents, so they cannot be listed here. Scan details has its calls; the next scan lists its agents.",
+                    "This scan ran before Agent Manager recorded each scan's agents, so they cannot be listed here. Progress above has its steps; the next scan lists its agents.",
                 }
               : undefined
           }
         />
       </Stack>
-      <ScanDetailsDrawer
-        scan={detailsOpen ? s : null}
-        onClose={() => setDetailsOpen(false)}
-        onUpload={waiting ? () => setUploadOpen(true) : undefined}
-        onCancel={waiting ? (sc) => confirmCancel(sc) : undefined}
-      />
       <UploadResultsDialog
         orgName={orgName}
         open={uploadOpen}

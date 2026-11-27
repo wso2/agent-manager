@@ -280,6 +280,7 @@ describe("FindingDetail", () => {
       "/organizations/acme/agent-registry/unmanaged/f1",
     );
   const sidebar = () => screen.getByRole("complementary", { name: "Properties" });
+  const summary = () => screen.getByRole("region", { name: "Summary" });
 
   it("shows why it is an agent, what it uses and its status, and offers onboarding", () => {
     hoisted.detail = detail({
@@ -294,8 +295,8 @@ describe("FindingDetail", () => {
     expect(screen.getByText("Agent on OpenAI")).toBeInTheDocument();
     expect(screen.getByText("proj_1")).toBeInTheDocument();
     expect(screen.queryByLabelText("Location in code")).not.toBeInTheDocument();
-    expect(screen.getAllByText("Not onboarded").length).toBeGreaterThan(0);
-    for (const section of ["Why this is an agent", "What it uses", "Status", "Technical IDs"]) {
+    expect(screen.getAllByText("Unmanaged").length).toBeGreaterThan(0);
+    for (const section of ["Summary", "Why this is an agent", "What it uses", "Technical IDs"]) {
       expect(screen.getByText(section)).toBeInTheDocument();
     }
     expect(screen.getByText("Agent object")).toBeInTheDocument();
@@ -320,15 +321,16 @@ describe("FindingDetail", () => {
     fireEvent.click(screen.getByRole("button", { name: "Technical IDs" }));
     expect(screen.getByText("Platform ID")).toBeInTheDocument();
     expect(screen.getByText("agent_abc")).toBeInTheDocument();
-    expect(within(sidebar()).getByText("Found by 1 connection")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("Found by 1 connector")).toBeInTheDocument();
     expect(within(sidebar()).getByText("OpenAI prod")).toBeInTheDocument();
     expect(within(sidebar()).getByText("Listed")).toBeInTheDocument();
     expect(screen.queryByLabelText(/merged into one agent/)).not.toBeInTheDocument();
-    expect(within(sidebar()).getByText("active")).toBeInTheDocument();
-    expect(within(sidebar()).getByText("Last found")).toBeInTheDocument();
-    expect(within(sidebar()).getByText("First found")).toBeInTheDocument();
+    expect(within(summary()).getByText("proj_1")).toBeInTheDocument();
+    expect(within(summary()).getByText("active")).toBeInTheDocument();
+    expect(within(summary()).getByText("Last found")).toBeInTheDocument();
+    expect(within(summary()).getByText("First found")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /from list|in list/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Onboard as external agent" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Manage as external agent" })).toHaveAttribute(
       "href",
       "/organizations/acme/agent-registry/unmanaged/f1/onboard",
     );
@@ -368,22 +370,23 @@ describe("FindingDetail", () => {
       ...over,
     });
 
-  it("shows a code agent's location as a breadcrumb, with a copy button", () => {
+  it("shows a code agent's location in the Summary, with a copy button", () => {
     hoisted.detail = codeAgent("rules");
     renderDetail();
     expect(screen.getByText("Code agent on GitHub")).toBeInTheDocument();
-    const crumbs = screen.getByRole("navigation", { name: "Location in code" });
-    expect(within(crumbs).getByText("support-bot")).toBeInTheDocument();
-    expect(within(crumbs).getByText("samples/support/agent.py")).toBeInTheDocument();
-    expect(within(crumbs).getByText("SupportAgent")).toBeInTheDocument();
+    expect(within(summary()).getByText("support-bot")).toBeInTheDocument();
+    expect(within(summary()).getByText("samples/support/agent.py")).toBeInTheDocument();
+    expect(within(summary()).getByText("SupportAgent")).toBeInTheDocument();
+    expect(within(summary()).getByText("langgraph")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Copy location" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Technical IDs" }));
     expect(screen.getByText("Location in code")).toBeInTheDocument();
     expect(screen.queryByText("Platform ID")).not.toBeInTheDocument();
     expect(screen.getByText("In requirements.txt")).toBeInTheDocument();
     expect(screen.getByText("Show matched code")).toBeInTheDocument();
-    expect(screen.getByText(/What it uses/)).toBeInTheDocument();
-    expect(screen.getByText(/Reported by the scan command/)).toBeInTheDocument();
+    // Everything reported is in the Summary, so What it uses is left out.
+    expect(screen.queryByText("What it uses")).not.toBeInTheDocument();
+    expect(within(summary()).getByText(/Reported by the scan command/)).toBeInTheDocument();
     expect(within(sidebar()).getByText("Found")).toBeInTheDocument();
     expect(screen.queryByText("State")).not.toBeInTheDocument();
     expect(screen.queryByText("Created at the platform")).not.toBeInTheDocument();
@@ -413,9 +416,8 @@ describe("FindingDetail", () => {
       externalId: "support-bot:samples/support/agent.py:SupportAgent@2",
     });
     renderDetail();
-    const crumbs = screen.getByRole("navigation", { name: "Location in code" });
-    expect(within(crumbs).getByText("SupportAgent")).toBeInTheDocument();
-    expect(within(crumbs).queryByText(/@2/)).not.toBeInTheDocument();
+    expect(within(summary()).getByText("SupportAgent")).toBeInTheDocument();
+    expect(within(summary()).queryByText(/@2/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Technical IDs" }));
     expect(
       screen.getByText("support-bot:samples/support/agent.py:SupportAgent@2"),
@@ -447,10 +449,9 @@ describe("FindingDetail", () => {
     const capped = `support-bot:${"a/".repeat(20)}agent.py:Sup#0123456789ab`;
     hoisted.detail = codeAgent("rules", { externalId: capped });
     renderDetail();
-    const crumbs = screen.getByRole("navigation", { name: "Location in code" });
-    expect(within(crumbs).getByText("support-bot")).toBeInTheDocument();
-    expect(within(crumbs).queryByText(/agent\.py|#0123456789ab/)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Copy location" })).toBeInTheDocument();
+    expect(within(summary()).getByText("support-bot")).toBeInTheDocument();
+    expect(within(summary()).queryByText(/agent\.py|#0123456789ab/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy location" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Technical IDs" }));
     expect(screen.getByText(capped)).toBeInTheDocument();
   });
@@ -483,10 +484,11 @@ describe("FindingDetail", () => {
     expect(screen.getByText("/services/bot")).toBeInTheDocument();
   });
 
-  it("says so when the listing reports nothing more", () => {
+  it("leaves out What it uses when the listing reports nothing more", () => {
     hoisted.detail = codeAgent("rules", { attributes: {} });
     renderDetail();
-    expect(screen.getByText("Nothing more was reported about this agent.")).toBeInTheDocument();
+    expect(screen.queryByText("What it uses")).not.toBeInTheDocument();
+    expect(screen.getByText("Summary")).toBeInTheDocument();
   });
 
   it("shows one short notice and a chip when no connection finds the agent any more", () => {
@@ -503,7 +505,7 @@ describe("FindingDetail", () => {
       "The latest scans no longer find this agent.",
     );
     expect(screen.getByText("No longer found")).toBeInTheDocument();
-    expect(within(sidebar()).getByText("Found by 2 connections")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("Found by 2 connectors")).toBeInTheDocument();
     expect(within(sidebar()).getAllByText("Not in latest scan")).toHaveLength(2);
   });
 
@@ -514,7 +516,7 @@ describe("FindingDetail", () => {
       "The latest scans no longer find this agent.",
     );
     expect(screen.getByText("No longer found")).toBeInTheDocument();
-    expect(within(sidebar()).getByText("Found by 1 connection")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("Found by 1 connector")).toBeInTheDocument();
     expect(within(sidebar()).getByText("Not in latest scan")).toBeInTheDocument();
   });
 
@@ -532,10 +534,8 @@ describe("FindingDetail", () => {
     expect(within(sidebar()).getByText("Not in latest scan")).toBeInTheDocument();
     expect(within(sidebar()).getByText("Found")).toBeInTheDocument();
     expect(
-      screen.getByRole("img", {
-        name: "Results from these connections were merged into one agent.",
-      }),
-    ).toHaveAttribute("tabindex", "0");
+      within(sidebar()).getByText("Results from these connectors were merged into one agent."),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/It is shown once/)).not.toBeInTheDocument();
   });
 
@@ -548,10 +548,10 @@ describe("FindingDetail", () => {
     });
     renderDetail();
     const heading = screen.getByRole("heading", { name: /^Support Bot/ });
-    expect(within(heading).getByText("Onboarded")).toBeInTheDocument();
-    expect(within(sidebar()).getByText("Onboarded as")).toBeInTheDocument();
+    expect(within(heading).getByText("Managed")).toBeInTheDocument();
+    expect(within(summary()).getByText("Managed as")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    const linked = within(sidebar()).getByRole("link", { name: "default / support-bot" });
+    const linked = within(summary()).getByRole("link", { name: "default / support-bot" });
     expect(linked).toHaveAttribute(
       "href",
       "/organizations/acme/projects/default/agents/support-bot",
@@ -559,7 +559,7 @@ describe("FindingDetail", () => {
     expect(linked).toHaveClass("MuiLink-root");
     expect(screen.getByRole("link", { name: "Open managed agent" })).toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: "Onboard as external agent" }),
+      screen.queryByRole("link", { name: "Manage as external agent" }),
     ).not.toBeInTheDocument();
   });
 
@@ -575,11 +575,11 @@ describe("FindingDetail", () => {
     renderDetail();
     expect(within(sidebar()).getByText("OpenAI audit")).toBeInTheDocument();
     expect(within(sidebar()).getByText("Not in latest scan")).toBeInTheDocument();
-    expect(within(sidebar()).getByText("Found by 2 connections")).toBeInTheDocument();
-    expect(within(sidebar()).getByText("Created by")).toBeInTheDocument();
-    expect(within(sidebar()).getByText("alice@acme.com")).toBeInTheDocument();
-    expect(within(sidebar()).getByText("From GET /v1/agents")).toBeInTheDocument();
-    expect(within(sidebar()).getByText("Created at the platform")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("Found by 2 connectors")).toBeInTheDocument();
+    expect(within(summary()).getByText("Created by")).toBeInTheDocument();
+    expect(within(summary()).getByText("alice@acme.com")).toBeInTheDocument();
+    expect(within(summary()).getByText("From GET /v1/agents")).toBeInTheDocument();
+    expect(within(summary()).getByText("Created at the platform")).toBeInTheDocument();
   });
 
   it("words a cloud agent no platform lists any more, and shows possible duplicates", () => {
@@ -616,7 +616,7 @@ describe("FindingDetail", () => {
     hoisted.detail = detail();
     renderDetail(false);
     expect(
-      screen.queryByRole("link", { name: "Onboard as external agent" }),
+      screen.queryByRole("link", { name: "Manage as external agent" }),
     ).not.toBeInTheDocument();
   });
 });
@@ -693,7 +693,7 @@ describe("Onboarding a code agent", () => {
       "/organizations/acme/agent-registry/unmanaged/f1",
     );
 
-  const openMenu = () => fireEvent.click(screen.getByRole("button", { name: "Onboard" }));
+  const openMenu = () => fireEvent.click(screen.getByRole("button", { name: "Manage" }));
   const deployItem = () =>
     screen.getByRole("menuitem", { name: /^Deploy as platform-hosted agent/ });
 
@@ -702,11 +702,11 @@ describe("Onboarding a code agent", () => {
     hoisted.connection = githubConnection();
     renderDetail();
     expect(
-      screen.queryByRole("link", { name: "Onboard as external agent" }),
+      screen.queryByRole("link", { name: "Manage as external agent" }),
     ).not.toBeInTheDocument();
     openMenu();
     expect(deployItem()).not.toHaveAttribute("aria-disabled", "true");
-    fireEvent.click(screen.getByRole("menuitem", { name: /^Register as external agent/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Manage as external agent/ }));
     expect(screen.getByTestId("location")).toHaveTextContent(
       "/organizations/acme/agent-registry/unmanaged/f1/onboard",
     );
@@ -747,7 +747,7 @@ describe("Onboarding a code agent", () => {
     openMenu();
     expect(deployItem()).toHaveAttribute("aria-disabled", "true");
     expect(
-      screen.getByLabelText("Could not load the platform's details. Try again later."),
+      screen.getByLabelText("Could not load the connector's details. Try again later."),
     ).toBeInTheDocument();
   });
 
@@ -832,13 +832,13 @@ describe("OnboardFinding", () => {
   it("explains onboarding as an external agent, then registers and links it", () => {
     hoisted.detail = detail();
     renderOnboard();
-    expect(screen.getByRole("heading", { name: "Onboard Support Bot" })).toBeInTheDocument();
-    expect(screen.getByText("What onboarding does")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Manage Support Bot" })).toBeInTheDocument();
+    expect(screen.getByText("What managing it does")).toBeInTheDocument();
     expect(screen.getByText(/externally-hosted agent/)).toBeInTheDocument();
     expect(screen.getByText("After you register")).toBeInTheDocument();
     expect(screen.getByText("Set up the agent")).toBeInTheDocument();
     expect(screen.queryByText(/Platform-hosted|build.*from source/i)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage" }));
     expect(hoisted.createAgent).toHaveBeenCalledTimes(1);
     const [req, opts] = hoisted.createAgent.mock.calls[0];
     expect(req.params).toEqual({ orgName: "acme", projName: "default" });
@@ -864,7 +864,7 @@ describe("OnboardFinding", () => {
     hoisted.detail = detail();
     renderOnboard();
     fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: "9bad" } });
-    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage" }));
     expect(hoisted.createAgent).not.toHaveBeenCalled();
   });
 });

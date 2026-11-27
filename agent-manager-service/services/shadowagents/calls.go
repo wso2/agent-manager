@@ -17,6 +17,7 @@
 package shadowagents
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -37,15 +38,43 @@ var outcomeRank = map[string]int{
 
 // Calls records the outcome of each provider call during a scan.
 type Calls struct {
-	list  []models.ShadowScanCallResult
-	index map[string]int
-	fails map[string]int
-	total map[string]int
+	list     []models.ShadowScanCallResult
+	index    map[string]int
+	fails    map[string]int
+	total    map[string]int
+	observer CallObserver
+}
+
+// CallObserver gets a copy of a recorder's calls each time they change, so a
+// scan can show its progress while it runs.
+type CallObserver func([]models.ShadowScanCallResult)
+
+type callObserverKey struct{}
+
+// WithCallObserver returns ctx carrying observer, which a recorder created
+// with NewCallsFor(ctx) calls after each change.
+func WithCallObserver(ctx context.Context, observer CallObserver) context.Context {
+	return context.WithValue(ctx, callObserverKey{}, observer)
 }
 
 // NewCalls creates an empty recorder.
 func NewCalls() *Calls {
 	return &Calls{index: map[string]int{}, fails: map[string]int{}, total: map[string]int{}}
+}
+
+// NewCallsFor creates an empty recorder that reports its changes to the
+// observer ctx carries, if any.
+func NewCallsFor(ctx context.Context) *Calls {
+	c := NewCalls()
+	c.observer, _ = ctx.Value(callObserverKey{}).(CallObserver)
+	return c
+}
+
+// changed tells the observer the calls so far.
+func (c *Calls) changed() {
+	if c.observer != nil {
+		c.observer(c.Results())
+	}
 }
 
 // Record records one attempt of call (in one scope) that returned items
@@ -62,6 +91,7 @@ func (c *Calls) Record(call string, items int, err error) {
 		if err != nil {
 			c.fails[call] = 1
 		}
+		c.changed()
 		return
 	}
 	c.total[call]++
@@ -76,6 +106,7 @@ func (c *Calls) Record(call string, items int, err error) {
 	if c.fails[call] > 0 && c.total[call] > 1 {
 		r.Message = fmt.Sprintf("%d of %d scopes failed; %s", c.fails[call], c.total[call], baseMessage(r.Message))
 	}
+	c.changed()
 }
 
 // Skip records a call that was not made, and why (e.g. "not selected in
@@ -86,6 +117,7 @@ func (c *Calls) Skip(call, reason string) {
 	}
 	c.index[call] = len(c.list)
 	c.list = append(c.list, models.ShadowScanCallResult{Call: call, Outcome: models.ShadowCallSkipped, Message: reason})
+	c.changed()
 }
 
 // Note adds a short explanation to a recorded call, after any message it
@@ -102,6 +134,7 @@ func (c *Calls) Note(call, note string) {
 	} else {
 		r.Message += "; " + note
 	}
+	c.changed()
 }
 
 // OK reports whether every record of call succeeded.

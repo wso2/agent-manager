@@ -224,7 +224,7 @@ describe("labels", () => {
 
   it("names each kind of agent in its platform's words", () => {
     expect(kindLabel("platform_agent", "openai")).toBe("Agent");
-    expect(kindLabel("platform_agent", "anthropic")).toBe("Managed Agent");
+    expect(kindLabel("platform_agent", "anthropic")).toBe("Claude agent");
     expect(kindLabel("runtime", "bedrock")).toBe("AgentCore runtime");
     expect(kindLabel("platform_agent", "bedrock")).toBe("Bedrock agent");
     expect(kindLabel("runtime", "google")).toBe("Agent Runtime engine");

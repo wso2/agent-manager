@@ -106,7 +106,7 @@ export const PANEL_FILTER_NAMES: Record<PanelFilterKey, string> = {
   llmProvider: "LLM provider",
   mcpServer: "MCP server",
   foundOn: "Source",
-  connection: "Connection",
+  connection: "Connector",
 };
 
 /** The option that filters nothing. */
@@ -121,7 +121,7 @@ export const ALL_LABELS: Record<PanelFilterKey, string> = {
   llmProvider: "All LLM providers",
   mcpServer: "All MCP servers",
   foundOn: "All sources",
-  connection: "All connections",
+  connection: "All connectors",
 };
 
 /**

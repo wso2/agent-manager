@@ -184,6 +184,12 @@ var (
 	// scan that is no longer waiting for results: it was published already,
 	// cancelled, or it expired (before pending scans stopped expiring).
 	ErrShadowScanNotPending = errors.New("the scan is not waiting for results")
+	// ErrShadowScanFinished is a cancel of a scan that has already finished:
+	// it succeeded, was partial, or failed.
+	ErrShadowScanFinished = errors.New("the scan has already finished")
+	// ErrShadowScanNotRunning is a cloud scan's connection result saved after
+	// the scan stopped running: the user cancelled it.
+	ErrShadowScanNotRunning = errors.New("the scan is no longer running")
 	// ErrShadowScanTokenExpired is a publish with a scan token to a scan
 	// created longer ago than a scan token lives: its own token has expired,
 	// so its results file must be uploaded from the console.
