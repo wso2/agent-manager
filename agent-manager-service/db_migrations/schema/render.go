@@ -118,8 +118,7 @@ func (s *Schema) Render(dialectName string) (string, error) {
 	return s.RenderMigration(dialectName, BaselineID)
 }
 
-// RenderMigration returns the DDL of one migration for one dialect: its seed rows for earlier tables, then
-// the tables it creates with their own seed rows.
+// RenderMigration returns the DDL of one migration for one dialect: the tables it creates.
 func (s *Schema) RenderMigration(dialectName, id string) (string, error) {
 	d, ok := dialects[dialectName]
 	if !ok {
@@ -134,20 +133,6 @@ func (s *Schema) RenderMigration(dialectName, id string) (string, error) {
 	}
 	var b strings.Builder
 	b.WriteString(header(s.source))
-	if i := s.migrationIndex(id); i > 0 {
-		// Parents first, so a seeded child's foreign keys hold.
-		seed := s.Migrations[i-1].Seed
-		for _, t := range tables {
-			rows, ok := seed[t.Name]
-			if !ok {
-				continue
-			}
-			b.WriteString("\n")
-			for _, row := range rows {
-				renderSeed(&b, d, t, row)
-			}
-		}
-	}
 	for _, t := range tables {
 		if s.migrationIndex(t.Migration) != s.migrationIndex(id) {
 			continue

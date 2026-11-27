@@ -77,75 +77,6 @@ tables:
 	assert.Equal(t, "db_migrations/sql/sqlite/002_later.sql", MigrationPath(DialectSQLite, s.Files()[1]))
 }
 
-// A migration's seed adds rows to a table an earlier migration created, in that migration alone.
-func TestLaterMigrationsSeedEarlierTables(t *testing.T) {
-	s, err := Parse([]byte(`
-migrations:
-  - {id: "002", name: more_locks, seed: {locks: [{name: second}]}}
-tables:
-  - name: locks
-    columns: [{name: name, type: text, size: 128}]
-    primary_key: [name]
-    seed: [{name: first}]`))
-	require.NoError(t, err)
-	baseline, err := s.Render(DialectSQLite)
-	require.NoError(t, err)
-	assert.Contains(t, baseline, "INSERT INTO locks (name) VALUES ('first')")
-	assert.NotContains(t, baseline, "'second'")
-	later, err := s.RenderMigration(DialectPostgres, "002")
-	require.NoError(t, err)
-	assert.Contains(t, later, "INSERT INTO locks (name) VALUES ('second')")
-	assert.NotContains(t, later, "CREATE TABLE")
-}
-
-// A migration that seeds a parent and its child writes the parent's rows first, in their order.
-func TestMigrationSeedsParentsFirst(t *testing.T) {
-	s, err := Parse([]byte(`
-migrations:
-  - {id: "002", name: more, seed: {children: [{id: c1, parent_id: p2}], parents: [{id: p2}, {id: p1}]}}
-tables:
-  - name: children
-    columns: [{name: id, type: text, size: 10}, {name: parent_id, type: text, size: 10}]
-    primary_key: [id]
-    foreign_keys: [{columns: [parent_id], references: parents, ref_columns: [id]}]
-  - name: parents
-    columns: [{name: id, type: text, size: 10}]
-    primary_key: [id]`))
-	require.NoError(t, err)
-	later, err := s.RenderMigration(DialectSQLite, "002")
-	require.NoError(t, err)
-	p2 := strings.Index(later, "INSERT INTO parents (id) VALUES ('p2')")
-	p1 := strings.Index(later, "INSERT INTO parents (id) VALUES ('p1')")
-	c1 := strings.Index(later, "INSERT INTO children")
-	require.True(t, p2 >= 0 && p1 >= 0 && c1 >= 0, later)
-	assert.Less(t, p2, p1, "rows keep their order")
-	assert.Less(t, p1, c1, "the parent's rows come before the child's")
-}
-
-// A migration's seed rows come before the tables it creates, whose seeds may reference them.
-func TestMigrationSeedsBeforeItsTables(t *testing.T) {
-	s, err := Parse([]byte(`
-migrations:
-  - {id: "002", name: more, seed: {parents: [{id: p1}]}}
-tables:
-  - name: parents
-    columns: [{name: id, type: text, size: 10}]
-    primary_key: [id]
-  - name: children
-    migration: "002"
-    columns: [{name: id, type: text, size: 10}, {name: parent_id, type: text, size: 10}]
-    primary_key: [id]
-    foreign_keys: [{columns: [parent_id], references: parents, ref_columns: [id]}]
-    seed: [{id: c1, parent_id: p1}]`))
-	require.NoError(t, err)
-	later, err := s.RenderMigration(DialectSQLite, "002")
-	require.NoError(t, err)
-	p1 := strings.Index(later, "INSERT INTO parents (id) VALUES ('p1')")
-	c1 := strings.Index(later, "INSERT INTO children")
-	require.True(t, p1 >= 0 && c1 >= 0, later)
-	assert.Less(t, p1, c1, "the parent's row comes before the child's")
-}
-
 func TestValidateRejectsRuleBreaks(t *testing.T) {
 	tests := map[string]string{
 		"nullable unique key": `
@@ -206,28 +137,6 @@ tables:
     columns: [{name: id, type: id}, {name: p_id, type: id}]
     primary_key: [id]
     foreign_keys: [{columns: [p_id], references: p, ref_columns: [id]}]`,
-		"seed of a table the same migration creates": `
-migrations:
-  - {id: "002", name: later, seed: {t: [{id: x}]}}
-tables:
-  - name: t
-    migration: "002"
-    columns: [{name: id, type: text, size: 10}]
-    primary_key: [id]`,
-		"seed of an unknown table": `
-migrations:
-  - {id: "002", name: later, seed: {nosuch: [{id: x}]}}
-tables:
-  - name: t
-    columns: [{name: id, type: text, size: 10}]
-    primary_key: [id]`,
-		"migration seed of an unknown column": `
-migrations:
-  - {id: "002", name: later, seed: {t: [{other: x}]}}
-tables:
-  - name: t
-    columns: [{name: id, type: text, size: 10}]
-    primary_key: [id]`,
 		"unknown field": `
 tables:
   - name: t

@@ -68,8 +68,6 @@ type Schema struct {
 type Migration struct {
 	ID   string `yaml:"id"`
 	Name string `yaml:"name"`
-	// Seed adds rows, by table name, to tables an earlier migration created.
-	Seed map[string][]Row `yaml:"seed"`
 }
 
 // BaselineID is the migration every table belongs to unless it names a later one.
@@ -323,18 +321,13 @@ func (s *Schema) validate() error {
 			fail("%s: %d cascading foreign keys (rule 7 allows one)", t.Name, cascades)
 		}
 		for _, row := range t.Seed {
-			validateSeed(t, row, fail)
-		}
-	}
-	for _, m := range s.Migrations {
-		for name, rows := range m.Seed {
-			t := s.table(name)
-			if t == nil || s.migrationIndex(t.Migration) >= s.migrationIndex(m.ID) {
-				fail("migration %q: seeds %q, which no earlier migration creates", m.ID, name)
-				continue
-			}
-			for _, row := range rows {
-				validateSeed(t, row, fail)
+			for c, v := range row {
+				col := t.column(c)
+				if col == nil {
+					fail("%s: seed names unknown column %q", t.Name, c)
+				} else if (col.Type == TypeInt || col.Type == TypeBigInt) && !integerPattern.MatchString(v) {
+					fail("%s: seed value %q for %s is not an integer", t.Name, v, c)
+				}
 			}
 		}
 	}
@@ -345,18 +338,6 @@ func (s *Schema) validate() error {
 		return fmt.Errorf("invalid schema:\n  %s", strings.Join(errs, "\n  "))
 	}
 	return nil
-}
-
-// validateSeed checks that a seed row names t's columns, with integers for integer columns.
-func validateSeed(t *Table, row Row, fail func(string, ...any)) {
-	for c, v := range row {
-		col := t.column(c)
-		if col == nil {
-			fail("%s: seed names unknown column %q", t.Name, c)
-		} else if (col.Type == TypeInt || col.Type == TypeBigInt) && !integerPattern.MatchString(v) {
-			fail("%s: seed value %q for %s is not an integer", t.Name, v, c)
-		}
-	}
 }
 
 // ordered returns the tables with every table after the tables it references, keeping file order otherwise.
