@@ -46,12 +46,10 @@ describe('MainActionPanel', () => {
 });
 
 describe('small presentational components', () => {
-  it('FullPageLoader shows the themed loader image', () => {
+  it('FullPageLoader shows the Oxygen UI page loader', () => {
     renderWithProviders(<FullPageLoader />);
-    expect(screen.getByRole('img', { name: 'Loading' })).toHaveAttribute(
-      'src',
-      expect.stringMatching(/choreo-labs-loader-(navy|white)\.svg$/),
-    );
+    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByText('Loading')).toBeInTheDocument();
   });
 
   it('FadeIn renders its children', () => {
@@ -72,27 +70,6 @@ describe('small presentational components', () => {
   it('Logo defaults to 28px high when no size is given', () => {
     renderWithProviders(<Logo />);
     expect(screen.getByRole('img', { name: /Choreo AI Control Plane/ }).style.height).toBe('28px');
-  });
-
-  it('FullPageLoader shows the still artwork when reduced motion is requested', () => {
-    const original = window.matchMedia;
-    window.matchMedia = ((query: string) => ({
-      matches: query.includes('prefers-reduced-motion'),
-      media: query,
-      addEventListener: () => {},
-      addListener: () => {},
-      removeListener: () => {},
-      removeEventListener: () => {},
-    })) as unknown as typeof window.matchMedia;
-    try {
-      renderWithProviders(<FullPageLoader />);
-      expect(screen.getByRole('img', { name: 'Loading' })).toHaveAttribute(
-        'src',
-        expect.stringMatching(/choreo-labs-loader-static-(navy|white)\.svg$/),
-      );
-    } finally {
-      window.matchMedia = original;
-    }
   });
 
   it('ExternalAgentIcon forwards svg props', () => {
