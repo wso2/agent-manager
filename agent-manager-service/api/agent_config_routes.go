@@ -82,19 +82,22 @@ func RegisterAgentConfigRoutes(rr *middleware.RouteRegistrar, ctrl controllers.A
 		rbac.AgentRead, ctrl.ListMCPConfigAPIKeys,
 	)
 
-	rr.HandleFuncWithValidationAndAuthz(
+	rr.HandleFuncWithValidationAndAllAuthz(
 		"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys",
-		rbac.AgentAPIKeyManage, growthanalytics.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("mcp-config", "issued-config-scoped-api-key"), ctrl.CreateMCPConfigAPIKey),
+		growthanalytics.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("mcp-config", "issued-config-scoped-api-key"), ctrl.CreateMCPConfigAPIKey),
+		rbac.AgentAPIKeyManage, rbac.AgentEnvNonProduction,
 	)
 
-	rr.HandleFuncWithValidationAndAuthz(
+	rr.HandleFuncWithValidationAndAllAuthz(
 		"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys/{keyName}",
-		rbac.AgentAPIKeyManage, growthanalytics.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("mcp-config", "rotated-config-scoped-api-key"), ctrl.RotateMCPConfigAPIKey),
+		growthanalytics.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("mcp-config", "rotated-config-scoped-api-key"), ctrl.RotateMCPConfigAPIKey),
+		rbac.AgentAPIKeyManage, rbac.AgentEnvNonProduction,
 	)
 
-	rr.HandleFuncWithValidationAndAuthz(
+	rr.HandleFuncWithValidationAndAllAuthz(
 		"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys/{keyName}",
-		rbac.AgentAPIKeyManage, growthanalytics.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("mcp-config", "revoked-config-scoped-api-key"), ctrl.RevokeMCPConfigAPIKey),
+		growthanalytics.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("mcp-config", "revoked-config-scoped-api-key"), ctrl.RevokeMCPConfigAPIKey),
+		rbac.AgentAPIKeyManage, rbac.AgentEnvNonProduction,
 	)
 
 	// Per-config LLM API keys (external agents): the key an agent uses to call its
@@ -104,19 +107,22 @@ func RegisterAgentConfigRoutes(rr *middleware.RouteRegistrar, ctrl controllers.A
 		rbac.AgentRead, ctrl.ListLLMConfigAPIKeys,
 	)
 
-	rr.HandleFuncWithValidationAndAuthz(
+	rr.HandleFuncWithValidationAndAllAuthz(
 		"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys",
-		rbac.AgentAPIKeyManage, growthanalytics.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("model-config", "issued-config-scoped-api-key"), ctrl.CreateLLMConfigAPIKey),
+		growthanalytics.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("model-config", "issued-config-scoped-api-key"), ctrl.CreateLLMConfigAPIKey),
+		rbac.AgentAPIKeyManage, rbac.AgentEnvNonProduction,
 	)
 
-	rr.HandleFuncWithValidationAndAuthz(
+	rr.HandleFuncWithValidationAndAllAuthz(
 		"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys/{keyName}",
-		rbac.AgentAPIKeyManage, growthanalytics.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("model-config", "rotated-config-scoped-api-key"), ctrl.RotateLLMConfigAPIKey),
+		growthanalytics.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("model-config", "rotated-config-scoped-api-key"), ctrl.RotateLLMConfigAPIKey),
+		rbac.AgentAPIKeyManage, rbac.AgentEnvNonProduction,
 	)
 
-	rr.HandleFuncWithValidationAndAuthz(
+	rr.HandleFuncWithValidationAndAllAuthz(
 		"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys/{keyName}",
-		rbac.AgentAPIKeyManage, growthanalytics.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("model-config", "revoked-config-scoped-api-key"), ctrl.RevokeLLMConfigAPIKey),
+		growthanalytics.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("model-config", "revoked-config-scoped-api-key"), ctrl.RevokeLLMConfigAPIKey),
+		rbac.AgentAPIKeyManage, rbac.AgentEnvNonProduction,
 	)
 }
 

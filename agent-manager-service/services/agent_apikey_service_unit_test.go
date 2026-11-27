@@ -167,7 +167,7 @@ func TestAgentAPIKeyService_IssueTestAPIKey_PerUser(t *testing.T) {
 	t.Run("creates a per-user key named from the JWT subject", func(t *testing.T) {
 		fx := newAPIKeyServiceFixture(t, nil)
 
-		resp, err := fx.svc.IssueTestAPIKey(auditableCtx(t), org, proj, agent, env, "user-a-sub")
+		resp, err := fx.svc.IssueTestAPIKey(tierGrantedCtx(t), org, proj, agent, env, "user-a-sub")
 
 		require.NoError(t, err)
 		require.NotNil(t, resp)
@@ -186,9 +186,9 @@ func TestAgentAPIKeyService_IssueTestAPIKey_PerUser(t *testing.T) {
 	t.Run("different users get distinct key rows", func(t *testing.T) {
 		fx := newAPIKeyServiceFixture(t, nil)
 
-		_, err := fx.svc.IssueTestAPIKey(auditableCtx(t), org, proj, agent, env, "user-a-sub")
+		_, err := fx.svc.IssueTestAPIKey(tierGrantedCtx(t), org, proj, agent, env, "user-a-sub")
 		require.NoError(t, err)
-		_, err = fx.svc.IssueTestAPIKey(auditableCtx(t), org, proj, agent, env, "user-b-sub")
+		_, err = fx.svc.IssueTestAPIKey(tierGrantedCtx(t), org, proj, agent, env, "user-b-sub")
 		require.NoError(t, err)
 
 		require.Len(t, *fx.upsertedKeys, 2)
@@ -204,7 +204,7 @@ func TestAgentAPIKeyService_IssueTestAPIKey_PerUser(t *testing.T) {
 		}
 		fx := newAPIKeyServiceFixture(t, existing)
 
-		resp, err := fx.svc.IssueTestAPIKey(auditableCtx(t), org, proj, agent, env, "user-a-sub")
+		resp, err := fx.svc.IssueTestAPIKey(tierGrantedCtx(t), org, proj, agent, env, "user-a-sub")
 
 		require.NoError(t, err)
 		assert.NotEmpty(t, resp.APIKey)
@@ -215,7 +215,7 @@ func TestAgentAPIKeyService_IssueTestAPIKey_PerUser(t *testing.T) {
 	t.Run("reports gateway websocket connectivity in the response", func(t *testing.T) {
 		fx := newAPIKeyServiceFixture(t, nil)
 
-		resp, err := fx.svc.IssueTestAPIKey(auditableCtx(t), org, proj, agent, env, "user-a-sub")
+		resp, err := fx.svc.IssueTestAPIKey(tierGrantedCtx(t), org, proj, agent, env, "user-a-sub")
 		require.NoError(t, err)
 		require.NotNil(t, resp.GatewayConnected)
 		assert.True(t, *resp.GatewayConnected)
@@ -224,7 +224,7 @@ func TestAgentAPIKeyService_IssueTestAPIKey_PerUser(t *testing.T) {
 		// gateway reported disconnected.
 		fx.connChecker.connected = false
 		fx.gateway.IsActive = false
-		resp, err = fx.svc.IssueTestAPIKey(auditableCtx(t), org, proj, agent, env, "user-a-sub")
+		resp, err = fx.svc.IssueTestAPIKey(tierGrantedCtx(t), org, proj, agent, env, "user-a-sub")
 		require.NoError(t, err)
 		require.NotNil(t, resp.GatewayConnected)
 		assert.False(t, *resp.GatewayConnected)
@@ -239,7 +239,7 @@ func TestAgentAPIKeyService_IssueTestAPIKey_PerUser(t *testing.T) {
 		fx.connChecker.connected = false
 		fx.gateway.IsActive = true
 
-		resp, err := fx.svc.IssueTestAPIKey(auditableCtx(t), org, proj, agent, env, "user-a-sub")
+		resp, err := fx.svc.IssueTestAPIKey(tierGrantedCtx(t), org, proj, agent, env, "user-a-sub")
 		require.NoError(t, err)
 		require.NotNil(t, resp.GatewayConnected)
 		assert.True(t, *resp.GatewayConnected)
@@ -253,7 +253,7 @@ func TestAgentAPIKeyService_IssueTestAPIKey_PerUser(t *testing.T) {
 		}
 		fx := newAPIKeyServiceFixture(t, existing)
 
-		_, err := fx.svc.IssueTestAPIKey(auditableCtx(t), org, proj, agent, env, "user-a-sub")
+		_, err := fx.svc.IssueTestAPIKey(tierGrantedCtx(t), org, proj, agent, env, "user-a-sub")
 
 		assert.ErrorIs(t, err, utils.ErrBadRequest)
 	})
@@ -265,7 +265,7 @@ func TestAgentAPIKeyCreateOnRestApiArtifact(t *testing.T) {
 		return &models.Artifact{UUID: uuid.New(), Kind: models.KindRestAPI}, nil
 	}
 
-	resp, err := fx.svc.CreateAPIKey(auditableCtx(t), "default", "default", "restagent", "dev", &models.CreateAPIKeyRequest{Name: "ci-key"})
+	resp, err := fx.svc.CreateAPIKey(tierGrantedCtx(t), "default", "default", "restagent", "dev", &models.CreateAPIKeyRequest{Name: "ci-key"})
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, resp.APIKey)
@@ -274,7 +274,7 @@ func TestAgentAPIKeyCreateOnRestApiArtifact(t *testing.T) {
 
 func TestAgentAPIKeyCreateAnnotatesEvent(t *testing.T) {
 	fx := newAPIKeyServiceFixture(t, nil)
-	ctx, notes := events.WithAnnotations(auditableCtx(t))
+	ctx, notes := events.WithAnnotations(tierGrantedCtx(t))
 
 	_, err := fx.svc.CreateAPIKey(ctx, "default", "default", "customeragent",
 		"dada1090-0ddb-457a-a116-7f03d3cd0c4c", &models.CreateAPIKeyRequest{Name: "ci-key"})
@@ -366,7 +366,7 @@ func TestAgentAPIKeyService_CreateAPIKey_ReservedTestKeyPrefix(t *testing.T) {
 	t.Run("rejects names with the console test-key prefix", func(t *testing.T) {
 		fx := newAPIKeyServiceFixture(t, nil)
 
-		_, err := fx.svc.CreateAPIKey(auditableCtx(t), org, proj, agent, env,
+		_, err := fx.svc.CreateAPIKey(tierGrantedCtx(t), org, proj, agent, env,
 			&models.CreateAPIKeyRequest{Name: models.APIKeyTestKeyPrefix + "deadbeef0123"})
 
 		assert.ErrorIs(t, err, utils.ErrBadRequest)
@@ -377,7 +377,7 @@ func TestAgentAPIKeyService_CreateAPIKey_ReservedTestKeyPrefix(t *testing.T) {
 		fx.connChecker.connected = false
 		fx.gateway.IsActive = false
 
-		resp, err := fx.svc.CreateAPIKey(auditableCtx(t), org, proj, agent, env,
+		resp, err := fx.svc.CreateAPIKey(tierGrantedCtx(t), org, proj, agent, env,
 			&models.CreateAPIKeyRequest{Name: "my-key"})
 
 		require.NoError(t, err)
@@ -390,7 +390,7 @@ func TestAgentAPIKeyService_CreateAPIKey_ReservedTestKeyPrefix(t *testing.T) {
 		fx.connChecker.connected = false
 		fx.gateway.IsActive = true
 
-		resp, err := fx.svc.CreateAPIKey(auditableCtx(t), org, proj, agent, env,
+		resp, err := fx.svc.CreateAPIKey(tierGrantedCtx(t), org, proj, agent, env,
 			&models.CreateAPIKeyRequest{Name: "my-key"})
 
 		require.NoError(t, err)
@@ -411,7 +411,7 @@ func TestAgentAPIKeyService_CreateAPIKey_MinNameLength(t *testing.T) {
 		t.Run("rejects a too-short "+desc+" without storing the key", func(t *testing.T) {
 			fx := newAPIKeyServiceFixture(t, nil)
 
-			_, err := fx.svc.CreateAPIKey(auditableCtx(t), org, proj, agent, env, req)
+			_, err := fx.svc.CreateAPIKey(tierGrantedCtx(t), org, proj, agent, env, req)
 
 			assert.ErrorIs(t, err, utils.ErrBadRequest)
 			assert.Empty(t, *fx.upsertedKeys)
@@ -421,7 +421,7 @@ func TestAgentAPIKeyService_CreateAPIKey_MinNameLength(t *testing.T) {
 	t.Run("accepts a name at the minimum length", func(t *testing.T) {
 		fx := newAPIKeyServiceFixture(t, nil)
 
-		_, err := fx.svc.CreateAPIKey(auditableCtx(t), org, proj, agent, env,
+		_, err := fx.svc.CreateAPIKey(tierGrantedCtx(t), org, proj, agent, env,
 			&models.CreateAPIKeyRequest{DisplayName: "abc"})
 
 		require.NoError(t, err)
