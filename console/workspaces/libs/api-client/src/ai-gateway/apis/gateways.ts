@@ -174,7 +174,10 @@ export async function createSelfHostedGateway(
   return res.json();
 }
 
-/** A PUT replaces the gateway's editable fields, so the stored document is read and the changes laid over it. */
+/**
+ * A PUT replaces the gateway's editable fields, so the stored document is read and the changes
+ * laid over it.
+ */
 export async function updateSelfHostedGateway(
   params: UpdateSelfHostedGatewayPathParams,
   body: SelfHostedGatewayUpdateRequest,

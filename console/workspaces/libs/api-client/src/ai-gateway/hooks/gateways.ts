@@ -66,8 +66,8 @@ import {
 import { listEnvironments } from "../../agent-runtime/apis/deployments";
 
 /**
- * The organization's environments, which every gateway serves. A caller who cannot read them still sees its
- * gateways, without environments.
+ * The organization's environments, which every gateway serves. A caller who cannot read them still
+ * sees its gateways, without environments.
  */
 async function gatewayEnvironments(
   orgName: string | undefined,

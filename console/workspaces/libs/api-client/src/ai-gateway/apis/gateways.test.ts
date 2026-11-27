@@ -94,10 +94,15 @@ describe("gateway documents", () => {
   });
 
   it("reads the list envelope", () => {
-    const list = gatewayListFromDocuments({ count: 1, list: [stored], pagination: { limit: 20, offset: 0, total: 7 } });
+    const list = gatewayListFromDocuments({
+      count: 1,
+      list: [stored],
+      pagination: { limit: 20, offset: 0, total: 7 },
+    });
     expect(list.gateways).toHaveLength(1);
     expect(list).toMatchObject({ total: 7, limit: 20, offset: 0 });
-    expect(gatewayListFromDocuments({ list: [stored] })).toMatchObject({ total: 1, limit: 1, offset: 0 });
+    expect(gatewayListFromDocuments({ list: [stored] }))
+      .toMatchObject({ total: 1, limit: 1, offset: 0 });
   });
 
   it("builds a self-hosted registration from the add-gateway form", () => {

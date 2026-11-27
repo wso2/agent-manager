@@ -143,7 +143,10 @@ export interface GatewayDocumentList {
   pagination?: { limit?: number; offset?: number; total?: number };
 }
 
-/** Request body for registering a gateway the customer runs, in the organization's default environment. */
+/**
+ * Request body for registering a gateway the customer runs, in the organization's default
+ * environment.
+ */
 export interface SelfHostedGatewayRequest {
   displayName: string;
   /**

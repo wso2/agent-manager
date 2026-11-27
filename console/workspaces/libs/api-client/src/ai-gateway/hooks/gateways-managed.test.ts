@@ -157,7 +157,8 @@ describe("gateway environments", () => {
       return null;
     };
     const root = createRoot(document.createElement("div"));
-    await act(async () => root.render(createElement(QueryClientProvider, { client: qc }, createElement(Probe))));
+    await act(async () =>
+      root.render(createElement(QueryClientProvider, { client: qc }, createElement(Probe))));
     await vi.waitFor(() => expect(data).toBeDefined());
     expect(data).toEqual(api.gatewayListFromDocuments({ list: [doc] }));
   });

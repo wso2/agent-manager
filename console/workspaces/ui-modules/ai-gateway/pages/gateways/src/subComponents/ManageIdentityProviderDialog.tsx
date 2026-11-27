@@ -169,7 +169,8 @@ export function ManageIdentityProviderDialog({
   const effectiveEnvName = envName || onlyEnvironment || "";
 
   // The managed gateways, all serving the organization's one environment, populate the gateway
-  // picker (only used when no gateway is locked in): a self-hosted gateway has no identity providers here.
+  // picker (only used when no gateway is locked in): a self-hosted gateway has no identity
+  // providers here.
   const { data: gatewaysResp } = useListGateways({ orgName: orgId }, { hosting: "MANAGED" });
   const gateways = useMemo(
     () => (gatewaysResp?.gateways ?? []).filter(isManagedGateway),
@@ -332,7 +333,8 @@ export function ManageIdentityProviderDialog({
           </Typography>
 
           <Stack spacing={2}>
-            {/* Gateway comes first when it is locked in (added from a gateway); otherwise Environment leads. */}
+            {/* Gateway comes first when it is locked in (added from a gateway);
+                otherwise Environment leads. */}
             {isGatewayLocked ? (
               <>
                 {gatewayField}
