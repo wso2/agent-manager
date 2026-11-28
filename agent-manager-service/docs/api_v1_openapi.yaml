@@ -14930,6 +14930,146 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/shadow-agents/inventory/template:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+    get:
+      tags:
+        - Shadow Agent Discovery
+      summary: Download an agent inventory file template
+      description: |
+        Returns a Bring your own inventory file template in the chosen format: the
+        columns of the format, in order, and two example agents. A JSON template is
+        {"agents": [...]}, with labels as an object.
+      operationId: getShadowInventoryTemplate
+      parameters:
+        - name: format
+          in: query
+          required: true
+          description: The file format
+          schema:
+            type: string
+            enum: [json, csv, xlsx]
+      responses:
+        "200":
+          description: The template file, as an attachment named agent-inventory-template.<format>
+          headers:
+            Content-Disposition:
+              description: attachment; filename="agent-inventory-template.<format>"
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: string
+                format: binary
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: The format is missing or not json, csv or xlsx
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/shadow-agents/connections/{connectionId}/inventory:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: connectionId
+        in: path
+        required: true
+        description: Connection ID
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags:
+        - Shadow Agent Discovery
+      summary: Upload an agent inventory file
+      description: |
+        Saves the agents of a Bring your own inventory file (JSON, CSV or Excel
+        .xlsx, at most 5 MB and 5,000 agents) for the connection, as a finished
+        scan of that connection. The file is the complete inventory: agents of the
+        connection that are not in it are marked as no longer present, as after a
+        complete scan. Rows without an id or a name, and rows that repeat an id,
+        are left out and reported; columns that are not in the format are ignored
+        and never stored. The format comes from the file name's extension, or
+        from the content when the extension is not .json, .csv or .xlsx.
+      operationId: uploadShadowInventory
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The inventory file, with its file name
+      responses:
+        "200":
+          description: The agents were saved and the scan finished
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowInventoryUploadResponse"
+        "400":
+          description: >-
+            The file cannot be used and nothing was saved: too large, an unknown format, not valid JSON,
+            no id or name column, agent rows of which none is valid, or more than 5,000 agents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such connection, or the connection is not a Bring your own inventory connection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A newer upload for the connection was saved while this one was processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: The audit trail is unavailable; nothing was saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/shadow-agents/connections/{connectionId}/runner-scans:
     parameters:
       - name: orgName
@@ -25013,11 +25153,84 @@ components:
           description: The steps to make the platform listable (Bring your own inventory), shown with what it lists.
           items:
             type: string
-        apiContract:
-          type: string
+        fileUpload:
+          type: boolean
           description: >-
-            The OpenAPI document (YAML) of the agent inventory API the customer implements for Bring your
-            own inventory; the console offers it for download.
+            The platform's agents come from uploaded inventory files (Bring your own inventory): its
+            connection holds no credential, and no cloud scan or Run scan reads it.
+        inventoryFields:
+          type: array
+          description: >-
+            The inventory file format of a fileUpload platform, in column order: each field's exact column
+            name (CSV and Excel) and JSON key.
+          items:
+            $ref: "#/components/schemas/ShadowInventoryField"
+
+    ShadowInventoryField:
+      type: object
+      required: [name, required, description, example]
+      properties:
+        name:
+          type: string
+          description: The exact column name (CSV and Excel) and JSON key.
+        required:
+          type: boolean
+        description:
+          type: string
+        example:
+          type: string
+          description: An example value as it is written in a CSV or Excel cell.
+
+    ShadowInventoryProblem:
+      type: object
+      required: [row, message, leftOut]
+      properties:
+        row:
+          type: integer
+          format: int32
+          description: >-
+            For CSV and Excel, the spreadsheet row number (the header is row 1, the first agent row 2); for
+            JSON, the 1-based position in the agents array.
+        message:
+          type: string
+        leftOut:
+          type: boolean
+          description: >-
+            True when the problem left the agent out; false when the agent was saved without the value the
+            message names.
+
+    ShadowInventoryUploadResponse:
+      type: object
+      required: [scan, agentsRead, agentsSaved, leftOut, problems, problemCount, ignoredColumns]
+      properties:
+        scan:
+          $ref: "#/components/schemas/ShadowScanResponse"
+        agentsRead:
+          type: integer
+          format: int32
+          description: The agent rows or objects in the file.
+        agentsSaved:
+          type: integer
+          format: int32
+          description: The distinct agents saved.
+        leftOut:
+          type: integer
+          format: int32
+          description: The rows or objects left out, because they were invalid or repeated an id.
+        problems:
+          type: array
+          description: The first 50 problems found in the file, in file order.
+          items:
+            $ref: "#/components/schemas/ShadowInventoryProblem"
+        problemCount:
+          type: integer
+          format: int32
+          description: Every problem found in the file, including those beyond the first 50.
+        ignoredColumns:
+          type: array
+          description: Columns or keys that are not in the format, sorted (at most 100). They are ignored and never stored.
+          items:
+            type: string
 
     ShadowCredentialChoice:
       type: object
@@ -25250,6 +25463,12 @@ components:
         lastTestedAt:
           type: string
           format: date-time
+        lastUploadAt:
+          type: string
+          format: date-time
+          description: >-
+            For a Bring your own inventory connection, when a file was last uploaded and saved. Absent for other
+            connections and before the first upload.
         lastTest:
           $ref: "#/components/schemas/ShadowConnectionTest"
         createdBy:
@@ -25309,11 +25528,16 @@ components:
 
     ShadowScanResponse:
       type: object
-      required: [id, status, connectionIds, results, findingsCount, requestedBy, createdAt]
+      required: [id, status, connectionIds, results, findingsCount, requestedBy, createdAt, inventoryUpload]
       properties:
         id:
           type: string
           format: uuid
+        inventoryUpload:
+          type: boolean
+          description: >-
+            True for a scan created by uploading a Bring your own inventory file. Such scans are finished
+            when created and are never the summary's latestScan.
         status:
           type: string
           description: >-

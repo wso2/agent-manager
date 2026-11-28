@@ -40,7 +40,7 @@ func ValidateRuntimeManaged(ctx context.Context, client *amsvc.ClientWithRespons
 // not internally provisioned. feature names the operation in the error message
 // ("Builds", "Runtime logs and metrics", etc.).
 func validateInternalProvisioning(ctx context.Context, client *amsvc.ClientWithResponses, org, proj, agentName, feature string) error {
-	resp, err := client.GetAgentWithResponse(ctx, org, proj, agentName)
+	resp, err := client.GetAgentWithResponse(ctx, org, proj, agentName, nil)
 	if err != nil {
 		return clierr.Newf(clierr.Transport, "%v", err)
 	}

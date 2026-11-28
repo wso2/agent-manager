@@ -87,7 +87,7 @@ func runGet(ctx context.Context, o *GetOptions) error {
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
-	resp, err := client.GetAgentWithResponse(ctx, o.Org, o.Proj, o.AgentName)
+	resp, err := client.GetAgentWithResponse(ctx, o.Org, o.Proj, o.AgentName, nil)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}

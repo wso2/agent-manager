@@ -21,6 +21,8 @@ var _ MappedNullable = &ShadowScanResponse{}
 // ShadowScanResponse struct for ShadowScanResponse
 type ShadowScanResponse struct {
 	Id string `json:"id"`
+	// True for a scan created by uploading a Bring your own inventory file. Such scans are finished when created and are never the summary's latestScan.
+	InventoryUpload bool `json:"inventoryUpload"`
 	// pending: a source code scan waiting for its results, until they are published or uploaded or the scan is cancelled; queued and running: a cloud scan in progress.
 	Status        string                       `json:"status"`
 	ConnectionIds []string                     `json:"connectionIds"`
@@ -38,9 +40,10 @@ type ShadowScanResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewShadowScanResponse(id string, status string, connectionIds []string, results []ShadowScanConnectionResult, findingsCount int32, requestedBy string, createdAt time.Time) *ShadowScanResponse {
+func NewShadowScanResponse(id string, inventoryUpload bool, status string, connectionIds []string, results []ShadowScanConnectionResult, findingsCount int32, requestedBy string, createdAt time.Time) *ShadowScanResponse {
 	this := ShadowScanResponse{}
 	this.Id = id
+	this.InventoryUpload = inventoryUpload
 	this.Status = status
 	this.ConnectionIds = connectionIds
 	this.Results = results
@@ -80,6 +83,30 @@ func (o *ShadowScanResponse) GetIdOk() (*string, bool) {
 // SetId sets field value
 func (o *ShadowScanResponse) SetId(v string) {
 	o.Id = v
+}
+
+// GetInventoryUpload returns the InventoryUpload field value
+func (o *ShadowScanResponse) GetInventoryUpload() bool {
+	if o == nil {
+		var ret bool
+		return ret
+	}
+
+	return o.InventoryUpload
+}
+
+// GetInventoryUploadOk returns a tuple with the InventoryUpload field value
+// and a boolean to check if the value has been set.
+func (o *ShadowScanResponse) GetInventoryUploadOk() (*bool, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.InventoryUpload, true
+}
+
+// SetInventoryUpload sets field value
+func (o *ShadowScanResponse) SetInventoryUpload(v bool) {
+	o.InventoryUpload = v
 }
 
 // GetStatus returns the Status field value
@@ -333,6 +360,7 @@ func (o ShadowScanResponse) MarshalJSON() ([]byte, error) {
 func (o ShadowScanResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["id"] = o.Id
+	toSerialize["inventoryUpload"] = o.InventoryUpload
 	toSerialize["status"] = o.Status
 	toSerialize["connectionIds"] = o.ConnectionIds
 	if !IsNil(o.Options) {

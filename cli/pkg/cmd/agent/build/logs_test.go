@@ -62,7 +62,7 @@ func newBuildTestClient(t *testing.T, latestBuildName string) func(context.Conte
 				Name:         "my-agent",
 				DisplayName:  "My Agent",
 				ProjectName:  "triage",
-				Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeInternal},
+				Provisioning: amsvc.Provisioning{Type: amsvc.Internal},
 			})
 		}
 	}))

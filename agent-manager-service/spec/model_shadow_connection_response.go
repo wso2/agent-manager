@@ -29,12 +29,14 @@ type ShadowConnectionResponse struct {
 	// A redacted hint per stored secret field (e.g. \"sk-a…wxyz\"); values are never returned.
 	SecretHints map[string]string `json:"secretHints"`
 	// Endpoints whose host is not an official host of the platform.
-	EndpointWarnings []string              `json:"endpointWarnings"`
-	LastTestedAt     *time.Time            `json:"lastTestedAt,omitempty"`
-	LastTest         *ShadowConnectionTest `json:"lastTest,omitempty"`
-	CreatedBy        string                `json:"createdBy"`
-	CreatedAt        time.Time             `json:"createdAt"`
-	UpdatedAt        time.Time             `json:"updatedAt"`
+	EndpointWarnings []string   `json:"endpointWarnings"`
+	LastTestedAt     *time.Time `json:"lastTestedAt,omitempty"`
+	// For a Bring your own inventory connection, when a file was last uploaded and saved. Absent for other connections and before the first upload.
+	LastUploadAt *time.Time            `json:"lastUploadAt,omitempty"`
+	LastTest     *ShadowConnectionTest `json:"lastTest,omitempty"`
+	CreatedBy    string                `json:"createdBy"`
+	CreatedAt    time.Time             `json:"createdAt"`
+	UpdatedAt    time.Time             `json:"updatedAt"`
 }
 
 // NewShadowConnectionResponse instantiates a new ShadowConnectionResponse object
@@ -264,6 +266,38 @@ func (o *ShadowConnectionResponse) SetLastTestedAt(v time.Time) {
 	o.LastTestedAt = &v
 }
 
+// GetLastUploadAt returns the LastUploadAt field value if set, zero value otherwise.
+func (o *ShadowConnectionResponse) GetLastUploadAt() time.Time {
+	if o == nil || IsNil(o.LastUploadAt) {
+		var ret time.Time
+		return ret
+	}
+	return *o.LastUploadAt
+}
+
+// GetLastUploadAtOk returns a tuple with the LastUploadAt field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ShadowConnectionResponse) GetLastUploadAtOk() (*time.Time, bool) {
+	if o == nil || IsNil(o.LastUploadAt) {
+		return nil, false
+	}
+	return o.LastUploadAt, true
+}
+
+// HasLastUploadAt returns a boolean if a field has been set.
+func (o *ShadowConnectionResponse) HasLastUploadAt() bool {
+	if o != nil && !IsNil(o.LastUploadAt) {
+		return true
+	}
+
+	return false
+}
+
+// SetLastUploadAt gets a reference to the given time.Time and assigns it to the LastUploadAt field.
+func (o *ShadowConnectionResponse) SetLastUploadAt(v time.Time) {
+	o.LastUploadAt = &v
+}
+
 // GetLastTest returns the LastTest field value if set, zero value otherwise.
 func (o *ShadowConnectionResponse) GetLastTest() ShadowConnectionTest {
 	if o == nil || IsNil(o.LastTest) {
@@ -387,6 +421,9 @@ func (o ShadowConnectionResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["endpointWarnings"] = o.EndpointWarnings
 	if !IsNil(o.LastTestedAt) {
 		toSerialize["lastTestedAt"] = o.LastTestedAt
+	}
+	if !IsNil(o.LastUploadAt) {
+		toSerialize["lastUploadAt"] = o.LastUploadAt
 	}
 	if !IsNil(o.LastTest) {
 		toSerialize["lastTest"] = o.LastTest

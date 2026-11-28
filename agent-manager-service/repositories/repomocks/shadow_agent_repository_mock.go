@@ -94,6 +94,9 @@ import (
 //			SaveConnectionTestFunc: func(ctx context.Context, ouID string, id uuid.UUID, at time.Time, result models.ShadowConnectionTestInfo) error {
 //				panic("mock out the SaveConnectionTest method")
 //			},
+//			SaveUploadedScanFunc: func(ctx context.Context, scan *models.ShadowScan, in repositories.ShadowConnectionApply) (int, error) {
+//				panic("mock out the SaveUploadedScan method")
+//			},
 //			ScanRunningFunc: func(ctx context.Context, id uuid.UUID) (bool, error) {
 //				panic("mock out the ScanRunning method")
 //			},
@@ -190,6 +193,9 @@ type ShadowAgentRepositoryMock struct {
 
 	// SaveConnectionTestFunc mocks the SaveConnectionTest method.
 	SaveConnectionTestFunc func(ctx context.Context, ouID string, id uuid.UUID, at time.Time, result models.ShadowConnectionTestInfo) error
+
+	// SaveUploadedScanFunc mocks the SaveUploadedScan method.
+	SaveUploadedScanFunc func(ctx context.Context, scan *models.ShadowScan, in repositories.ShadowConnectionApply) (int, error)
 
 	// ScanRunningFunc mocks the ScanRunning method.
 	ScanRunningFunc func(ctx context.Context, id uuid.UUID) (bool, error)
@@ -433,6 +439,15 @@ type ShadowAgentRepositoryMock struct {
 			// Result is the result argument value.
 			Result models.ShadowConnectionTestInfo
 		}
+		// SaveUploadedScan holds details about calls to the SaveUploadedScan method.
+		SaveUploadedScan []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Scan is the scan argument value.
+			Scan *models.ShadowScan
+			// In is the in argument value.
+			In repositories.ShadowConnectionApply
+		}
 		// ScanRunning holds details about calls to the ScanRunning method.
 		ScanRunning []struct {
 			// Ctx is the ctx argument value.
@@ -504,6 +519,7 @@ type ShadowAgentRepositoryMock struct {
 	lockPublishScanResults    sync.RWMutex
 	lockRenewScanLease        sync.RWMutex
 	lockSaveConnectionTest    sync.RWMutex
+	lockSaveUploadedScan      sync.RWMutex
 	lockScanRunning           sync.RWMutex
 	lockSetFindingHidden      sync.RWMutex
 	lockSummary               sync.RWMutex
@@ -1508,6 +1524,46 @@ func (mock *ShadowAgentRepositoryMock) SaveConnectionTestCalls() []struct {
 	mock.lockSaveConnectionTest.RLock()
 	calls = mock.calls.SaveConnectionTest
 	mock.lockSaveConnectionTest.RUnlock()
+	return calls
+}
+
+// SaveUploadedScan calls SaveUploadedScanFunc.
+func (mock *ShadowAgentRepositoryMock) SaveUploadedScan(ctx context.Context, scan *models.ShadowScan, in repositories.ShadowConnectionApply) (int, error) {
+	if mock.SaveUploadedScanFunc == nil {
+		panic("ShadowAgentRepositoryMock.SaveUploadedScanFunc: method is nil but ShadowAgentRepository.SaveUploadedScan was just called")
+	}
+	callInfo := struct {
+		Ctx  context.Context
+		Scan *models.ShadowScan
+		In   repositories.ShadowConnectionApply
+	}{
+		Ctx:  ctx,
+		Scan: scan,
+		In:   in,
+	}
+	mock.lockSaveUploadedScan.Lock()
+	mock.calls.SaveUploadedScan = append(mock.calls.SaveUploadedScan, callInfo)
+	mock.lockSaveUploadedScan.Unlock()
+	return mock.SaveUploadedScanFunc(ctx, scan, in)
+}
+
+// SaveUploadedScanCalls gets all the calls that were made to SaveUploadedScan.
+// Check the length with:
+//
+//	len(mockedShadowAgentRepository.SaveUploadedScanCalls())
+func (mock *ShadowAgentRepositoryMock) SaveUploadedScanCalls() []struct {
+	Ctx  context.Context
+	Scan *models.ShadowScan
+	In   repositories.ShadowConnectionApply
+} {
+	var calls []struct {
+		Ctx  context.Context
+		Scan *models.ShadowScan
+		In   repositories.ShadowConnectionApply
+	}
+	mock.lockSaveUploadedScan.RLock()
+	calls = mock.calls.SaveUploadedScan
+	mock.lockSaveUploadedScan.RUnlock()
 	return calls
 }
 

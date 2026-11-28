@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { httpDELETE, httpGET, httpPOST, httpPUT, SERVICE_BASE } from "../utils";
+import { httpDELETE, httpGET, httpPOST, httpPOSTForm, httpPUT, SERVICE_BASE } from "../utils";
 import type {
   ShadowAgentSummary,
   ShadowConnectionListResponse,
@@ -28,6 +28,8 @@ import type {
   ShadowFindingHiddenRequest,
   ShadowFindingListQuery,
   ShadowFindingListResponse,
+  ShadowInventoryFormat,
+  ShadowInventoryUploadResponse,
   ShadowOnboardingRequest,
   ShadowProviderListResponse,
   ShadowRunnerScanRequest,
@@ -300,6 +302,90 @@ export async function onboardShadowFinding(
   const res = await httpPOST(
     `${shadowBase(orgName)}/findings/${encodeURIComponent(findingId)}/onboarding`,
     body,
+    { token },
+  );
+  return res.json();
+}
+
+/** The default file name of each inventory template. */
+const INVENTORY_TEMPLATE_FILES: Record<ShadowInventoryFormat, string> = {
+  json: "agent-inventory-template.json",
+  csv: "agent-inventory-template.csv",
+  xlsx: "agent-inventory-template.xlsx",
+};
+
+/** The file name in a Content-Disposition header, if it gives one. */
+export function contentDispositionFileName(header: string | null): string | undefined {
+  if (!header) return undefined;
+  const star = /filename\*\s*=\s*(?:UTF-8'[^']*')?([^;]+)/i.exec(header);
+  if (star) {
+    try {
+      return decodeURIComponent(star[1].trim().replace(/^"|"$/g, ""));
+    } catch {
+      // Fall back to the plain filename.
+    }
+  }
+  const plain = /filename\s*=\s*("([^"]*)"|[^;]+)/i.exec(header);
+  const name = (plain?.[2] ?? plain?.[1])?.trim();
+  return name || undefined;
+}
+
+/** Fetches the inventory template in a format: the file and its name. */
+export async function fetchShadowInventoryTemplate(
+  orgName: string | undefined,
+  format: ShadowInventoryFormat,
+  getToken?: () => Promise<string>,
+): Promise<{ blob: Blob; fileName: string }> {
+  const token = await tokenOf(getToken);
+  const res = await httpGET(`${shadowBase(orgName)}/inventory/template`, {
+    searchParams: { format },
+    token,
+  });
+  const fileName =
+    contentDispositionFileName(res.headers.get("Content-Disposition")) ??
+    INVENTORY_TEMPLATE_FILES[format];
+  return { blob: await res.blob(), fileName };
+}
+
+/** Saves a file in the browser's downloads. */
+export function saveBlob(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** Downloads the inventory template in a format (it needs the auth token, so it is fetched). */
+export async function downloadShadowInventoryTemplate(
+  orgName: string | undefined,
+  format: ShadowInventoryFormat,
+  getToken?: () => Promise<string>,
+): Promise<void> {
+  const { blob, fileName } = await fetchShadowInventoryTemplate(orgName, format, getToken);
+  saveBlob(blob, fileName);
+}
+
+/**
+ * Uploads an inventory file (JSON, CSV or Excel) to a Bring your own inventory
+ * connection. Its agents replace the connection's; agents not in the file are
+ * marked gone.
+ */
+export async function uploadShadowInventory(
+  orgName: string | undefined,
+  connectionId: string,
+  file: File,
+  getToken?: () => Promise<string>,
+): Promise<ShadowInventoryUploadResponse> {
+  const token = await tokenOf(getToken);
+  const form = new FormData();
+  form.append("file", file, file.name);
+  const res = await httpPOSTForm(
+    `${shadowBase(orgName)}/connections/${encodeURIComponent(connectionId)}/inventory`,
+    form,
     { token },
   );
   return res.json();

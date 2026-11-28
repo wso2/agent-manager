@@ -210,7 +210,7 @@ func runCreate(ctx context.Context, opts *CreateOptions, req amsvc.CreateAgentRe
 
 	// Branch on the request body, not the --provisioning flag — in file mode
 	// the manifest is the only source of truth.
-	if req.Provisioning.Type != amsvc.ProvisioningTypeExternal {
+	if req.Provisioning.Type != amsvc.External {
 		if opts.IO.JSON {
 			return render.JSONSuccess(opts.IO, opts.Scope, resp.JSON202)
 		}

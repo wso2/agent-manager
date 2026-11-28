@@ -536,10 +536,11 @@ func TestShadowCreateScan(t *testing.T) {
 func TestShadowCreateScan_SkipsSourceHosts(t *testing.T) {
 	cloud := models.ShadowConnection{ID: uuid.New(), Provider: models.ShadowProviderFoundry}
 	gh := models.ShadowConnection{ID: uuid.New(), Provider: models.ShadowProviderGitHub}
+	inventory := models.ShadowConnection{ID: uuid.New(), Provider: models.ShadowProviderCustom}
 	var created *models.ShadowScan
 	repo := &repomocks.ShadowAgentRepositoryMock{
 		ListConnectionsFunc: func(context.Context, string) ([]models.ShadowConnection, error) {
-			return []models.ShadowConnection{gh, cloud}, nil
+			return []models.ShadowConnection{gh, cloud, inventory}, nil
 		},
 		CreateScanFunc: func(_ context.Context, s *models.ShadowScan) error {
 			created = s
@@ -553,9 +554,11 @@ func TestShadowCreateScan_SkipsSourceHosts(t *testing.T) {
 
 	_, err = svc.CreateScan(auditableCtx(t), shadowTestOU, []uuid.UUID{gh.ID})
 	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+	_, err = svc.CreateScan(auditableCtx(t), shadowTestOU, []uuid.UUID{inventory.ID})
+	assert.ErrorIs(t, err, utils.ErrInvalidInput, "an uploaded inventory is never scanned")
 
 	repo.ListConnectionsFunc = func(context.Context, string) ([]models.ShadowConnection, error) {
-		return []models.ShadowConnection{gh}, nil
+		return []models.ShadowConnection{gh, inventory}, nil
 	}
 	_, err = svc.CreateScan(auditableCtx(t), shadowTestOU, nil)
 	assert.ErrorIs(t, err, utils.ErrShadowNoConnections)
@@ -1298,9 +1301,9 @@ func TestShadowSetFindingHidden(t *testing.T) {
 	assert.Nil(t, v.Row.HiddenAt, "back in the list")
 }
 
-// A Custom platform is saved with an http(s) Agents URL without a query
-// string, and an API key that is stored as a secret, never in the config.
-func TestShadowCustomPlatformSettings(t *testing.T) {
+// Bring your own inventory is saved with no setting and no secret: its
+// agents come from uploaded files. An Agents URL or API key is refused.
+func TestShadowCustomInventoryStoresNoSecret(t *testing.T) {
 	var saved *models.ShadowConnection
 	repo := &repomocks.ShadowAgentRepositoryMock{
 		ListConnectionsFunc: func(context.Context, string) ([]models.ShadowConnection, error) {
@@ -1312,30 +1315,20 @@ func TestShadowCustomPlatformSettings(t *testing.T) {
 		},
 	}
 	svc := newShadowSvc(repo)
-	create := func(name, agentsURL, key string) error {
-		settings := map[string]any{"agentsUrl": agentsURL}
-		if key != "" {
-			settings["apiKey"] = key
-		}
-		_, err := svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
-			Name: name, Provider: models.ShadowProviderCustom, Settings: settings,
-		})
-		return err
-	}
-	for _, bad := range []string{
-		"ftp://agents.example.com/agents", "https://agents.example.com/agents?team=a",
-		"https://agents.example.com/agents#x", "https://user:pw@agents.example.com/agents", "agents.example.com/agents",
+	for _, old := range []map[string]any{
+		{"agentsUrl": "https://agents.example.com/v1/agents"}, {"apiKey": "x"},
 	} {
-		assert.ErrorIs(t, create("bad", bad, "k-123"), utils.ErrInvalidInput, bad)
+		_, err := svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
+			Name: "old", Provider: models.ShadowProviderCustom, Settings: old,
+		})
+		assert.ErrorIs(t, err, utils.ErrInvalidInput, "the HTTP inventory settings are gone")
 	}
-	assert.ErrorIs(t, create("no key", "https://agents.example.com/agents", ""), utils.ErrInvalidInput,
-		"the API key is required")
-
-	require.NoError(t, create("inventory", " https://agents.example.com/v1/agents ", "k-1234567890"))
+	v, err := svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
+		Name: "inventory", Provider: models.ShadowProviderCustom,
+	})
+	require.NoError(t, err)
 	require.NotNil(t, saved)
-	assert.Equal(t, "https://agents.example.com/v1/agents", saved.Config.AgentsURL)
-	cfg, _ := json.Marshal(saved.Config)
-	assert.NotContains(t, string(cfg), "k-1234567890", "the key is not in the config")
-	assert.NotEmpty(t, saved.SecretEncrypted, "the key is stored encrypted")
-	assert.Contains(t, saved.SecretHints, "apiKey")
+	assert.Nil(t, saved.SecretEncrypted, "no secret is stored")
+	assert.Empty(t, saved.SecretHints)
+	assert.Empty(t, v.Settings)
 }

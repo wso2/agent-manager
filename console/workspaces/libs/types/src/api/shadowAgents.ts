@@ -26,7 +26,7 @@ export type ShadowProvider =
   | "bedrock"
   | "google"
   | "foundry"
-  /** The customer's own agent inventory: a REST API built to the published contract. */
+  /** The customer's own agent inventory: files in the Agent Manager format, uploaded. */
   | "custom"
   /** Source repository host: scanned by the scan command on the customer's machine. */
   | "github";
@@ -139,10 +139,53 @@ export interface ShadowProviderSpec {
   capabilities: ShadowCapabilitySpec[];
   /** What a scan of the platform never reads or lists. */
   notListed?: string[];
-  /** The steps to make the platform listable (Custom platform). */
+  /** The steps to make the platform listable (Bring your own inventory). */
   setupSteps?: string[];
-  /** The OpenAPI document (YAML) the customer implements (Custom platform). */
-  apiContract?: string;
+  /**
+   * Bring your own inventory: no credential is stored, the source is never
+   * scanned or tested, and its agents come from uploaded inventory files.
+   */
+  fileUpload?: boolean;
+  /** The inventory file's fields, in order (with fileUpload). */
+  inventoryFields?: ShadowInventoryField[];
+}
+
+/**
+ * One field of the inventory file: the CSV/Excel column name and the JSON key.
+ * labels is "team=support; region=eu" in CSV/Excel and an object in JSON.
+ */
+export interface ShadowInventoryField {
+  name: string;
+  required: boolean;
+  description: string;
+  example: string;
+}
+
+/** The inventory file formats Agent Manager reads and offers templates in. */
+export type ShadowInventoryFormat = "json" | "csv" | "xlsx";
+
+/** A problem with a row of an uploaded inventory file. */
+export interface ShadowInventoryProblem {
+  /** The spreadsheet row (the header is row 1), or the 1-based JSON array position. */
+  row: number;
+  message: string;
+  /** True: the row was left out; false: the agent was saved with a warning. */
+  leftOut: boolean;
+}
+
+/** POST .../connections/{connectionId}/inventory: what the uploaded file gave. */
+export interface ShadowInventoryUploadResponse {
+  /** The scan that recorded the upload; its agents are the file's. */
+  scan: ShadowScanResponse;
+  agentsRead: number;
+  agentsSaved: number;
+  leftOut: number;
+  /** At most 50. */
+  problems: ShadowInventoryProblem[];
+  /** How many problems there were, before the 50 cap. */
+  problemCount: number;
+  /** Columns or keys not in the format; they are not stored. */
+  ignoredColumns: string[];
 }
 
 /** One kind of evidence that a platform lists an agent. */
@@ -192,6 +235,8 @@ export interface ShadowConnectionResponse {
   endpointWarnings: string[];
   lastTestedAt?: string;
   lastTest?: ShadowConnectionTest;
+  /** Bring your own inventory: when a file was last uploaded successfully. */
+  lastUploadAt?: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -286,6 +331,8 @@ export interface ShadowScanResponse {
   startedAt?: string;
   finishedAt?: string;
   createdAt: string;
+  /** Recorded by an inventory file upload, not a scan; summary.latestScan excludes these. */
+  inventoryUpload?: boolean;
 }
 
 export interface ShadowScanListResponse {
