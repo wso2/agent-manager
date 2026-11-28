@@ -100,7 +100,7 @@ func TestRequireOrgMatch_MissingOUIdentity(t *testing.T) {
 // ouId is the organization's id wherever it is stored, so an identity provider
 // that sends anything else is misconfigured, and is told so at the door.
 func TestRequireOrgMatch_NonUUIDOUID(t *testing.T) {
-	for _, ouID := range []string{"default", "ou-a", "01900000-0000-7000-8000"} {
+	for _, ouID := range []string{"default", "ou-a", "01900000-0000-7000-8000", "x01900000-0000-7000-8000-0000000000a1y"} {
 		status, ran, _ := serve(t, "orga", "orga", ouID)
 		if status != http.StatusForbidden {
 			t.Fatalf("ouId %q: want 403, got %d", ouID, status)

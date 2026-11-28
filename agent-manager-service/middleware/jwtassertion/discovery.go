@@ -63,6 +63,14 @@ func keySetURL(km config.KeyManagerConfigurations) (string, error) {
 	// A failure is not remembered, so the next token tries again: the
 	// identity provider may simply not have been up yet.
 	v, err, _ := discoveryGroup.Do(issuer, func() (any, error) {
+		// Another check may have stored it between the read above and this
+		// call, after its own lookup had already left the group.
+		discoveredJWKSMu.RLock()
+		u, ok := discoveredJWKSURL[issuer]
+		discoveredJWKSMu.RUnlock()
+		if ok {
+			return u, nil
+		}
 		u, err := discoverJWKSURL(issuer)
 		if err != nil {
 			return "", err

@@ -95,7 +95,7 @@ func resolveOrgFromToken() func(http.HandlerFunc) http.HandlerFunc {
 			// identity provider that sends anything but a UUID is misconfigured.
 			// Refused here with a reason naming the claim, rather than as a
 			// missing organization deep in a repository.
-			if _, err := uuid.Parse(claims.OuId); err != nil {
+			if err := uuid.Validate(claims.OuId); err != nil {
 				slog.Warn("RequireOrgMatch rejected", "reason", "ouId in token is not a UUID",
 					"correlationId", logger.GetCorrelationId(r.Context()),
 					"ouId", sanitizeForLog(claims.OuId), "sub", claims.Sub, "path", r.URL.Path)
