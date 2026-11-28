@@ -45,13 +45,12 @@ import (
 //   - a signature header "t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<raw body>">", with the
 //     timestamp within the tolerance (replay guard);
 //   - the envelope's secret_hash, the hex SHA3-256 of "<label>:<secret>", names the secret that signed
-//     the delivery; it is only trusted once the signature verifies. The secret is the module setting
-//     webhook_secret (MODULE_AI_HUB_WEBHOOK_SECRET), shared by every organization, or one of an organization's
-//     webhook secrets (webhook_secret_service.go), one per portal that sends to it;
-//   - org.ref_id names the organization: with the shared secret, its id (the ouId in its tokens); with an
-//     organization's webhook secret, that organization's id or the reference the secret was given (orgRef),
-//     such as the organization handle the portal organization's reference holds for another control plane.
-//     A secret of one organization never signs for another;
+//     the delivery; it is only trusted once the signature verifies. The secret is one of an organization's
+//     webhook secrets (webhook_secret_service.go), one per portal that sends to it: there is no secret shared
+//     by every organization;
+//   - org.ref_id names the organization: the secret's organization, by its id (the ouId in its tokens) or the
+//     reference the secret was given (orgRef), such as the organization handle the portal organization's
+//     reference holds for another control plane. A secret of one organization never signs for another;
 //   - events subscription_plan.created / .updated (both upsert) and subscription_plan.deleted;
 //   - events subscription.created / .updated / .plan_changed / .token_regenerated / .deleted, for
 //     subscriptions to MCP servers (subscription_service.go); subscription.billing_updated is accepted
@@ -114,11 +113,8 @@ var (
 // webhookConfig is the receiver's configuration, from the module's settings.
 type webhookConfig struct {
 	// Enabled registers nothing new: with it off (webhook_enabled false), every delivery is refused. It is on by
-	// default: a delivery is still refused unless it is signed with a secret held here.
+	// default: a delivery is still refused unless it is signed with one of an organization's webhook secrets.
 	Enabled bool
-	// Secret is the module's own secret (webhook_secret), shared with senders for every organization. Empty
-	// when only the organizations' webhook secrets are used; an empty secret never verifies a delivery.
-	Secret string
 	// SignatureHeader carries "t=...,v1=...".
 	SignatureHeader string
 	// SignatureTolerance bounds how old a signed delivery may be.
@@ -126,7 +122,8 @@ type webhookConfig struct {
 	// MaxBodyBytes caps the request body.
 	MaxBodyBytes int64
 	// LegacySharedSecret accepts a delivery with no secret_hash (a sender that predates it), verified
-	// against Secret and the webhook secrets of the organization it names. Off by default.
+	// against the webhook secrets of the organization it names. Off by default. The name is the setting's in
+	// the other control planes' receivers, so a portal's operators find it under the same key.
 	LegacySharedSecret bool
 	// SourceName names the developer portal that sends the deliveries: the origin of the plans it creates.
 	SourceName string
@@ -134,12 +131,23 @@ type webhookConfig struct {
 	SecretMaxVersions int
 }
 
+// settings are the module's settings, read by webhookConfigFrom: the manifest declares them, so they reach the
+// configuration reference (make config-docs).
+var settings = []modkit.Setting{
+	{Key: "webhook_enabled", Default: "true", Description: "Accept developer portal deliveries at /m/ai-hub/webhooks/events, each signed with one of an organization's webhook secrets; false refuses every delivery."},
+	{Key: "webhook_secret_max_versions", Default: strconv.Itoa(DefaultWebhookSecretMaxVersions), Description: "Versions an organization's webhook secret keeps through rotation; at least 2."},
+	{Key: "webhook_legacy_shared_secret", Default: "false", Description: "Accept deliveries with no secret_hash, from a portal that predates it, checked against the named organization's webhook secrets (at most 32)."},
+	{Key: "webhook_signature_header", Default: DefaultWebhookSignatureHeader, Description: "The header carrying a delivery's t=...,v1=... signature; must match the portal's."},
+	{Key: "webhook_signature_tolerance", Default: "5m", Description: "How far a delivery's signature time may be from the server's clock (replay protection)."},
+	{Key: "webhook_max_body_size", Default: strconv.Itoa(defaultMaxBodyBytes), Description: "The largest delivery body accepted, in bytes."},
+	{Key: "webhook_source_name", Default: DefaultWebhookSourceName, Description: "The origin recorded on plans the developer portal copies in."},
+}
+
 // webhookConfigFrom reads the module settings (amp.yaml modules[].config, or MODULE_AI_HUB_<KEY>). A setting that
 // isn't set keeps its default; one that is set but invalid is an error, so the module doesn't activate with a
 // configuration the operator didn't ask for (a misspelt webhook_enabled, say, leaving the receiver on).
 func webhookConfigFrom(get func(key string) string) (webhookConfig, error) {
 	cfg := webhookConfig{
-		Secret:             strings.TrimSpace(get("webhook_secret")),
 		SignatureHeader:    DefaultWebhookSignatureHeader,
 		SignatureTolerance: defaultSignatureTolerance,
 		MaxBodyBytes:       defaultMaxBodyBytes,
@@ -173,8 +181,9 @@ func webhookConfigFrom(get func(key string) string) (webhookConfig, error) {
 	}
 	if v := strings.TrimSpace(get("webhook_secret_max_versions")); v != "" {
 		n, err := strconv.Atoi(v)
-		if err != nil || n < 1 {
-			invalid("webhook_secret_max_versions", v, "a whole number of at least 1")
+		// A secret always keeps a version, so with fewer than 2 it could never be rotated.
+		if err != nil || n < 2 {
+			invalid("webhook_secret_max_versions", v, "a whole number of at least 2")
 		} else {
 			cfg.SecretMaxVersions = n
 		}
@@ -371,7 +380,7 @@ type webhookReceiver struct {
 	plans *planService
 	// subscriptions copies in the subscriptions made at the portal.
 	subscriptions *subscriptionService
-	// secrets are the organizations' webhook secrets, besides the shared one in cfg.
+	// secrets are the organizations' webhook secrets: the only secrets a delivery may be signed with.
 	secrets webhookSecrets
 	core    modkit.CoreAPI
 	log     *slog.Logger
@@ -467,7 +476,7 @@ func (r *webhookReceiver) receive(w http.ResponseWriter, req *http.Request) erro
 		return err
 	}
 	log := r.log.With("eventId", env.EventID, "eventType", env.EventType, "orgRef", env.OrgID)
-	// 3. The organization: the one the secret is for, or, with the shared secret, the one the envelope names by id.
+	// 3. The organization: the one the secret is for, which the envelope must name.
 	orgID, err := r.orgOf(req.Context(), env.OrgID, signer)
 	if err != nil {
 		return err
@@ -483,9 +492,9 @@ func (r *webhookReceiver) receive(w http.ResponseWriter, req *http.Request) erro
 }
 
 // authenticate verifies the signature and returns the secret that made it. A delivery naming a secret_hash is
-// checked against exactly the secret with that hash: the shared one, or an organization's webhook secret, and
-// refused when no such secret is held. One with no secret_hash (legacy, when allowed) is checked against the
-// shared secret and the webhook secrets of the organization it names, at most maxLegacyCandidates. The envelope
+// checked against exactly the organization's webhook secret with that hash, and refused when no such secret is
+// held. One with no secret_hash (legacy, when allowed) is checked against the webhook secrets of the
+// organization it names, at most maxLegacyCandidates. The envelope
 // is read before anything is verified, so its fields only select the secret and are never trusted. An empty
 // secret never verifies: anyone can sign with it.
 func (r *webhookReceiver) authenticate(ctx context.Context, header string, body []byte) (webhookSigner, error) {
@@ -523,11 +532,8 @@ func (r *webhookReceiver) authenticate(ctx context.Context, header string, body 
 	return webhookSigner{}, lastErr
 }
 
-// signerByHash finds the secret a secret_hash names: the shared secret, or an organization's webhook secret.
+// signerByHash finds the organization's webhook secret a secret_hash names.
 func (r *webhookReceiver) signerByHash(ctx context.Context, hash string) (webhookSigner, error) {
-	if r.cfg.Secret != "" && hash == SecretHash(r.cfg.Secret) {
-		return webhookSigner{Secret: r.cfg.Secret}, nil
-	}
 	if r.secrets != nil {
 		signer, found, err := r.secrets.signerByHash(ctx, hash)
 		if err != nil {
@@ -540,20 +546,17 @@ func (r *webhookReceiver) signerByHash(ctx context.Context, hash string) (webhoo
 	return webhookSigner{}, fmt.Errorf("%w: unknown secret_hash", errSignatureInvalid)
 }
 
-// legacyCandidates are the secrets a delivery with no secret_hash may have been signed with: the shared secret,
-// then the webhook secrets of the organization it names.
+// legacyCandidates are the secrets a delivery with no secret_hash may have been signed with: the webhook secrets
+// of the organization it names.
 func (r *webhookReceiver) legacyCandidates(ctx context.Context, ref string) ([]webhookSigner, error) {
-	var candidates []webhookSigner
-	if r.cfg.Secret != "" {
-		candidates = append(candidates, webhookSigner{Secret: r.cfg.Secret})
-	}
 	if r.secrets == nil || ref == "" {
-		return candidates, nil
+		return nil, nil
 	}
-	signers, err := r.secrets.signersForRef(ctx, ref, maxLegacyCandidates-len(candidates))
+	signers, err := r.secrets.signersForRef(ctx, ref, maxLegacyCandidates)
 	if err != nil {
 		return nil, err
 	}
+	var candidates []webhookSigner
 	for _, s := range signers {
 		if s.Secret != "" {
 			candidates = append(candidates, s)
@@ -562,17 +565,13 @@ func (r *webhookReceiver) legacyCandidates(ctx context.Context, ref string) ([]w
 	return candidates, nil
 }
 
-// orgOf returns the organization a delivery is for. With an organization's webhook secret, it is that secret's
-// organization, and org.ref_id must name it (its id, or the reference the secret was given); with the shared
-// secret, org.ref_id must be the id of an organization the core knows.
+// orgOf returns the organization a delivery is for: the organization of the secret that signed it, which
+// org.ref_id must name (its id, or the reference the secret was given).
 func (r *webhookReceiver) orgOf(ctx context.Context, ref string, signer webhookSigner) (string, error) {
-	id := ref
-	if signer.OrgID != "" {
-		if ref != signer.OrgID && (signer.OrgRef == "" || ref != signer.OrgRef) {
-			return "", fmt.Errorf("%w: %q is not the organization the secret is for", errOrganizationNotFound, ref)
-		}
-		id = signer.OrgID
+	if signer.OrgID == "" || (ref != signer.OrgID && (signer.OrgRef == "" || ref != signer.OrgRef)) {
+		return "", fmt.Errorf("%w: %q is not the organization the secret is for", errOrganizationNotFound, ref)
 	}
+	id := signer.OrgID
 	if !validID(id) {
 		return "", fmt.Errorf("%w: %q is not an organization id", errOrganizationNotFound, id)
 	}

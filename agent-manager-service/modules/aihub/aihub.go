@@ -90,6 +90,7 @@ func (module) Manifest() modkit.Manifest {
 		Version:     "0.1.0",
 		Description: "AI Hub: subscription plans for MCP servers and agents",
 		CoreAPI:     modkit.CoreAPIVersion,
+		Settings:    settings,
 		// Its plans and subscriptions, for gateways. It depends on no gateway: the AI Gateway reads them and
 		// subscribes to EventSubscriptionChanged, so the dependency runs one way only.
 		Provides: []string{subplanv1.ID},
@@ -193,8 +194,8 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 		log: log.With("component", "webhook-secrets"), now: time.Now, generate: newWebhookSecretValue,
 	}
 	// The webhook a developer portal delivers plans to, on the internal server at /m/ai-hub/webhooks/events. It
-	// has no user sign-in: the receiver authenticates each delivery by its signature, with the shared secret or
-	// one of the organizations' webhook secrets.
+	// has no user sign-in: the receiver authenticates each delivery by its signature, with one of the
+	// organizations' webhook secrets.
 	rt.HandleWebhook(http.MethodPost, webhookPath, (&webhookReceiver{
 		cfg: cfg, plans: plans, subscriptions: subs, secrets: secrets, core: rt.Core(),
 		log: log.With("component", "plan-webhook"), now: time.Now,

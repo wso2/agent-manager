@@ -239,17 +239,9 @@ func (s *webhookSecretService) rotate(ctx context.Context, orgID, actor, handle 
 		if err != nil {
 			return err
 		}
-		// Taking the next version number first serializes concurrent rotations of one secret: the second waits
-		// on this row and then counts this one's version.
-		res := tx.Exec(`UPDATE mod_ai_hub_webhook_secrets SET last_version = last_version + 1, updated_at = ? `+
-			`WHERE org_id = ? AND id = ?`, s.now().UTC(), orgID, row.ID)
-		if res.Error != nil {
-			return fmt.Errorf("take the next webhook secret version: %w", res.Error)
-		}
-		var next int
-		if err := tx.Raw(`SELECT last_version FROM mod_ai_hub_webhook_secrets WHERE org_id = ? AND id = ?`,
-			orgID, row.ID).Scan(&next).Error; err != nil {
-			return fmt.Errorf("read the webhook secret version: %w", err)
+		next, err := s.nextVersion(tx, orgID, row.ID, handle)
+		if err != nil {
+			return err
 		}
 		var count int64
 		if err := tx.Raw(`SELECT COUNT(*) FROM mod_ai_hub_webhook_secret_versions WHERE org_id = ? AND secret_id = ?`,
@@ -279,7 +271,7 @@ func (s *webhookSecretService) deleteVersion(ctx context.Context, orgID, handle 
 		if err != nil {
 			return err
 		}
-		if err := s.lock(tx, orgID, row.ID); err != nil {
+		if err := s.lock(tx, orgID, row.ID, handle); err != nil {
 			return err
 		}
 		versions, err := s.versions(tx, orgID, row.ID)
@@ -315,7 +307,7 @@ func (s *webhookSecretService) delete(ctx context.Context, orgID, handle string)
 		if err != nil {
 			return err
 		}
-		if err := s.lock(tx, orgID, row.ID); err != nil {
+		if err := s.lock(tx, orgID, row.ID, handle); err != nil {
 			return err
 		}
 		versions, err := s.versions(tx, orgID, row.ID)
@@ -349,12 +341,37 @@ func (s *webhookSecretService) get(ctx context.Context, orgID, handle string) (*
 // a concurrent rotation or deletion of the same secret waits, then reads the committed versions. Without it, two
 // deletions of different versions could each see the other's version and leave the secret with none, and a
 // deletion could miss a version rotated in meanwhile and leave its value in the secret store.
-func (s *webhookSecretService) lock(tx *gorm.DB, orgID, secretID string) error {
-	if err := tx.Exec(`UPDATE mod_ai_hub_webhook_secrets SET updated_at = ? WHERE org_id = ? AND id = ?`,
-		s.now().UTC(), orgID, secretID).Error; err != nil {
-		return fmt.Errorf("lock the webhook secret: %w", err)
+// A secret deleted since it was read updates no row: errWebhookSecretNotFound, as if it had been gone already.
+func (s *webhookSecretService) lock(tx *gorm.DB, orgID, secretID, handle string) error {
+	res := tx.Exec(`UPDATE mod_ai_hub_webhook_secrets SET updated_at = ? WHERE org_id = ? AND id = ?`,
+		s.now().UTC(), orgID, secretID)
+	if res.Error != nil {
+		return fmt.Errorf("lock the webhook secret: %w", res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return fmt.Errorf("%w: %s", errWebhookSecretNotFound, handle)
 	}
 	return nil
+}
+
+// nextVersion takes the secret's next version number. Taking it first serializes concurrent rotations of one
+// secret: the second waits on this row and then counts this one's version. A secret deleted since it was read
+// updates no row: errWebhookSecretNotFound, rather than a version inserted for no secret.
+func (s *webhookSecretService) nextVersion(tx *gorm.DB, orgID, secretID, handle string) (int, error) {
+	res := tx.Exec(`UPDATE mod_ai_hub_webhook_secrets SET last_version = last_version + 1, updated_at = ? `+
+		`WHERE org_id = ? AND id = ?`, s.now().UTC(), orgID, secretID)
+	if res.Error != nil {
+		return 0, fmt.Errorf("take the next webhook secret version: %w", res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return 0, fmt.Errorf("%w: %s", errWebhookSecretNotFound, handle)
+	}
+	var next int
+	if err := tx.Raw(`SELECT last_version FROM mod_ai_hub_webhook_secrets WHERE org_id = ? AND id = ?`,
+		orgID, secretID).Scan(&next).Error; err != nil {
+		return 0, fmt.Errorf("read the webhook secret version: %w", err)
+	}
+	return next, nil
 }
 
 // load returns a secret with its versions (no values), read with tx.

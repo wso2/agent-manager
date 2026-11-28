@@ -51,7 +51,7 @@ func TestDecryptField(t *testing.T) {
 }
 
 func TestSubscriptionChangeFromAnEvent(t *testing.T) {
-	r := &webhookReceiver{cfg: webhookConfig{Secret: testSecret}, log: slog.New(slog.DiscardHandler)}
+	r := &webhookReceiver{log: slog.New(slog.DiscardHandler)}
 	token, err := SealField(testSecret, "k-1", []byte("0123456789ab"))
 	require.NoError(t, err)
 	data := func(apiType string, withToken bool) json.RawMessage {

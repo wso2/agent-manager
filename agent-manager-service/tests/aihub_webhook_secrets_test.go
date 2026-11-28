@@ -89,10 +89,9 @@ func portalPlan(handle string) map[string]any {
 }
 
 // TestWebhookSecrets drives the organizations' webhook secrets through the module's API, and the deliveries they
-// sign through the receiver, with no shared webhook_secret set: several portals sending to one organization,
+// sign through the receiver: several portals sending to one organization,
 // two organizations whose portals send the same reference, rotation, and deletion.
 func TestWebhookSecrets(t *testing.T) {
-	t.Setenv("MODULE_AI_HUB_WEBHOOK_SECRET", "")
 	w := newPlansWorld(t)
 	ctx := context.Background()
 	deactivatePlans(ctx, t, w)
@@ -268,7 +267,6 @@ func TestWebhookSecrets(t *testing.T) {
 // TestWebhookSecretsLegacyAndBadRequests covers deliveries from portals that predate secret_hash, accepted with
 // webhook_legacy_shared_secret on, and the requests the webhook secrets API refuses.
 func TestWebhookSecretsLegacyAndBadRequests(t *testing.T) {
-	t.Setenv("MODULE_AI_HUB_WEBHOOK_SECRET", "")
 	t.Setenv("MODULE_AI_HUB_WEBHOOK_LEGACY_SHARED_SECRET", "true")
 	w := newPlansWorld(t)
 	ctx := context.Background()

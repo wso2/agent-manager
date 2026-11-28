@@ -646,7 +646,25 @@ func TestSubscriptionPlansModule(t *testing.T) {
 	})
 }
 
-const webhookSecret = "integration-webhook-secret"
+// webhookSecret is the organization's webhook secret the suite's deliveries are signed with, made through the
+// module's API by usePortalSecret: a portal's deliveries are signed only with an organization's own secret.
+var webhookSecret string
+
+// usePortalSecret makes a webhook secret for the world's organization, as an admin does for its portal, and signs
+// the suite's deliveries with it.
+func usePortalSecret(t *testing.T, w plansWorld) {
+	t.Helper()
+	code, body := w.call(t, w.full, http.MethodPost, "/m/ai-hub/webhook-secrets",
+		map[string]any{"id": "portal-" + uuid.NewString()[:8], "name": "Developer portal"})
+	require.Equal(t, http.StatusCreated, code, string(body))
+	var created struct {
+		Secret string `json:"secret"`
+	}
+	require.NoError(t, json.Unmarshal(body, &created))
+	require.NotEmpty(t, created.Secret)
+	webhookSecret = created.Secret
+	t.Cleanup(func() { webhookSecret = "" })
+}
 
 // delivery is a signed webhook delivery for a plan event, as a sender builds it.
 func delivery(t *testing.T, org, eventType string, data map[string]any, occurredAt time.Time, signedAt time.Time) *http.Request {
@@ -673,7 +691,6 @@ func send(t *testing.T, h http.Handler, req *http.Request) (int, string) {
 // TestSubscriptionPlanWebhook sends signed plan deliveries to the internal server and checks the plans
 // they leave, through the plans API.
 func TestSubscriptionPlanWebhook(t *testing.T) {
-	t.Setenv("MODULE_AI_HUB_WEBHOOK_SECRET", webhookSecret)
 	w := newPlansWorld(t)
 	code, body := w.call(t, w.full, http.MethodPost, "/api/v1/projects",
 		projectDocument("hooks", "Hooks", nil))
@@ -686,6 +703,7 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, code, "a module that isn't active answers no delivery: "+refused)
 	assert.Contains(t, refused, "module_inactive")
 	installPlans(context.Background(), t, w)
+	usePortalSecret(t, w)
 	mcpPlan := map[string]any{
 		"handle": "mcp-gold", "display_name": "MCP Gold", "description": "From the MCP hub",
 		"conditions": []any{map[string]any{"type": "tool-call-count", "params": map[string]any{
@@ -852,7 +870,6 @@ func installPlans(ctx context.Context, t *testing.T, w plansWorld) {
 }
 
 func TestSubscriptionPlanGatewaySync(t *testing.T) {
-	t.Setenv("MODULE_AI_HUB_WEBHOOK_SECRET", webhookSecret)
 	w := newPlansWorld(t)
 	ctx := context.Background()
 	code, body := w.call(t, w.full, http.MethodPost, "/api/v1/projects",
@@ -860,6 +877,7 @@ func TestSubscriptionPlanGatewaySync(t *testing.T) {
 	require.Equal(t, http.StatusAccepted, code, string(body))
 	deactivatePlans(ctx, t, w)
 	installPlans(ctx, t, w)
+	usePortalSecret(t, w)
 	_, err := w.host.Install(ctx, planGatewayModuleName, false)
 	require.NoError(t, err)
 	eventually(t, "the stand-in gateway", func() bool { _, ok := coreext.Capability(planGatewayReady); return ok })
@@ -986,7 +1004,6 @@ func subscriptionDelivery(t *testing.T, org, eventType string, data map[string]a
 // TestSubscriptionsFromThePortal copies subscriptions in from signed portal deliveries, and checks what gateways
 // would get: the subscription with its key, through subscription.plans/v1, and an event on every change.
 func TestSubscriptionsFromThePortal(t *testing.T) {
-	t.Setenv("MODULE_AI_HUB_WEBHOOK_SECRET", webhookSecret)
 	w := newPlansWorld(t)
 	ctx := context.Background()
 	code, body := w.call(t, w.full, http.MethodPost, "/api/v1/projects",
@@ -994,6 +1011,7 @@ func TestSubscriptionsFromThePortal(t *testing.T) {
 	require.Equal(t, http.StatusAccepted, code, string(body))
 	deactivatePlans(ctx, t, w)
 	installPlans(ctx, t, w)
+	usePortalSecret(t, w)
 	_, err := w.host.Install(ctx, planGatewayModuleName, false)
 	require.NoError(t, err)
 	eventually(t, "the stand-in gateway", func() bool { _, ok := coreext.Capability(planGatewayReady); return ok })
