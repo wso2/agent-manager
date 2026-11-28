@@ -38,7 +38,7 @@ import (
 // runs in parallel.
 
 const (
-	overrideTokenOUID    = "a5000000-0000-0000-0000-adminroot001"
+	overrideTokenOUID    = "a5000000-0000-0000-0000-000000000001"
 	overrideTokenHandle  = "admin-root"
 	overrideTargetOUID   = "01900000-0000-7000-8000-0000000000b2"
 	overrideTargetHandle = "org-b"

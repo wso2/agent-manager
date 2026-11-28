@@ -153,3 +153,67 @@ func TestPlatformAdminDefaultFollowsAuthMode(t *testing.T) {
 		assert.Equal(t, "0190a000-0000-7000-8000-0000000000cc", GetConfig().PlatformAdminOUID, "an explicit value wins")
 	}
 }
+
+// IDP_ISSUER names any OpenID Connect provider: the token check, the MCP
+// authorization server and the console follow it, its key set is discovered,
+// and none of the bundled ThunderID's clients or organization is assumed.
+func TestExternalIdentityProvider(t *testing.T) {
+	reloadAfter(t)
+	unset(t, "KEY_MANAGER_JWKS_URL", "KEY_MANAGER_ISSUER", "KEY_MANAGER_AUDIENCE", "IDP_ISSUER", "IDP_AUDIENCE",
+		"OAUTH_AUTHORIZATION_SERVERS", "THUNDER_RESOLVE_TO_HOST", "SERVER_PUBLIC_URL", "THUNDER_BASE_URL",
+		"PLATFORM_ADMIN_OU_ID", "AUTH_MODE", "FILE_AUTH_USERS_PATH", "SERVER_PORT")
+	t.Setenv("THUNDER_CLIENT_SECRET", "s")
+	base := `
+server: {port: 9000, public_url: "http://localhost:9000"}
+thunder: {base_url: "http://thunder.amp.localhost:8080"}
+auth: {mode: idp}
+`
+
+	require.NoError(t, loadWith(t, base+`idp: {issuer: "https://idp.example.com/", audience: "amp-api,amp-console"}`+"\n"))
+	c := GetConfig()
+	assert.Equal(t, IdentityProviderConfig{Issuer: "https://idp.example.com/", Bundled: false}, c.IdentityProvider)
+	assert.Equal(t, []string{"Agent Management Platform Local", "https://idp.example.com/"}, c.KeyManagerConfigurations.Issuer,
+		"the issuer is kept exactly as given")
+	assert.Equal(t, []string{"amp-api", "amp-console", "http://localhost:9000/mcp"}, c.KeyManagerConfigurations.Audience)
+	assert.Empty(t, c.KeyManagerConfigurations.JWKSUrl)
+	assert.Equal(t, "https://idp.example.com/", c.KeyManagerConfigurations.DiscoveryIssuer)
+	assert.Equal(t, []string{"https://idp.example.com/"}, c.OAuthAuthorizationServers)
+	assert.Empty(t, c.PlatformAdminOUID, "another provider's platform organization is not known")
+
+	t.Setenv("KEY_MANAGER_JWKS_URL", "https://idp.example.com/keys")
+	require.NoError(t, loadWith(t, base+`idp: {issuer: "https://idp.example.com/", audience: amp-api}`+"\n"))
+	assert.Equal(t, "https://idp.example.com/keys", GetConfig().KeyManagerConfigurations.JWKSUrl)
+	assert.Empty(t, GetConfig().KeyManagerConfigurations.DiscoveryIssuer, "an explicit key set needs no discovery")
+	unset(t, "KEY_MANAGER_JWKS_URL")
+
+	require.NoError(t, loadWith(t, base+`idp: {issuer: "http://thunder.amp.localhost:8080/"}`+"\n"))
+	c = GetConfig()
+	assert.True(t, c.IdentityProvider.Bundled, "naming the bundled ThunderID is the bundled ThunderID")
+	assert.Equal(t, "http://thunder.amp.localhost:8080/oauth2/jwks", c.KeyManagerConfigurations.JWKSUrl)
+	assert.Equal(t, DefaultPlatformAdminOUID, c.PlatformAdminOUID)
+	assert.Contains(t, c.KeyManagerConfigurations.Audience, "amp-console-client")
+}
+
+func TestValidateIdentityProviderAudience(t *testing.T) {
+	for _, tc := range []struct {
+		name, idpAudience, keyManagerAudience string
+		effective                             []string
+		wantErr                               string
+	}{
+		{"neither set", "", " ", nil, "IDP_AUDIENCE is required"},
+		{"IDP_AUDIENCE set", "amp-api", "", []string{"amp-api"}, ""},
+		{"KEY_MANAGER_AUDIENCE set", "", "amp-api", []string{"amp-api"}, ""},
+		{"only separators", ",", "", nil, "name no audience"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &configReader{}
+			validateIdentityProviderAudience("https://idp.example.com", tc.idpAudience, tc.keyManagerAudience, tc.effective, r)
+			if tc.wantErr != "" {
+				require.Len(t, r.errors, 1)
+				assert.Contains(t, r.errors[0].Error(), tc.wantErr)
+			} else {
+				assert.Empty(t, r.errors)
+			}
+		})
+	}
+}

@@ -430,8 +430,13 @@ func validateJWTWithJWKS(tokenString string) (*TokenClaims, error) {
 
 	var claims *TokenClaims
 
-	// If JWKS URL is configured, validate signature with JWKS
-	if cfg.KeyManagerConfigurations.JWKSUrl != "" {
+	jwksURL, err := keySetURL(cfg.KeyManagerConfigurations)
+	if err != nil {
+		return nil, err
+	}
+
+	// If a key set is configured, validate signature with JWKS
+	if jwksURL != "" {
 		// Perform full JWKS validation with signature verification
 		token, err := jwt.ParseWithClaims(tokenString, &TokenClaims{}, func(token *jwt.Token) (interface{}, error) {
 			// Verify signing method is RSA
@@ -446,7 +451,7 @@ func validateJWTWithJWKS(tokenString string) (*TokenClaims, error) {
 			}
 
 			// Fetch JWKS and get the public key
-			jwks, err := fetchJWKS(cfg.KeyManagerConfigurations.JWKSUrl)
+			jwks, err := fetchJWKS(jwksURL)
 			if err != nil {
 				return nil, fmt.Errorf("%w: failed to fetch JWKS: %w", ErrKeySetUnavailable, err)
 			}
@@ -466,7 +471,7 @@ func validateJWTWithJWKS(tokenString string) (*TokenClaims, error) {
 			}
 
 			slog.Warn("kid not found in JWKS, attempting refresh", slog.String("kid", kid))
-			refreshed, err := refreshJWKS(cfg.KeyManagerConfigurations.JWKSUrl)
+			refreshed, err := refreshJWKS(jwksURL)
 			if err != nil {
 				return nil, fmt.Errorf("%w: failed to refresh JWKS: %w", ErrKeySetUnavailable, err)
 			}
@@ -504,7 +509,7 @@ func validateJWTWithJWKS(tokenString string) (*TokenClaims, error) {
 			return nil, fmt.Errorf("%w", ErrTokenExpired)
 		}
 	} else {
-		return nil, fmt.Errorf("%w: KEY_MANAGER_JWKS_URL must be configured for JWT validation", ErrAuthNotConfigured)
+		return nil, fmt.Errorf("%w: KEY_MANAGER_JWKS_URL or IDP_ISSUER must be configured for JWT validation", ErrAuthNotConfigured)
 	}
 
 	if err := validateIssuer(claims.Issuer, cfg.KeyManagerConfigurations.Issuer); err != nil {

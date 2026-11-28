@@ -150,7 +150,7 @@ func TestMCPProxyRouteMountsWithoutOrgNameInThePath(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code, "the document path must reach its handler")
 	assert.Equal(t, "get", ctrl.ran)
-	assert.Equal(t, "ou-a", ctrl.gotOrg, "the organization comes from the token, not the path")
+	assert.Equal(t, "01900000-0000-7000-8000-0000000000a1", ctrl.gotOrg, "the organization comes from the token, not the path")
 	assert.Equal(t, "weather", ctrl.gotProxy, "the path parameter still binds")
 }
 
@@ -179,7 +179,7 @@ func TestMCPProxyLiteralPathsAreNotShadowed(t *testing.T) {
 	rec = callPost(t, mountProxies(t, probe), "/mcp-proxies/fetch-server-info", `{}`, gwperm.Scope(gwperm.MCPServerConnect))
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.True(t, probe.fetchRan, "/fetch-server-info reached the probe handler")
-	assert.Equal(t, "ou-a", probe.gotOrg)
+	assert.Equal(t, "01900000-0000-7000-8000-0000000000a1", probe.gotOrg)
 }
 
 // The collection route must not be shadowed by the item route beside it, and its query survives.
@@ -224,7 +224,7 @@ func TestMCPProxyRoutesKeepTheirPermissions(t *testing.T) {
 			ctrl := &proxyProbe{}
 			rec := callMethod(t, mountProxies(t, ctrl), tc.method, tc.target, gwperm.Scope(tc.granted))
 			require.Equal(t, tc.status, rec.Code, "the route's own permission admits it")
-			assert.Equal(t, "ou-a", ctrl.gotOrg)
+			assert.Equal(t, "01900000-0000-7000-8000-0000000000a1", ctrl.gotOrg)
 
 			refused := &proxyProbe{}
 			rec = callMethod(t, mountProxies(t, refused), tc.method, tc.target, gwperm.Scope(tc.refused))
@@ -241,7 +241,7 @@ func TestMCPProxyScopeRoutesBindBothPathParameters(t *testing.T) {
 	rec := callGet(t, mountProxyScopes(t, ctrl), "/mcp-proxies/weather/scopes", gwperm.Scope(gwperm.ScopeRead))
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "list", ctrl.ran)
-	assert.Equal(t, "ou-a", ctrl.gotOrg)
+	assert.Equal(t, "01900000-0000-7000-8000-0000000000a1", ctrl.gotOrg)
 	assert.Equal(t, "weather", ctrl.gotProxy)
 	assert.Empty(t, ctrl.gotAction)
 

@@ -146,11 +146,11 @@ func decodeSummary(t *testing.T, rec *httptest.ResponseRecorder) gwsvc.GatewayFa
 // the real chain. A 403 here with the middleware's own tests passing would mean
 // the context marker did not reach the handler.
 func TestPlatformGatewayHealthRoute_AdmitsPlatformAdmin(t *testing.T) {
-	withPlatformAdminOUID(t, "ou-platform-admin")
+	withPlatformAdminOUID(t, "01900000-0000-7000-8000-00000000ad01")
 
 	withFailurePercentageThreshold(t, 10)
 
-	rec := callPlatformHealth(t, platformHealthMux(t, 412, 7, 0), "ou-platform-admin", false)
+	rec := callPlatformHealth(t, platformHealthMux(t, 412, 7, 0), "01900000-0000-7000-8000-00000000ad01", false)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("platform admin: want 200, got %d (body: %s)", rec.Code, rec.Body.String())
 	}
@@ -172,9 +172,9 @@ func TestPlatformGatewayHealthRoute_AdmitsPlatformAdmin(t *testing.T) {
 // unchanged and still the point: the platform-admin gate must refuse a tenant
 // token on its own, independently of whatever scopes that token carries.
 func TestPlatformGatewayHealthRoute_RefusesTenantToken(t *testing.T) {
-	withPlatformAdminOUID(t, "ou-platform-admin")
+	withPlatformAdminOUID(t, "01900000-0000-7000-8000-00000000ad01")
 
-	rec := callPlatformHealth(t, platformHealthMux(t, 412, 7, 0), "ou-some-tenant", false)
+	rec := callPlatformHealth(t, platformHealthMux(t, 412, 7, 0), "01900000-0000-7000-8000-00000000c001", false)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("tenant token with RBAC off: want 403, got %d (body: %s)", rec.Code, rec.Body.String())
 	}
@@ -189,7 +189,7 @@ func TestPlatformGatewayHealthRoute_RefusesTenantToken(t *testing.T) {
 func TestPlatformGatewayHealthRoute_RefusesWhenUnconfigured(t *testing.T) {
 	withPlatformAdminOUID(t, "")
 
-	for _, tokenOUID := range []string{"ou-platform-admin", "ou-some-tenant", ""} {
+	for _, tokenOUID := range []string{"01900000-0000-7000-8000-00000000ad01", "01900000-0000-7000-8000-00000000c001", ""} {
 		if rec := callPlatformHealth(t, platformHealthMux(t, 412, 7, 0), tokenOUID, false); rec.Code != http.StatusForbidden {
 			t.Errorf("unconfigured (token %q): want 403, got %d", tokenOUID, rec.Code)
 		}
@@ -225,11 +225,11 @@ func TestPlatformAdminRegistrarRejectsOrgScopedPattern(t *testing.T) {
 // numbers are the whole reason to call it, and they matter most on the side of
 // the threshold where the status is an error.
 func TestPlatformGatewayHealthRoute_UnhealthyFleetAnswers503(t *testing.T) {
-	withPlatformAdminOUID(t, "ou-platform-admin")
+	withPlatformAdminOUID(t, "01900000-0000-7000-8000-00000000ad01")
 	withFailurePercentageThreshold(t, 10)
 
 	// 40 of 100 failing: four times the threshold.
-	rec := callPlatformHealth(t, platformHealthMux(t, 100, 40, 0), "ou-platform-admin", false)
+	rec := callPlatformHealth(t, platformHealthMux(t, 100, 40, 0), "01900000-0000-7000-8000-00000000ad01", false)
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("unhealthy fleet: want 503, got %d (body: %s)", rec.Code, rec.Body.String())
 	}
@@ -251,7 +251,7 @@ func TestPlatformGatewayHealthRoute_UnhealthyFleetAnswers503(t *testing.T) {
 // is decided by the configured threshold and not by any fixed notion of "too
 // many". Same fleet, two thresholds, two answers.
 func TestPlatformGatewayHealthRoute_StatusFollowsTheThreshold(t *testing.T) {
-	withPlatformAdminOUID(t, "ou-platform-admin")
+	withPlatformAdminOUID(t, "01900000-0000-7000-8000-00000000ad01")
 
 	for _, tc := range []struct {
 		name       string
@@ -265,7 +265,7 @@ func TestPlatformGatewayHealthRoute_StatusFollowsTheThreshold(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			withFailurePercentageThreshold(t, tc.threshold)
-			rec := callPlatformHealth(t, platformHealthMux(t, 100, 5, 0), "ou-platform-admin", false)
+			rec := callPlatformHealth(t, platformHealthMux(t, 100, 5, 0), "01900000-0000-7000-8000-00000000ad01", false)
 			if rec.Code != tc.wantStatus {
 				t.Errorf("threshold %v: status = %d, want %d", tc.threshold, rec.Code, tc.wantStatus)
 			}
@@ -285,11 +285,11 @@ func TestPlatformGatewayHealthRoute_StatusFollowsTheThreshold(t *testing.T) {
 // only correct if "healthy": false is still in the body — which is also why the
 // service sets Healthy independently of the status the controller picks.
 func TestPlatformGatewayHealthRoute_DetailedRequestAlwaysAnswers200(t *testing.T) {
-	withPlatformAdminOUID(t, "ou-platform-admin")
+	withPlatformAdminOUID(t, "01900000-0000-7000-8000-00000000ad01")
 	withFailurePercentageThreshold(t, 10)
 
 	// The whole fleet is down — the worst case the summary form would 503 on.
-	rec := callPlatformHealth(t, platformHealthMux(t, 100, 100, 0), "ou-platform-admin", true)
+	rec := callPlatformHealth(t, platformHealthMux(t, 100, 100, 0), "01900000-0000-7000-8000-00000000ad01", true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("detailed request: want 200 regardless of fleet health, got %d", rec.Code)
 	}
@@ -312,10 +312,10 @@ func TestPlatformGatewayHealthRoute_DetailedRequestAlwaysAnswers200(t *testing.T
 // pins it, because a tenant discovering that includeDetails=true returns 200
 // would be the obvious thing to try.
 func TestPlatformGatewayHealthRoute_DetailedRequestIsStillAuthorized(t *testing.T) {
-	withPlatformAdminOUID(t, "ou-platform-admin")
+	withPlatformAdminOUID(t, "01900000-0000-7000-8000-00000000ad01")
 	withFailurePercentageThreshold(t, 10)
 
-	rec := callPlatformHealth(t, platformHealthMux(t, 100, 100, 0), "ou-some-tenant", true)
+	rec := callPlatformHealth(t, platformHealthMux(t, 100, 100, 0), "01900000-0000-7000-8000-00000000c001", true)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("tenant token on the detailed form: want 403, got %d", rec.Code)
 	}
@@ -329,10 +329,10 @@ func TestPlatformGatewayHealthRoute_DetailedRequestIsStillAuthorized(t *testing.
 // fleet at 5% — under the threshold — and answer 200 while every gateway anyone
 // still uses is unreachable. Excluding them reports 100% and answers 503.
 func TestPlatformGatewayHealthRoute_AbandonedGatewaysDoNotDiluteTheVerdict(t *testing.T) {
-	withPlatformAdminOUID(t, "ou-platform-admin")
+	withPlatformAdminOUID(t, "01900000-0000-7000-8000-00000000ad01")
 	withFailurePercentageThreshold(t, 10)
 
-	rec := callPlatformHealth(t, platformHealthMux(t, 100, 5, 95), "ou-platform-admin", false)
+	rec := callPlatformHealth(t, platformHealthMux(t, 100, 5, 95), "01900000-0000-7000-8000-00000000ad01", false)
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("every live gateway down: want 503, got %d (body: %s)", rec.Code, rec.Body.String())
 	}

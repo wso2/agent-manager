@@ -21,7 +21,8 @@ thunder:
 
 auth:
   # How operators sign in to the console: file (accounts below, the API
-  # issues tokens) or idp (ThunderID). ThunderID runs either way.
+  # issues tokens) or idp (ThunderID, or the identity provider idp.issuer
+  # names; see the README). ThunderID runs either way.
   mode: file
 
 amp:

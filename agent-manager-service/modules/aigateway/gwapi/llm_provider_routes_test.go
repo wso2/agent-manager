@@ -94,7 +94,7 @@ func callGet(t *testing.T, mux *http.ServeMux, target string, scope string) *htt
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, target, nil)
 	req = req.WithContext(jwtassertion.ContextWithTokenClaimsAndScope(req.Context(),
-		&jwtassertion.TokenClaims{Sub: "user-a", OuId: "ou-a", OuHandle: "handle-a", Scope: scope}))
+		&jwtassertion.TokenClaims{Sub: "user-a", OuId: "01900000-0000-7000-8000-0000000000a1", OuHandle: "handle-a", Scope: scope}))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	return rec
@@ -106,7 +106,7 @@ func TestProviderRouteMountsWithoutOrgNameInThePath(t *testing.T) {
 	rec := callGet(t, mountProviders(t, ctrl), "/llm-providers/openai-provider", gwperm.Scope(gwperm.LLMProviderRead))
 
 	require.Equal(t, http.StatusOK, rec.Code, "the v2 path must reach its handler")
-	assert.Equal(t, "ou-a", ctrl.gotOrg, "the organization comes from the token, not the path")
+	assert.Equal(t, "01900000-0000-7000-8000-0000000000a1", ctrl.gotOrg, "the organization comes from the token, not the path")
 	assert.Equal(t, "openai-provider", ctrl.gotPath, "the path parameter still binds")
 }
 
@@ -146,7 +146,7 @@ func TestProviderListRouteMounts(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.True(t, ctrl.listRan, "the collection route reached the list handler, not the item one")
-	assert.Equal(t, "ou-a", ctrl.gotOrg, "the organization comes from the token")
+	assert.Equal(t, "01900000-0000-7000-8000-0000000000a1", ctrl.gotOrg, "the organization comes from the token")
 	assert.Equal(t, "5", ctrl.gotLimit, "query parameters survive the chain")
 	assert.Empty(t, ctrl.gotPath, "the item handler must not have run")
 }
@@ -157,7 +157,7 @@ func callPost(t *testing.T, mux *http.ServeMux, target, body, scope string) *htt
 	req := httptest.NewRequest(http.MethodPost, target, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req = req.WithContext(jwtassertion.ContextWithTokenClaimsAndScope(req.Context(),
-		&jwtassertion.TokenClaims{Sub: "user-a", OuId: "ou-a", OuHandle: "handle-a", Scope: scope}))
+		&jwtassertion.TokenClaims{Sub: "user-a", OuId: "01900000-0000-7000-8000-0000000000a1", OuHandle: "handle-a", Scope: scope}))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	return rec
@@ -169,7 +169,7 @@ func TestProviderCreateRouteNeedsTheCreatePermission(t *testing.T) {
 	rec := callPost(t, mountProviders(t, ctrl), "/llm-providers", `{}`, gwperm.Scope(gwperm.LLMProviderCreate))
 	require.Equal(t, http.StatusCreated, rec.Code)
 	assert.True(t, ctrl.createRan)
-	assert.Equal(t, "ou-a", ctrl.gotOrg)
+	assert.Equal(t, "01900000-0000-7000-8000-0000000000a1", ctrl.gotOrg)
 
 	readOnly := &providerProbe{}
 	rec = callPost(t, mountProviders(t, readOnly), "/llm-providers", `{}`, gwperm.Scope(gwperm.LLMProviderRead))
@@ -191,7 +191,7 @@ func callMethod(t *testing.T, mux *http.ServeMux, method, target, scope string) 
 	t.Helper()
 	req := httptest.NewRequest(method, target, nil)
 	req = req.WithContext(jwtassertion.ContextWithTokenClaimsAndScope(req.Context(),
-		&jwtassertion.TokenClaims{Sub: "user-a", OuId: "ou-a", OuHandle: "handle-a", Scope: scope}))
+		&jwtassertion.TokenClaims{Sub: "user-a", OuId: "01900000-0000-7000-8000-0000000000a1", OuHandle: "handle-a", Scope: scope}))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	return rec
@@ -202,7 +202,7 @@ func TestProviderUpdateRouteNeedsTheUpdatePermission(t *testing.T) {
 	rec := callMethod(t, mountProviders(t, ctrl), http.MethodPut, "/llm-providers/openai", gwperm.Scope(gwperm.LLMProviderUpdate))
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.True(t, ctrl.updateRan)
-	assert.Equal(t, "ou-a", ctrl.gotOrg)
+	assert.Equal(t, "01900000-0000-7000-8000-0000000000a1", ctrl.gotOrg)
 	assert.Equal(t, "openai", ctrl.gotPath)
 
 	readOnly := &providerProbe{}

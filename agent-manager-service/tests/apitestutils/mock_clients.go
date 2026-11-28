@@ -36,6 +36,10 @@ import (
 // environment; a test that creates an API agent seeds an ingress gateway under it.
 const DefaultEnvironmentUUID = "6f1c2f64-3f7e-4a52-9c1d-0b7a8e2d4c11"
 
+// NonexistentOrgOUID is an organization the mock platform repository reports as
+// missing. A UUID, as the ouId of any token is.
+const NonexistentOrgOUID = "01900000-0000-7000-8000-00000000dead"
+
 // CreateMockPlatformRepository creates a platform repository mock with default
 // behavior for testing.
 func CreateMockPlatformRepository() *repomocks.PlatformRepositoryMock {
@@ -45,7 +49,7 @@ func CreateMockPlatformRepository() *repomocks.PlatformRepositoryMock {
 			return []*models.OrganizationResponse{{Name: "default", Handle: "default"}}, nil
 		},
 		GetOrganizationFunc: func(_ context.Context, ouID string) (*models.OrganizationResponse, error) {
-			if ouID == "nonexistent-org" {
+			if ouID == NonexistentOrgOUID {
 				return nil, utils.ErrOrganizationNotFound
 			}
 			return &models.OrganizationResponse{Name: ouID, DisplayName: ouID, Handle: ouID}, nil

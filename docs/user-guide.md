@@ -132,6 +132,8 @@ Set `AUTH_MODE` alone and every token is refused with a bare `401`.
 ThunderID runs in both modes: agent identity uses it either way. `amctl` and the
 MCP endpoints also sign in through ThunderID, so they need `AUTH_MODE=idp`.
 
+To sign the API, `amctl` and MCP clients in through another OpenID Connect provider instead, set `IDP_ISSUER` and `IDP_AUDIENCE`; its tokens must carry `ouId` and `ouHandle`. Remove the `KEY_MANAGER_JWKS_URL` line above (or set it to that provider's key set): while it names ThunderID's keys, the provider's key set is not discovered and its tokens are refused. See [Connecting another identity provider](../deployments/standalone/README.md#connecting-another-identity-provider).
+
 ## Register an agent
 
 1. In the console, open a project, click **New agent**, enter a name and click **Register**.

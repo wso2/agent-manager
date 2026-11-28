@@ -150,7 +150,7 @@ func TestRecordAncillaryDoesNotMarkScope(t *testing.T) {
 	ctx, _, _ := recordingCtx(t)
 	ctx, scope := NewRequestScope(ctx)
 
-	RecordAncillary(ctx, ActionAuthzRootOUBypass)
+	RecordAncillary(ctx, ActionAuthzOrgOverride)
 
 	if scope.SemanticEmitted() {
 		t.Error("an ancillary event must leave the envelope event in place")

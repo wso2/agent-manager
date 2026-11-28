@@ -132,7 +132,7 @@ A module's actions carry its name: `<module>:<name>`, where the name is the modu
 
 ### Severity 4 — the events worth alerting on
 
-`authz:root-ou-bypass`, `authz:org-override`, and everything in `actionClass: credential` or `identity` with a mutating verb — notably `authn:login`, `role:*`, `group:*`, `user:*`, `agent-identity:*`, `agent-token:mint`, `workload-credential:*`, `workload-token:exchange`, `event-destination:create` / `:update` / `:delete` / `:rotate-secret`, `ai-gateway:api-keys.create` / `:rotate` / `:revoke`, `ai-gateway:gateway-tokens.rotate` / `:revoke`, `ai-gateway:agents.set-a2a-proxy` / `:remove-a2a-proxy`, `ai-gateway:agent-identities.*`, `ai-gateway:scopes.*`, and `ai-gateway:gateways.set-identity-provider` / `:remove-identity-provider` (changing which issuer a gateway trusts changes who can mint tokens it accepts). `ai-gateway:api-keys.issue-test` is the deliberate exception: console Try-It keys are short-lived, so they rank as a notice.
+`authz:org-override`, and everything in `actionClass: credential` or `identity` with a mutating verb — notably `authn:login`, `role:*`, `group:*`, `user:*`, `agent-identity:*`, `agent-token:mint`, `workload-credential:*`, `workload-token:exchange`, `event-destination:create` / `:update` / `:delete` / `:rotate-secret`, `ai-gateway:api-keys.create` / `:rotate` / `:revoke`, `ai-gateway:gateway-tokens.rotate` / `:revoke`, `ai-gateway:agents.set-a2a-proxy` / `:remove-a2a-proxy`, `ai-gateway:agent-identities.*`, `ai-gateway:scopes.*`, and `ai-gateway:gateways.set-identity-provider` / `:remove-identity-provider` (changing which issuer a gateway trusts changes who can mint tokens it accepts). `ai-gateway:api-keys.issue-test` is the deliberate exception: console Try-It keys are short-lived, so they rank as a notice.
 
 ## What is never recorded
 
@@ -251,7 +251,7 @@ Refusals are recorded on every surface, because a denied attempt is often more i
 
 Authorization is always enforced: every audited route carries the `requiredPermission` that was checked, so a record names the decision that was made rather than the one that might have been.
 
-Two ways past the ordinary check are recorded even when the request succeeds, alongside the route's own record: `authz:root-ou-bypass`, a token admitted through the root-OU bypass whatever scopes it carries, and `authz:org-override`, a request switched to another organization by `X-Impersonate-Org`. The second is filed under the target organization, with the caller's `clientId`, the token's `tokenOuID` and the `targetOuID`; it happens only on routes that allow it (`modkit.AllowOrgOverride`, today the AI Gateway's `GET /m/ai-gateway/gateways` and `PUT /m/ai-gateway/gateways/{gatewayID}/identity-providers/{name}`) and only when the deployment installs an `OrgOverrideResolver` (`app.Options`). The stock binary installs none, so it never emits one.
+One way past the ordinary check is recorded even when the request succeeds, alongside the route's own record: `authz:org-override`, a request switched to another organization by `X-Impersonate-Org`. It is filed under the target organization, with the caller's `clientId`, the token's `tokenOuID` and the `targetOuID`; it happens only on routes that allow it (`modkit.AllowOrgOverride`, today the AI Gateway's `GET /m/ai-gateway/gateways` and `PUT /m/ai-gateway/gateways/{gatewayID}/identity-providers/{name}`) and only when the deployment installs an `OrgOverrideResolver` (`app.Options`). The stock binary installs none, so it never emits one.
 
 `system:startup` is recorded when the service starts, which bounds any gap in the trail to a restart — a reader can tell "nothing happened" apart from "the service was not running".
 
@@ -376,7 +376,6 @@ Core actions (`audit/actions.go`, `audit/actions_domain.go`, plus the shared key
 | `authn:login` | credential | 4 critical | `expiresIn`, `reason`, `roles`, `username` |
 | `authz:deny` | authz | 3 warning | `grantedScopes`, `missingScope`, `reason`, `requestedOrgId` |
 | `authz:org-override` | authz | 4 critical | `clientId`, `targetOuID`, `tokenOuID` |
-| `authz:root-ou-bypass` | authz | 4 critical | `rootOUBypass` |
 | `environment:read` | read | 1 info | — |
 | `event-destination:create` | credential | 4 critical | `availability`, `destination`, `kind`, `projects` |
 | `event-destination:delete` | credential | 4 critical | `availability`, `destination`, `kind`, `projects` |
@@ -1173,43 +1172,6 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
       "grantedScopes": 11,
       "missingScope": "amp:role:update",
       "reason": "missing-scope"
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><code>authz:root-ou-bypass</code> — RecordAncillary · `middleware/authorization.go:179`</summary>
-
-```json
-{
-  "log_type": "audit",
-  "event": {
-    "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
-    "schemaVersion": 1,
-    "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "authz:root-ou-bypass",
-    "actionClass": "authz",
-    "severity": 4,
-    "actorType": "user",
-    "actorId": "8c1f04b2-7e39-4a6d-9f5b-2d0ae83c1147",
-    "actorOuId": "ou-9f2",
-    "authMethod": "jwt-bearer",
-    "actorTokenId": "jti-7c1e",
-    "surface": "api",
-    "sourceIp": "203.0.113.77",
-    "userAgent": "amctl/1.2.3",
-    "correlationId": "c0ffee-4d2a-9b1e",
-    "requestMethod": "POST",
-    "requestPath": "/identities/roles/{roleID}/permissions/add",
-    "ouId": "ou-9f2",
-    "orgHandle": "acme",
-    "outcome": "success",
-    "requiredPermission": "amp:role:update",
-    "details": {
-      "rootOUBypass": true
     }
   }
 }
