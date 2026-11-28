@@ -30,7 +30,7 @@ func NewCreateProjectRequest(name, displayName, description, deploymentPipeline 
 }
 
 // NewITHelpdeskAgentRequest returns a request for creating the IT helpdesk agent
-// from /samples/it-helpdesk-agent. The agent is expected to run with USE_LLM_PROVIDER=true,
+// from /it-helpdesk-agent. The agent is expected to run with USE_LLM_PROVIDER=true,
 // with LLM_PROVIDER_URL and LLM_PROVIDER_KEY injected via a model config rather than
 // passed directly as env vars.
 func NewITHelpdeskAgentRequest(name, description string, envVars map[string]string) CreateAgentRequest {
@@ -55,9 +55,9 @@ func NewITHelpdeskAgentRequest(name, description string, envVars map[string]stri
 		Provisioning: Provisioning{
 			Type: "internal",
 			Repository: &Repository{
-				URL:     "https://github.com/wso2/agent-manager",
+				URL:     "https://github.com/wso2/agent-manager-samples",
 				Branch:  "main",
-				AppPath: "/samples/it-helpdesk-agent",
+				AppPath: "/it-helpdesk-agent",
 			},
 		},
 		AgentType: AgentType{
@@ -83,10 +83,10 @@ func NewITHelpdeskAgentRequest(name, description string, envVars map[string]stri
 }
 
 // NewA2AAgentRequest returns a request for creating the internal A2A sample
-// agent (samples/a2a-agent), which serves its card on port 9099.
+// agent (a2a-agent in wso2/agent-manager-samples), which serves its card on port 9099.
 func NewA2AAgentRequest(name, description string, envVars map[string]string) CreateAgentRequest {
 	req := NewITHelpdeskAgentRequest(name, description, envVars)
-	req.Provisioning.Repository.AppPath = "/samples/a2a-agent"
+	req.Provisioning.Repository.AppPath = "/a2a-agent"
 	req.AgentType.SubType = "a2a-agent"
 	req.InputInterface = &InputInterface{Type: "HTTP", Port: 9099}
 	return req

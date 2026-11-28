@@ -57,4 +57,4 @@ def test_supported_runtime_resolution_failure_is_reported(compat, monkeypatch, c
 
     monkeypatch.setattr(compat.subprocess, "run", resolve)
     assert compat.main() == 1
-    assert "samples/customer-support-agent/requirements.txt does not resolve on Python 3.11" in capsys.readouterr().err
+    assert "customer-support-agent/requirements.txt does not resolve on Python 3.11" in capsys.readouterr().err
