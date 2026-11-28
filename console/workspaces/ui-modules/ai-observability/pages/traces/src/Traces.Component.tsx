@@ -78,7 +78,7 @@ const exportWarningLines = (
   const lines: string[] = [];
   if (resp.spansTruncated) {
     lines.push(
-      "Some traces have more than 10,000 spans. The file has the first 10,000 spans of each.",
+      "Some traces have more than 1,000 spans. The file has the first 1,000 spans of each.",
     );
     if (filtered && searchedTo) {
       lines.push(`The search may also have stopped early: it searched as far as ${searchedTo}.`);

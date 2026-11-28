@@ -47,7 +47,7 @@ func runTracesCmdOutput(t *testing.T, body any, args ...string) (*capturedReques
 
 	f := &cmdutil.Factory{
 		IOStreams:    ios,
-		Observer:     traceClient,
+		Traces:       traceClient,
 		AgentManager: func(context.Context) (*amsvc.ClientWithResponses, error) { return am, nil },
 		Config: func() (*config.Config, error) {
 			return &config.Config{
@@ -322,11 +322,12 @@ func TestTracesCmd_DefaultRequestAndTableUnchanged(t *testing.T) {
 		t.Errorf("limit = %q, sortOrder = %q; want 10 and desc", captured.query.Get("limit"), captured.query.Get("sortOrder"))
 	}
 	bold := func(s string) string { return "\x1b[1m" + s + "\x1b[0m" }
+	// The trace has no status, so its status is "-".
 	wantTable := strings.Join([]string{
 		bold("STATUS"), bold("TRACE ID"), bold("CONVERSATION"), bold("STARTED   "),
 		bold("DURATION"), bold("TOKENS"), bold("SPANS"),
 	}, "  ") + "\n" +
-		"ok      abc123    conv-42       2026-05-12  1.5s      42      7\n"
+		"-       abc123    conv-42       2026-05-12  1.5s      42      7\n"
 	if out.String() != wantTable {
 		t.Errorf("table =\n%s\nwant\n%s", out.String(), wantTable)
 	}

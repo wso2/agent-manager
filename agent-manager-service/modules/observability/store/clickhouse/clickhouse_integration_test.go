@@ -241,7 +241,7 @@ func TestUserGrants(t *testing.T) {
 	refused("reader", e.reader, "DROP TABLE "+HistoryTable)
 
 	page, err := e.readerStore(t).QueryTraces(ctx, seed("org-a", "agent-1", "").Scope, store.TraceQuery{})
-	if err != nil || page.Total != 1 {
+	if err != nil || totalOf(page) != 1 {
 		t.Errorf("reader QueryTraces = %+v, %v; want the one trace", page, err)
 	}
 }
@@ -284,7 +284,7 @@ func TestCrossOrgReadsSeeNothing(t *testing.T) {
 	s := e.readerStore(t)
 	other := seed("org-c", "agent-1", "").Scope
 
-	if page, err := s.QueryTraces(ctx, other, store.TraceQuery{}); err != nil || page.Total != 0 || len(page.Traces) != 0 {
+	if page, err := s.QueryTraces(ctx, other, store.TraceQuery{}); err != nil || totalOf(page) != 0 || len(page.Traces) != 0 {
 		t.Errorf("QueryTraces(org-c) = %+v, %v; want nothing", page, err)
 	}
 	for _, tr := range []string{"trace-a", "trace-b"} {
@@ -297,7 +297,7 @@ func TestCrossOrgReadsSeeNothing(t *testing.T) {
 	}
 	// An org-wide scope of org-a sees only org-a's trace.
 	orgA := store.Scope{OrgID: "org-a", Names: store.Names{Org: "org-a"}}
-	if page, err := s.QueryTraces(ctx, orgA, store.TraceQuery{}); err != nil || page.Total != 1 || page.Traces[0].TraceID != "trace-a" {
+	if page, err := s.QueryTraces(ctx, orgA, store.TraceQuery{}); err != nil || totalOf(page) != 1 || page.Traces[0].TraceID != "trace-a" {
 		t.Errorf("QueryTraces(org-a) = %+v, %v; want only trace-a", page, err)
 	}
 }
@@ -319,7 +319,7 @@ func TestQueryTracesSummarisesTheWholeTrace(t *testing.T) {
 	ctx := context.Background()
 
 	page, err := s.QueryTraces(ctx, sd.Scope, store.TraceQuery{StartTime: root.Add(30 * time.Minute), EndTime: root.Add(2 * time.Hour)})
-	if err != nil || len(page.Traces) != 0 || page.Total != 0 {
+	if err != nil || len(page.Traces) != 0 || page.Total == nil || *page.Total != 0 {
 		t.Fatalf("QueryTraces over the child only = %+v, %v; want no trace", page, err)
 	}
 
@@ -361,8 +361,8 @@ func TestDeleteAgent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if page.Total != tc.want {
-			t.Errorf("%s/%s: %d traces after deleting org-a/agent-1, want %d", tc.org, tc.agent, page.Total, tc.want)
+		if totalOf(page) != tc.want {
+			t.Errorf("%s/%s: %d traces after deleting org-a/agent-1, want %d", tc.org, tc.agent, totalOf(page), tc.want)
 		}
 	}
 }
@@ -533,14 +533,41 @@ FROM numbers(1000000)`
 	s := e.readerStore(b)
 	sc := seed("org-a", "agent-1", "").Scope
 	q := store.TraceQuery{StartTime: day, EndTime: day.Add(24 * time.Hour), Limit: 20, SortOrder: "desc"}
-	b.ResetTimer()
-	for range b.N {
-		page, err := s.QueryTraces(ctx, sc, q)
-		if err != nil {
-			b.Fatal(err)
+	b.Run("unfiltered", func(b *testing.B) {
+		for range b.N {
+			page, err := s.QueryTraces(ctx, sc, q)
+			if err != nil {
+				b.Fatal(err)
+			}
+			if totalOf(page) != 100000 || len(page.Traces) != 20 {
+				b.Fatalf("got %d of %d traces, want 20 of 100000", len(page.Traces), totalOf(page))
+			}
 		}
-		if page.Total != 100000 || len(page.Traces) != 20 {
-			b.Fatalf("got %d of %d traces, want 20 of 100000", len(page.Traces), page.Total)
-		}
+	})
+	minTokens := int64(1)
+	for name, f := range map[string]store.TraceFilters{
+		"status":       {Status: "error"},
+		"minTokens":    {MinTokens: &minTokens},
+		"conversation": {ConversationID: "c-1"},
+		"toolError":    {ToolError: true},
+		"every filter": {Status: "ok", MinTokens: &minTokens, Model: "gpt", ConversationID: "c-1", Tool: "search", ToolError: true, MCPServer: "github"},
+	} {
+		b.Run(name, func(b *testing.B) {
+			fq := q
+			fq.Filters = f
+			for range b.N {
+				if _, err := s.QueryTraces(ctx, sc, fq); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
 	}
+}
+
+// totalOf is a page's total, or -1 when it has none.
+func totalOf(page *store.TracePage) int {
+	if page == nil || page.Total == nil {
+		return -1
+	}
+	return *page.Total
 }

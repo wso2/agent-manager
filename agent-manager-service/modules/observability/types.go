@@ -17,7 +17,6 @@
 package observability
 
 import (
-	"strings"
 	"time"
 )
 
@@ -67,6 +66,7 @@ type TraceOverview struct {
 	Status          *TraceStatus `json:"status,omitempty"`
 	Input           any          `json:"input,omitempty"`
 	Output          any          `json:"output,omitempty"`
+	ConversationID  string       `json:"conversationId,omitempty"`
 }
 
 // TraceExportResponse is the body of the trace export.
@@ -91,7 +91,7 @@ type TokenUsage struct {
 	Partial      bool `json:"partial,omitempty"`
 }
 
-// TraceStatus is a trace's error count.
+// TraceStatus is a trace's error count: 1 when its root span failed, else 0.
 type TraceStatus struct {
 	ErrorCount int `json:"errorCount"`
 }
@@ -147,71 +147,4 @@ type SpanStatus struct {
 	Error     bool   `json:"error"`
 	ErrorType string `json:"errorType,omitempty"`
 	Message   string `json:"message,omitempty"`
-}
-
-// Semantic span kinds.
-const (
-	kindLLM       = "llm"
-	kindEmbedding = "embedding"
-	kindTool      = "tool"
-	kindRetriever = "retriever"
-	kindRerank    = "rerank"
-	kindAgent     = "agent"
-	kindChain     = "chain"
-	kindUnknown   = "unknown"
-)
-
-var openClawSpanKinds = map[string]string{
-	"openclaw.harness.run":       kindAgent,
-	"openclaw.run":               kindAgent,
-	"openclaw.model.usage":       kindLLM,
-	"openclaw.model.call":        kindLLM,
-	"openclaw.tool.execution":    kindTool,
-	"openclaw.context.assembled": kindChain,
-}
-
-// spanKind classifies a span by its name, as the observer does.
-func spanKind(name string) string {
-	lower := strings.ToLower(strings.TrimSpace(name))
-	if lower == "" {
-		return kindUnknown
-	}
-	if kind, ok := openClawSpanKinds[lower]; ok {
-		return kind
-	}
-	switch {
-	case strings.HasPrefix(lower, "invoke_agent"), strings.HasPrefix(lower, "execute_agent"),
-		strings.HasPrefix(lower, "create_agent"):
-		return kindAgent
-	case strings.HasPrefix(lower, "execute_tool"):
-		return kindTool
-	case strings.HasPrefix(lower, "execute_task"), strings.HasPrefix(lower, "execute_event_loop_cycle"):
-		return kindChain
-	}
-	if i := strings.IndexByte(lower, ' '); i > 0 {
-		switch lower[:i] {
-		case "chat", "text_completion", "completion", "generate_content":
-			return kindLLM
-		case "embeddings", "embedding":
-			return kindEmbedding
-		}
-	}
-	parts := strings.Split(lower, ".")
-	switch parts[len(parts)-1] {
-	case "llm", "chat", "chats", "completion", "completions":
-		return kindLLM
-	case "embedding", "embeddings", "embed":
-		return kindEmbedding
-	case "tool", "tools", "function", "functions":
-		return kindTool
-	case "retriever", "retrievers", "retrieve", "retrieval":
-		return kindRetriever
-	case "rerank", "reranker", "rerankers":
-		return kindRerank
-	case "agent", "agents":
-		return kindAgent
-	case "task", "tasks", "workflow", "workflows":
-		return kindChain
-	}
-	return kindUnknown
 }

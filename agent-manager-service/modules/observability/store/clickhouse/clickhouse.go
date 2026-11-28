@@ -174,41 +174,77 @@ func direction(sort, fallback string) string {
 	return "DESC"
 }
 
-// QueryTraces lists the Scope's traces whose root span starts in the window,
-// each summarised from its spans in one query. Spans outside
-// store.TraceBounds of the window are not counted.
+// cursorTag starts this store's cursors: the backend and the cursor version.
+const cursorTag = "ch1"
+
+// QueryTraces lists the Scope's traces whose root span starts in the window
+// and that pass the filters, with each trace's root span, span count and
+// overview, one page at a time. Each is summarised from its spans within
+// store.TraceBounds of the window. The filters and the total run in one
+// GROUP BY; the page starts after the cursor, and its overview is read for its
+// traces alone.
 func (s *Store) QueryTraces(ctx context.Context, sc store.Scope, q store.TraceQuery) (*store.TracePage, error) {
 	if err := sc.Validate(); err != nil {
 		return nil, err
 	}
+	order := "desc"
+	if q.SortOrder == "asc" {
+		order = "asc"
+	}
 	params := map[string]string{}
+	page := ""
+	if q.Cursor != "" {
+		k, err := store.DecodeCursor(cursorTag, q.Cursor, order)
+		if err != nil {
+			return nil, err
+		}
+		params["after_ns"], params["after_id"] = strconv.FormatInt(k.StartNs, 10), k.TraceID
+		cmp := "<"
+		if order == "asc" {
+			cmp = ">"
+		}
+		page = "\nWHERE (start_ns, trace_id) " + cmp + " ({after_ns:Int64}, {after_id:String})"
+	}
 	scope := scopeFilter(sc, params)
 	window, empty := windowFilter(q.StartTime, q.EndTime, params)
 	if empty {
-		return &store.TracePage{Traces: []store.Trace{}}, nil
+		out := &store.TracePage{Traces: []store.Trace{}}
+		if q.Cursor == "" {
+			zero := 0
+			out.Total = &zero
+		}
+		return out, nil
 	}
 	// Widening a window that is not empty never empties it.
 	traceFrom, traceTo := store.TraceBounds(q.StartTime, q.EndTime)
 	spread, _ := timeFilter(traceFrom, traceTo, "trace_from", "trace_to", params)
 	where := scope + spread + " AND TraceId IN (SELECT TraceId FROM " + Table + " WHERE " + scope +
 		" AND ParentSpanId = ''" + window + ")"
-	dir := direction(q.SortOrder, "desc")
-	sql := `SELECT
+	columns, having := traceFilters(q.Filters, params)
+	havingClause := ""
+	if len(having) > 0 {
+		havingClause = "\nHAVING " + strings.Join(having, "\n  AND ")
+	}
+	extra := columnList(columns)
+	dir := direction(order, "desc")
+	sql := `SELECT trace_id, span_count, root_span_id, root_span_name, root_span_kind, start_ns, end_ns, total
+FROM (
+SELECT
   TraceId AS trace_id,
   count() AS span_count,
-  countIf(ParentSpanId = '') > 0 AS has_root,
-  if(has_root, argMinIf(SpanId, Timestamp, ParentSpanId = ''), argMin(SpanId, Timestamp)) AS root_span_id,
-  if(has_root, argMinIf(SpanName, Timestamp, ParentSpanId = ''), argMin(SpanName, Timestamp)) AS root_span_name,
+` + columnList(rootColumns) + `  if(has_root, argMinIf(SpanName, Timestamp, ParentSpanId = ''), argMin(SpanName, Timestamp)) AS root_span_name,
   if(has_root, argMinIf(SpanKind, Timestamp, ParentSpanId = ''), argMin(SpanKind, Timestamp)) AS root_span_kind,
   toUnixTimestamp64Nano(min(Timestamp)) AS start_ns,
   max(toUnixTimestamp64Nano(Timestamp) + toInt64(Duration)) AS end_ns,
-  count() OVER () AS total
+` + extra + `  count() OVER () AS total
 FROM ` + Table + `
 WHERE ` + where + `
-GROUP BY TraceId
-ORDER BY start_ns ` + dir + `, trace_id ` + dir + limitClause(q.Limit, params)
+GROUP BY TraceId` + havingClause + `
+)` + page + `
+ORDER BY start_ns ` + dir + `, trace_id ` + dir + limitClause(nextLimit(q.Limit), params)
 
-	page := &store.TracePage{Traces: []store.Trace{}}
+	out := &store.TracePage{Traces: []store.Trace{}}
+	var total *int
 	err := s.c.query(ctx, sql, params, func(line []byte) error {
 		var r struct {
 			TraceID      string `json:"trace_id"`
@@ -223,8 +259,8 @@ ORDER BY start_ns ` + dir + `, trace_id ` + dir + limitClause(q.Limit, params)
 		if err := json.Unmarshal(line, &r); err != nil {
 			return err
 		}
-		page.Total = r.Total
-		page.Traces = append(page.Traces, store.Trace{
+		total = &r.Total
+		out.Traces = append(out.Traces, store.Trace{
 			TraceID: r.TraceID, TraceName: r.RootSpanName, SpanCount: r.SpanCount,
 			RootSpanID: r.RootSpanID, RootSpanName: r.RootSpanName, RootSpanKind: r.RootSpanKind,
 			StartTime: time.Unix(0, r.StartNs).UTC(), EndTime: time.Unix(0, r.EndNs).UTC(),
@@ -235,7 +271,103 @@ ORDER BY start_ns ` + dir + `, trace_id ` + dir + limitClause(q.Limit, params)
 	if err != nil {
 		return nil, err
 	}
-	return page, nil
+	// With no row, the total is known only on the first page.
+	if total == nil && q.Cursor == "" {
+		zero := 0
+		total = &zero
+	}
+	out.Total = total
+	if q.Limit > 0 && len(out.Traces) > q.Limit {
+		out.Traces = out.Traces[:q.Limit]
+		last := out.Traces[q.Limit-1]
+		out.NextCursor = store.EncodeCursor(cursorTag, store.CursorKey{
+			Order: order, StartNs: last.StartTime.UnixNano(), TraceID: last.TraceID,
+		})
+	}
+	if err := s.addOverviews(ctx, sc, q, out.Traces); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// columnList is columns as SELECT lines, each ending in a comma.
+func columnList(columns []string) string {
+	out := ""
+	for _, c := range columns {
+		out += "  " + c + ",\n"
+	}
+	return out
+}
+
+// addOverviews fills each trace's status, tokens, conversation, input and
+// output from the window's spans of those traces alone.
+func (s *Store) addOverviews(ctx context.Context, sc store.Scope, q store.TraceQuery, traces []store.Trace) error {
+	if len(traces) == 0 {
+		return nil
+	}
+	quoted := make([]string, len(traces))
+	for i, t := range traces {
+		quoted[i] = lit(t.TraceID)
+	}
+	params := map[string]string{"trace_ids": "[" + strings.Join(quoted, ",") + "]"}
+	traceFrom, traceTo := store.TraceBounds(q.StartTime, q.EndTime)
+	spread, _ := timeFilter(traceFrom, traceTo, "trace_from", "trace_to", params)
+	where := scopeFilter(sc, params) + spread + " AND TraceId IN {trace_ids:Array(String)}"
+	var columns []string
+	for _, set := range [][]string{rootColumns, rootErrorColumns, tokenColumns, conversationColumns, ioColumns} {
+		columns = append(columns, set...)
+	}
+	sql := `SELECT trace_id, toUInt8(root_error) AS failed, input_tokens, output_tokens, conversation, root_io, child_io, leaf_io
+FROM (
+SELECT
+  TraceId AS trace_id,
+` + columnList(columns) + `  count() AS span_count
+FROM ` + Table + `
+WHERE ` + where + `
+GROUP BY TraceId
+)`
+	byID := make(map[string]int, len(traces))
+	for i, t := range traces {
+		byID[t.TraceID] = i
+	}
+	return s.c.query(ctx, sql, params, func(line []byte) error {
+		var r struct {
+			TraceID      string        `json:"trace_id"`
+			Failed       uint8         `json:"failed"`
+			InputTokens  int64         `json:"input_tokens"`
+			OutputTokens int64         `json:"output_tokens"`
+			Conversation string        `json:"conversation"`
+			RootIO       store.Attrs   `json:"root_io"`
+			ChildIO      store.Attrs   `json:"child_io"`
+			LeafIO       []store.Attrs `json:"leaf_io"`
+		}
+		if err := json.Unmarshal(line, &r); err != nil {
+			return err
+		}
+		i, ok := byID[r.TraceID]
+		if !ok {
+			return nil
+		}
+		t := &traces[i]
+		t.Status = &store.TraceStatus{}
+		if r.Failed != 0 {
+			t.Status.ErrorCount = 1
+		}
+		if total := r.InputTokens + r.OutputTokens; total > 0 {
+			t.Tokens = &store.TokenUsage{InputTokens: r.InputTokens, OutputTokens: r.OutputTokens, TotalTokens: total}
+		}
+		t.ConversationID = r.Conversation
+		t.Input, t.Output = store.TraceIO(r.RootIO, r.ChildIO, r.LeafIO, t.SpanCount)
+		return nil
+	})
+}
+
+// nextLimit is one row past the page, to tell whether another page follows.
+func nextLimit(limit int) int {
+	if limit <= 0 {
+		return 0
+	}
+	return limit + 1
 }
 
 // spanRow is one span as the queries below select it.

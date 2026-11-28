@@ -167,3 +167,42 @@ func TestRenderFilteredOverview_JSONShapeStableWhenEmpty(t *testing.T) {
 		t.Errorf("totalCount = %v, want 0", count)
 	}
 }
+
+// The observability module returns no status or token usage; those cells show "-".
+func TestStatusAndTokens_DashWhenUnset(t *testing.T) {
+	for _, tc := range []struct {
+		got, want string
+	}{
+		{traceStatus(nil), "-"},
+		{traceStatus(&observersvc.TraceStatus{}), "ok"},
+		{traceStatus(&observersvc.TraceStatus{ErrorCount: 2}), "error"},
+		{tokenCount(nil), "-"},
+		{tokenCount(&observersvc.TokenUsage{}), "0"},
+		{tokenCount(&observersvc.TokenUsage{TotalTokens: 42}), "42"},
+	} {
+		if tc.got != tc.want {
+			t.Errorf("got %q, want %q", tc.got, tc.want)
+		}
+	}
+}
+
+// A disabled module's routes answer the host's bare 404; the module's own 404s name what's missing.
+func TestTracesCmd_ModuleNotEnabled(t *testing.T) {
+	for _, tc := range []struct {
+		name, body, want string
+	}{
+		{name: "module off", body: `{"message":"Not found"}`, want: "the observability module is not enabled on this server"},
+		{name: "agent missing", body: `{"error":"error","message":"agent not found"}`, want: "agent not found"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			run := runAmctl(t, func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(tc.body))
+			}, false, listArgs...)
+			if run.err == nil || !strings.Contains(run.err.Error(), tc.want) {
+				t.Errorf("err = %v, want it to contain %q", run.err, tc.want)
+			}
+		})
+	}
+}

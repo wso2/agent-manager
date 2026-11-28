@@ -52,7 +52,6 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useTrack: vi.fn(() => ({ track: vi.fn() })),
   ConsoleAction: { TraceOpened: "trace_opened", DownloadArtifact: "download_artifact" },
   useTrace: vi.fn(() => ({ data: undefined, isLoading: true, isTruncated: false })),
-  useTraceScores: vi.fn(() => ({ data: undefined, isLoading: true })),
   useSpanDetail: vi.fn(() => ({ data: undefined, isLoading: false })),
 }));
 vi.mock("@agent-management-platform/shared-component", () => ({
@@ -654,6 +653,34 @@ describe("TracesComponent without trace filters", () => {
   });
 });
 
+describe("TracesComponent with only the observability module's trace fields", () => {
+  it("leaves status, conversation, input, output, tokens and score empty", () => {
+    const bare = makeTrace("t-bare");
+    delete bare.status;
+    hookOverrides = {
+      data: {
+        traces: [bare, makeTrace("t-ok", 0)],
+        totalCount: 2,
+        fetchedRange: { startTime: "2026-10-01T09:00:00Z", endTime: "2026-10-01T11:00:00Z" },
+      },
+    };
+    renderPage("?timeRange=1h");
+
+    const headers = screen.getAllByRole("columnheader").map((el) => el.textContent);
+    const cell = (traceId: string, header: string) =>
+      within(screen.getByText(traceId).closest("tr")!).getAllByRole("cell")[headers.indexOf(header)];
+
+    expect(cell("t-bare", "Status")).toBeEmptyDOMElement();
+    for (const header of ["Conversation", "Input", "Output"]) {
+      expect(cell("t-bare", header)).toHaveTextContent(/^$/);
+    }
+    expect(cell("t-bare", "Tokens")).toHaveTextContent(/^-$/);
+    expect(cell("t-bare", "Score")).toHaveTextContent(/^-$/);
+    expect(cell("t-bare", "Spans")).toHaveTextContent("12");
+    expect(cell("t-ok", "Status")).not.toBeEmptyDOMElement();
+  });
+});
+
 describe("TracesComponent tool and MCP server filters", () => {
   it("sends today's request from the default page", () => {
     renderPage("?timeRange=1h");
@@ -1016,7 +1043,7 @@ describe("TracesComponent columns and cap notice", () => {
 describe("TracesComponent export warning", () => {
   const LOOKED_BACK_TO = "2026-10-01T08:14:00Z";
   const SPANS_TEXT =
-    "Some traces have more than 10,000 spans. The file has the first 10,000 spans of each.";
+    "Some traces have more than 1,000 spans. The file has the first 1,000 spans of each.";
   const FAILED_3_TEXT =
     "3 traces couldn't be read, so the file may be missing them. Export again to retry.";
   const exportTraces = vi.fn<(params: unknown) => Promise<TraceExportResponse>>();

@@ -1,7 +1,7 @@
 /*
 Observability module API
 
-The observability module's trace routes, under `/m/observability`. A trace or span has the Agent Manager Observer's shape; a list holds its items and a `pagination` object with the page's paging state. The observer's trace filters and `cursor` are refused with 400 (see each operation).  The organization is always the caller's. An `organization` query parameter, which the console sends, is ignored. `project` and `agent` are names in that organization; an unknown one is a 404. `environment` is accepted and ignored, as on the observer.  The routes exist only while the module is active: they answer 404 before it is installed and after it is disabled.
+The observability module's trace routes, under `/m/observability`. A trace or span has the Agent Manager Observer's shape; a list holds its items and a `pagination` object with the page's paging state. The trace list and export take the observer's trace filters, with its rules and 400 messages; the list pages with `cursor`.  The organization is always the caller's. An `organization` query parameter, which the console sends, is ignored. `project` and `agent` are names in that organization; an unknown one is a 404. `environment` is accepted and ignored, as on the observer.  The routes exist only while the module is active: they answer 404 before it is installed and after it is disabled.
 
 API version: 1.0.0
 */
@@ -24,12 +24,20 @@ type FullTrace struct {
 	RootSpanId   string `json:"rootSpanId"`
 	RootSpanName string `json:"rootSpanName"`
 	// Semantic span type, from the root span's name
-	RootSpanKind    string         `json:"rootSpanKind"`
-	StartTime       time.Time      `json:"startTime"`
-	EndTime         time.Time      `json:"endTime"`
-	DurationInNanos int64          `json:"durationInNanos"`
-	SpanCount       int32          `json:"spanCount"`
-	Spans           []EnrichedSpan `json:"spans"`
+	RootSpanKind    string       `json:"rootSpanKind"`
+	StartTime       time.Time    `json:"startTime"`
+	EndTime         time.Time    `json:"endTime"`
+	DurationInNanos int64        `json:"durationInNanos"`
+	SpanCount       int32        `json:"spanCount"`
+	Status          *TraceStatus `json:"status,omitempty"`
+	TokenUsage      *TokenUsage  `json:"tokenUsage,omitempty"`
+	// The root span's conversation ID, else its first non-LLM child's, else the first LLM span's; the ID the conversationId filter matches. Absent when the trace has none.
+	ConversationId *string `json:"conversationId,omitempty"`
+	// The root span's input, else its first non-LLM child's, else the first LLM span's user message. Absent when the trace has none.
+	Input *string `json:"input,omitempty"`
+	// The root span's output, else its first non-LLM child's, else the last LLM span's answer. Absent when the trace has none.
+	Output *string        `json:"output,omitempty"`
+	Spans  []EnrichedSpan `json:"spans"`
 }
 
 // NewFullTrace instantiates a new FullTrace object
@@ -250,6 +258,166 @@ func (o *FullTrace) SetSpanCount(v int32) {
 	o.SpanCount = v
 }
 
+// GetStatus returns the Status field value if set, zero value otherwise.
+func (o *FullTrace) GetStatus() TraceStatus {
+	if o == nil || IsNil(o.Status) {
+		var ret TraceStatus
+		return ret
+	}
+	return *o.Status
+}
+
+// GetStatusOk returns a tuple with the Status field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *FullTrace) GetStatusOk() (*TraceStatus, bool) {
+	if o == nil || IsNil(o.Status) {
+		return nil, false
+	}
+	return o.Status, true
+}
+
+// HasStatus returns a boolean if a field has been set.
+func (o *FullTrace) HasStatus() bool {
+	if o != nil && !IsNil(o.Status) {
+		return true
+	}
+
+	return false
+}
+
+// SetStatus gets a reference to the given TraceStatus and assigns it to the Status field.
+func (o *FullTrace) SetStatus(v TraceStatus) {
+	o.Status = &v
+}
+
+// GetTokenUsage returns the TokenUsage field value if set, zero value otherwise.
+func (o *FullTrace) GetTokenUsage() TokenUsage {
+	if o == nil || IsNil(o.TokenUsage) {
+		var ret TokenUsage
+		return ret
+	}
+	return *o.TokenUsage
+}
+
+// GetTokenUsageOk returns a tuple with the TokenUsage field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *FullTrace) GetTokenUsageOk() (*TokenUsage, bool) {
+	if o == nil || IsNil(o.TokenUsage) {
+		return nil, false
+	}
+	return o.TokenUsage, true
+}
+
+// HasTokenUsage returns a boolean if a field has been set.
+func (o *FullTrace) HasTokenUsage() bool {
+	if o != nil && !IsNil(o.TokenUsage) {
+		return true
+	}
+
+	return false
+}
+
+// SetTokenUsage gets a reference to the given TokenUsage and assigns it to the TokenUsage field.
+func (o *FullTrace) SetTokenUsage(v TokenUsage) {
+	o.TokenUsage = &v
+}
+
+// GetConversationId returns the ConversationId field value if set, zero value otherwise.
+func (o *FullTrace) GetConversationId() string {
+	if o == nil || IsNil(o.ConversationId) {
+		var ret string
+		return ret
+	}
+	return *o.ConversationId
+}
+
+// GetConversationIdOk returns a tuple with the ConversationId field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *FullTrace) GetConversationIdOk() (*string, bool) {
+	if o == nil || IsNil(o.ConversationId) {
+		return nil, false
+	}
+	return o.ConversationId, true
+}
+
+// HasConversationId returns a boolean if a field has been set.
+func (o *FullTrace) HasConversationId() bool {
+	if o != nil && !IsNil(o.ConversationId) {
+		return true
+	}
+
+	return false
+}
+
+// SetConversationId gets a reference to the given string and assigns it to the ConversationId field.
+func (o *FullTrace) SetConversationId(v string) {
+	o.ConversationId = &v
+}
+
+// GetInput returns the Input field value if set, zero value otherwise.
+func (o *FullTrace) GetInput() string {
+	if o == nil || IsNil(o.Input) {
+		var ret string
+		return ret
+	}
+	return *o.Input
+}
+
+// GetInputOk returns a tuple with the Input field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *FullTrace) GetInputOk() (*string, bool) {
+	if o == nil || IsNil(o.Input) {
+		return nil, false
+	}
+	return o.Input, true
+}
+
+// HasInput returns a boolean if a field has been set.
+func (o *FullTrace) HasInput() bool {
+	if o != nil && !IsNil(o.Input) {
+		return true
+	}
+
+	return false
+}
+
+// SetInput gets a reference to the given string and assigns it to the Input field.
+func (o *FullTrace) SetInput(v string) {
+	o.Input = &v
+}
+
+// GetOutput returns the Output field value if set, zero value otherwise.
+func (o *FullTrace) GetOutput() string {
+	if o == nil || IsNil(o.Output) {
+		var ret string
+		return ret
+	}
+	return *o.Output
+}
+
+// GetOutputOk returns a tuple with the Output field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *FullTrace) GetOutputOk() (*string, bool) {
+	if o == nil || IsNil(o.Output) {
+		return nil, false
+	}
+	return o.Output, true
+}
+
+// HasOutput returns a boolean if a field has been set.
+func (o *FullTrace) HasOutput() bool {
+	if o != nil && !IsNil(o.Output) {
+		return true
+	}
+
+	return false
+}
+
+// SetOutput gets a reference to the given string and assigns it to the Output field.
+func (o *FullTrace) SetOutput(v string) {
+	o.Output = &v
+}
+
 // GetSpans returns the Spans field value
 func (o *FullTrace) GetSpans() []EnrichedSpan {
 	if o == nil {
@@ -292,6 +460,21 @@ func (o FullTrace) ToMap() (map[string]interface{}, error) {
 	toSerialize["endTime"] = o.EndTime
 	toSerialize["durationInNanos"] = o.DurationInNanos
 	toSerialize["spanCount"] = o.SpanCount
+	if !IsNil(o.Status) {
+		toSerialize["status"] = o.Status
+	}
+	if !IsNil(o.TokenUsage) {
+		toSerialize["tokenUsage"] = o.TokenUsage
+	}
+	if !IsNil(o.ConversationId) {
+		toSerialize["conversationId"] = o.ConversationId
+	}
+	if !IsNil(o.Input) {
+		toSerialize["input"] = o.Input
+	}
+	if !IsNil(o.Output) {
+		toSerialize["output"] = o.Output
+	}
 	toSerialize["spans"] = o.Spans
 	return toSerialize, nil
 }

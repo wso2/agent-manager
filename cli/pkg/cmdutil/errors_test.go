@@ -18,8 +18,10 @@ package cmdutil
 
 import (
 	"errors"
+	"net/http"
 	"testing"
 
+	"github.com/wso2/agent-manager/cli/pkg/clients/observersvc"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 )
 
@@ -64,5 +66,46 @@ func TestFlagErrors(t *testing.T) {
 	}
 	if details[0] != violations[0] || details[1] != violations[1] {
 		t.Errorf("details = %v, want %v", details, violations)
+	}
+}
+
+func TestTracesErrorFromResponse(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		err      error
+		wantCode string
+		wantMsg  string
+	}{
+		{
+			name:     "the host's 404 for an inactive module",
+			err:      &observersvc.HTTPError{StatusCode: http.StatusNotFound, Body: &observersvc.ErrorResponse{Message: "Not found"}},
+			wantCode: clierr.FeatureUnavailable,
+			wantMsg:  "the observability module is not enabled on this server",
+		},
+		{
+			name:     "a 404 with no JSON body, from a route the server lacks",
+			err:      &observersvc.HTTPError{StatusCode: http.StatusNotFound, RawBody: []byte("404 page not found")},
+			wantCode: clierr.NotFound,
+			wantMsg:  "the observability module returned 404",
+		},
+		{
+			name:     "the module's 404",
+			err:      &observersvc.HTTPError{StatusCode: http.StatusNotFound, Body: &observersvc.ErrorResponse{Error: "error", Message: "agent not found"}},
+			wantCode: clierr.NotFound,
+			wantMsg:  "agent not found",
+		},
+		{
+			name:     "the module's 400",
+			err:      &observersvc.HTTPError{StatusCode: http.StatusBadRequest, Body: &observersvc.ErrorResponse{Error: "error", Message: "invalid startTime"}},
+			wantCode: clierr.Validation,
+			wantMsg:  "invalid startTime",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := TracesErrorFromResponse(tc.err)
+			if got.Code != tc.wantCode || got.Message != tc.wantMsg {
+				t.Errorf("got %s %q, want %s %q", got.Code, got.Message, tc.wantCode, tc.wantMsg)
+			}
+		})
 	}
 }

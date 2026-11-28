@@ -78,37 +78,72 @@ func (m *Store) DeleteAgent(_ context.Context, orgID, agentID string) error {
 	return nil
 }
 
-// QueryTraces lists the Scope's traces in the window. A trace stored with
-// spans is counted within store.TraceBounds of the window, as its span list is.
+// cursorTag starts the memory store's cursors: the backend and the cursor version.
+const cursorTag = "mem1"
+
+// QueryTraces lists the Scope's traces in the window that pass the filters,
+// one page at a time. A trace stored with spans is counted and filtered within
+// store.TraceBounds of the window, as its span list is.
 func (m *Store) QueryTraces(_ context.Context, s store.Scope, q store.TraceQuery) (*store.TracePage, error) {
 	if err := s.Validate(); err != nil {
 		return nil, err
+	}
+	order := "desc"
+	if q.SortOrder == "asc" {
+		order = "asc"
+	}
+	var after *store.CursorKey
+	if q.Cursor != "" {
+		k, err := store.DecodeCursor(cursorTag, q.Cursor, order)
+		if err != nil {
+			return nil, err
+		}
+		after = &k
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.queries++
 
-	traces := []store.Trace{}
+	from, to := store.TraceBounds(q.StartTime, q.EndTime)
+	matched := []entry{}
 	for _, e := range m.entries {
-		if inScope(e.scope, s) && inWindow(e.trace.StartTime, q.StartTime, q.EndTime) {
-			tr := e.trace
-			if len(e.spans) > 0 {
-				tr.SpanCount = spansOf(e, store.SpanQuery{StartTime: q.StartTime, EndTime: q.EndTime}).Total
-			}
-			traces = append(traces, tr)
+		if !inScope(e.scope, s) || !inWindow(e.trace.StartTime, q.StartTime, q.EndTime) {
+			continue
+		}
+		if len(e.spans) > 0 {
+			e.spans = spansIn(e.spans, from, to)
+			e.trace.SpanCount = len(e.spans)
+		}
+		if store.MatchTrace(q.Filters, e.trace, e.spans) {
+			matched = append(matched, e)
 		}
 	}
-	sort.SliceStable(traces, func(i, j int) bool {
-		if q.SortOrder == "asc" {
-			return traces[i].StartTime.Before(traces[j].StartTime)
-		}
-		return traces[i].StartTime.After(traces[j].StartTime)
+	sort.SliceStable(matched, func(i, j int) bool {
+		a, b := matched[i].trace, matched[j].trace
+		k := store.CursorKey{Order: order, StartNs: a.StartTime.UnixNano(), TraceID: a.TraceID}
+		return k.After(b.StartTime.UnixNano(), b.TraceID)
 	})
-	total := len(traces)
-	if q.Limit > 0 && len(traces) > q.Limit {
-		traces = traces[:q.Limit]
+	total := len(matched)
+	if after != nil {
+		i := sort.Search(len(matched), func(i int) bool {
+			return after.After(matched[i].trace.StartTime.UnixNano(), matched[i].trace.TraceID)
+		})
+		matched = matched[i:]
 	}
-	return &store.TracePage{Traces: traces, Total: total}, nil
+	page := &store.TracePage{Total: &total}
+	if q.Limit > 0 && len(matched) > q.Limit {
+		matched = matched[:q.Limit]
+		last := matched[q.Limit-1].trace
+		page.NextCursor = store.EncodeCursor(cursorTag, store.CursorKey{
+			Order: order, StartNs: last.StartTime.UnixNano(), TraceID: last.TraceID,
+		})
+	}
+	// The overview is read for the page's traces only.
+	page.Traces = make([]store.Trace, 0, len(matched))
+	for _, e := range matched {
+		page.Traces = append(page.Traces, store.Overview(e.trace, e.spans))
+	}
+	return page, nil
 }
 
 // QueryTraceSpans lists one of the Scope's traces' spans, within
@@ -149,6 +184,17 @@ func (m *Store) QuerySpansByTrace(_ context.Context, s store.Scope, traceIDs []s
 }
 
 // spansOf is a trace's spans within store.TraceBounds of q's window.
+// spansIn is the spans that start between from and to.
+func spansIn(spans []store.SpanDetails, from, to time.Time) []store.SpanDetails {
+	out := make([]store.SpanDetails, 0, len(spans))
+	for _, d := range spans {
+		if inWindow(d.StartTime, from, to) {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
 func spansOf(e entry, q store.SpanQuery) *store.SpanPage {
 	from, to := store.TraceBounds(q.StartTime, q.EndTime)
 	spans := make([]store.Span, 0, len(e.spans))

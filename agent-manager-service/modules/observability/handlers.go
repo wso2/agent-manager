@@ -46,13 +46,6 @@ const (
 	resourceAgent = "agent-manager/agent"
 )
 
-// unsupportedParams are observer trace list parameters this module does not
-// serve yet; a request with one is refused rather than answered unfiltered.
-var unsupportedParams = []string{
-	"status", "minDurationMs", "minTokens", "minSpanCount", "model",
-	"conversationId", "tool", "toolError", "mcpServer", "missing", "cursor",
-}
-
 type handlers struct {
 	core   modkit.CoreAPI
 	traces store.TraceStore
@@ -119,42 +112,44 @@ func (h handlers) scope(r *http.Request, project, agent string) (store.Scope, er
 	return s, nil
 }
 
-// traceQuery parses a trace list or export request: its agent's scope and window.
-func (h handlers) traceQuery(r *http.Request, limit int) (store.Scope, window, error) {
+// traceQuery parses a trace list or export request: its agent's scope, and
+// its window, filters and paging as a query.
+func (h handlers) traceQuery(r *http.Request, limit int) (store.Scope, window, tracesv1.TraceQuery, error) {
 	query, err := url.ParseQuery(r.URL.RawQuery)
 	if err != nil {
-		return store.Scope{}, window{}, badRequest("invalid query: %v", err)
-	}
-	for _, p := range unsupportedParams {
-		if query.Has(p) {
-			return store.Scope{}, window{}, badRequest("%s is not supported by this trace store", p)
-		}
+		return store.Scope{}, window{}, tracesv1.TraceQuery{}, badRequest("invalid query: %v", err)
 	}
 	project, agent := query.Get("project"), query.Get("agent")
 	if project == "" || agent == "" {
-		return store.Scope{}, window{}, badRequest("project and agent are required")
+		return store.Scope{}, window{}, tracesv1.TraceQuery{}, badRequest("project and agent are required")
 	}
 	win, err := parseWindow(query, "desc", limit)
 	if err != nil {
-		return store.Scope{}, window{}, err
+		return store.Scope{}, window{}, tracesv1.TraceQuery{}, err
+	}
+	filters, err := parseTraceFilters(query)
+	if err != nil {
+		return store.Scope{}, window{}, tracesv1.TraceQuery{}, err
 	}
 	s, err := h.scope(r, project, agent)
 	if err != nil {
-		return store.Scope{}, window{}, err
+		return store.Scope{}, window{}, tracesv1.TraceQuery{}, err
 	}
-	return s, win, nil
+	q := tracesv1.TraceQuery{
+		StartTime: win.start, EndTime: win.end, Limit: win.limit, SortOrder: win.sort,
+		Filters: filters, Cursor: query.Get("cursor"),
+	}
+	return s, win, q, nil
 }
 
 // listTraces serves GET /traces.
 func (h handlers) listTraces(w http.ResponseWriter, r *http.Request) {
-	s, window, err := h.traceQuery(r, defaultLimit)
+	s, window, q, err := h.traceQuery(r, defaultLimit)
 	if err != nil {
 		h.fail(w, r, err)
 		return
 	}
-	page, err := h.traces.QueryTraces(r.Context(), s, tracesv1.TraceQuery{
-		StartTime: window.start, EndTime: window.end, Limit: window.limit, SortOrder: window.sort,
-	})
+	page, err := h.traces.QueryTraces(r.Context(), s, q)
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -172,15 +167,17 @@ func (h handlers) listTraces(w http.ResponseWriter, r *http.Request) {
 // exportTraces serves GET /traces/export: the window's traces, each
 // with its spans and their attributes.
 func (h handlers) exportTraces(w http.ResponseWriter, r *http.Request) {
-	s, window, err := h.traceQuery(r, defaultExportLimit)
+	s, window, q, err := h.traceQuery(r, defaultExportLimit)
 	if err != nil {
 		h.fail(w, r, err)
 		return
 	}
+	if q.Cursor != "" {
+		h.fail(w, r, badRequest("cursor is not supported by the trace export"))
+		return
+	}
 	ctx := r.Context()
-	page, err := h.traces.QueryTraces(ctx, s, tracesv1.TraceQuery{
-		StartTime: window.start, EndTime: window.end, Limit: window.limit, SortOrder: window.sort,
-	})
+	page, err := h.traces.QueryTraces(ctx, s, q)
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -253,7 +250,7 @@ func (h handlers) listSpans(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, sp := range page.Spans {
 		sum := SpanSummary{
-			SpanID: sp.SpanID, SpanName: sp.SpanName, SpanKind: spanKind(sp.SpanName), ParentSpanID: sp.ParentSpanID,
+			SpanID: sp.SpanID, SpanName: sp.SpanName, SpanKind: store.SpanKind(sp.SpanName), ParentSpanID: sp.ParentSpanID,
 			StartTime: sp.StartTime, EndTime: sp.EndTime, DurationNs: sp.DurationNs, Error: isError(sp.Status),
 		}
 		if sp.Status != nil {
@@ -280,20 +277,40 @@ func (h handlers) getSpan(w http.ResponseWriter, r *http.Request) {
 	h.ok(w, r, toSpan(traceID, *d))
 }
 
-// tracePagination is a trace page's size and total; this module never stops a search early.
+// tracePagination is a trace page's paging state, as the store reports it.
 func tracePagination(w window, page *tracesv1.TracePage) TracePagination {
-	total := page.Total
-	return TracePagination{Limit: w.limit, Total: &total}
+	p := TracePagination{Limit: w.limit, Total: page.Total, NextCursor: page.NextCursor}
+	if page.Truncated {
+		p.Truncated, p.LookedBackTo = true, formatTime(page.LookedBackTo)
+	}
+	return p
 }
 
-// overview is a trace's list entry.
+// overview is a trace's list entry; a value the trace doesn't have is left out.
 func overview(t tracesv1.Trace) TraceOverview {
-	return TraceOverview{
+	o := TraceOverview{
 		TraceID: t.TraceID, RootSpanID: t.RootSpanID, RootSpanName: t.RootSpanName,
-		RootSpanKind: spanKind(t.RootSpanName),
+		RootSpanKind: store.SpanKind(t.RootSpanName),
 		StartTime:    formatTime(t.StartTime), EndTime: formatTime(t.EndTime),
 		DurationInNanos: t.DurationNs, SpanCount: t.SpanCount,
+		ConversationID: t.ConversationID,
 	}
+	if t.Status != nil {
+		o.Status = &TraceStatus{ErrorCount: t.Status.ErrorCount}
+	}
+	if t.Tokens != nil {
+		o.TokenUsage = &TokenUsage{
+			InputTokens: int(t.Tokens.InputTokens), OutputTokens: int(t.Tokens.OutputTokens),
+			TotalTokens: int(t.Tokens.TotalTokens),
+		}
+	}
+	if t.Input != "" {
+		o.Input = t.Input
+	}
+	if t.Output != "" {
+		o.Output = t.Output
+	}
+	return o
 }
 
 // toSpan is a span with its attributes, in the observer's shape.
@@ -302,7 +319,7 @@ func toSpan(traceID string, d tracesv1.SpanDetails) Span {
 		TraceID: traceID, SpanID: d.SpanID, ParentSpanID: d.ParentSpanID, Name: d.SpanName,
 		StartTime: d.StartTime, EndTime: d.EndTime, DurationInNanos: d.DurationNs, Kind: d.Kind,
 		Attributes: d.Attributes, Resource: d.ResourceAttributes,
-		AmpAttributes: &AmpAttributes{Kind: spanKind(d.SpanName), Status: &SpanStatus{Error: isError(d.Status)}},
+		AmpAttributes: &AmpAttributes{Kind: store.SpanKind(d.SpanName), Status: &SpanStatus{Error: isError(d.Status)}},
 	}
 	span.Service, _ = d.ResourceAttributes[resourceAgent].(string)
 	if d.Status != nil {
@@ -318,6 +335,8 @@ func (h handlers) fail(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.As(err, &se):
 		writeError(w, se.status, se.msg)
+	case errors.Is(err, tracesv1.ErrInvalidCursor):
+		writeError(w, http.StatusBadRequest, "invalid cursor")
 	case errors.Is(err, tracesv1.ErrNotFound):
 		writeError(w, http.StatusNotFound, "trace or span not found")
 	case errors.Is(err, tracesv1.ErrMissingOrg):

@@ -31,6 +31,8 @@ var (
 	ErrMissingOrg = tracesv1.ErrMissingOrg
 	// ErrNotFound is returned when a trace or span is not in the Scope.
 	ErrNotFound = tracesv1.ErrNotFound
+	// ErrInvalidCursor is returned for a cursor the store did not issue.
+	ErrInvalidCursor = tracesv1.ErrInvalidCursor
 )
 
 // TraceStore reads traces for one Scope at a time. A trace list's span counts
@@ -93,12 +95,15 @@ func (s Scope) Validate() error {
 
 // The store's other types are the capability's.
 type (
-	TraceQuery  = tracesv1.TraceQuery
-	SpanQuery   = tracesv1.SpanQuery
-	TracePage   = tracesv1.TracePage
-	Trace       = tracesv1.Trace
-	SpanPage    = tracesv1.SpanPage
-	Span        = tracesv1.Span
-	SpanStatus  = tracesv1.SpanStatus
-	SpanDetails = tracesv1.SpanDetails
+	TraceQuery   = tracesv1.TraceQuery
+	TraceFilters = tracesv1.TraceFilters
+	SpanQuery    = tracesv1.SpanQuery
+	TracePage    = tracesv1.TracePage
+	Trace        = tracesv1.Trace
+	TraceStatus  = tracesv1.TraceStatus
+	TokenUsage   = tracesv1.TokenUsage
+	SpanPage     = tracesv1.SpanPage
+	Span         = tracesv1.Span
+	SpanStatus   = tracesv1.SpanStatus
+	SpanDetails  = tracesv1.SpanDetails
 )

@@ -1,7 +1,7 @@
 /*
 Observability module API
 
-The observability module's trace routes, under `/m/observability`. A trace or span has the Agent Manager Observer's shape; a list holds its items and a `pagination` object with the page's paging state. The observer's trace filters and `cursor` are refused with 400 (see each operation).  The organization is always the caller's. An `organization` query parameter, which the console sends, is ignored. `project` and `agent` are names in that organization; an unknown one is a 404. `environment` is accepted and ignored, as on the observer.  The routes exist only while the module is active: they answer 404 before it is installed and after it is disabled.
+The observability module's trace routes, under `/m/observability`. A trace or span has the Agent Manager Observer's shape; a list holds its items and a `pagination` object with the page's paging state. The trace list and export take the observer's trace filters, with its rules and 400 messages; the list pages with `cursor`.  The organization is always the caller's. An `organization` query parameter, which the console sends, is ignored. `project` and `agent` are names in that organization; an unknown one is a 404. `environment` is accepted and ignored, as on the observer.  The routes exist only while the module is active: they answer 404 before it is installed and after it is disabled.
 
 API version: 1.0.0
 */
@@ -24,7 +24,7 @@ type TracePagination struct {
 	Limit int32 `json:"limit"`
 	// Matching traces in the window; absent when the server doesn't know it exactly
 	Total *int32 `json:"total,omitempty"`
-	// Opaque cursor for the next page, sent back as `cursor`. Absent when the window ran out. Not set yet: `cursor` is refused until the trace stores support it. Never set on an export, which takes no cursor.
+	// Opaque cursor for the next page, sent back as `cursor`. Absent on the last page. Never set on an export, which takes no cursor.
 	NextCursor *string `json:"nextCursor,omitempty"`
 	// How far the search got. Sent only with `truncated`.
 	LookedBackTo *time.Time `json:"lookedBackTo,omitempty"`

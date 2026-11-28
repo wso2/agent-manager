@@ -333,26 +333,25 @@ export function TracesTable({
                     align="center"
                     sx={{
                       color: (theme) =>
-                        trace.status?.errorCount && trace.status.errorCount > 0
+                        (trace.status?.errorCount ?? 0) > 0
                           ? theme.palette.error.main
                           : theme.palette.success.main,
                       maxWidth: 20,
                     }}
                   >
-                    <Tooltip
-                      title={`${trace.status?.errorCount} errors found`}
-                      disableHoverListener={
-                        !trace.status?.errorCount ||
-                        trace.status?.errorCount === 0
-                      }
-                    >
-                      {trace.status?.errorCount &&
-                      trace.status.errorCount > 0 ? (
-                        <XCircle size={16} />
-                      ) : (
-                        <CheckCircle size={16} />
-                      )}
-                    </Tooltip>
+                    {/* Empty when the trace store reports no status. */}
+                    {trace.status && (
+                      <Tooltip
+                        title={`${trace.status.errorCount} errors found`}
+                        disableHoverListener={!trace.status.errorCount}
+                      >
+                        {trace.status.errorCount > 0 ? (
+                          <XCircle size={16} aria-label="Errors" />
+                        ) : (
+                          <CheckCircle size={16} aria-label="No errors" />
+                        )}
+                      </Tooltip>
+                    )}
                   </ListingTable.Cell>
                   {showTraceId && (
                     <ListingTable.Cell align="left" sx={{ maxWidth: 160 }}>
