@@ -28,6 +28,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -131,6 +132,9 @@ type webhookConfig struct {
 	SecretMaxVersions int
 }
 
+// headerNamePattern is an HTTP header field name: a token (RFC 9110, section 5.6.2).
+var headerNamePattern = regexp.MustCompile("^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
+
 // settings are the module's settings, read by webhookConfigFrom: the manifest declares them, so they reach the
 // configuration reference (make config-docs).
 var settings = []modkit.Setting{
@@ -163,7 +167,12 @@ func webhookConfigFrom(get func(key string) string) (webhookConfig, error) {
 		cfg.SourceName = v
 	}
 	if v := strings.TrimSpace(get("webhook_signature_header")); v != "" {
-		cfg.SignatureHeader = v
+		// A name that isn't an HTTP token matches no request header, so every delivery would be refused.
+		if !headerNamePattern.MatchString(v) {
+			invalid("webhook_signature_header", v, "an HTTP header name, such as X-Api-Portal-Signature")
+		} else {
+			cfg.SignatureHeader = v
+		}
 	}
 	if v := strings.TrimSpace(get("webhook_enabled")); v != "" {
 		b, err := strconv.ParseBool(v)
@@ -498,6 +507,10 @@ func (r *webhookReceiver) receive(w http.ResponseWriter, req *http.Request) erro
 // is read before anything is verified, so its fields only select the secret and are never trusted. An empty
 // secret never verifies: anyone can sign with it.
 func (r *webhookReceiver) authenticate(ctx context.Context, header string, body []byte) (webhookSigner, error) {
+	// An unsigned delivery is refused before any secret is looked up: it needs no read of the secret store.
+	if strings.TrimSpace(header) == "" {
+		return webhookSigner{}, errSignatureMissing
+	}
 	env, err := decodeEnvelope(body)
 	if err != nil {
 		env = &envelope{}

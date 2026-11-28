@@ -266,7 +266,7 @@ func (s *webhookSecretService) rotate(ctx context.Context, orgID, actor, handle 
 
 // deleteVersion removes one version. The last one can't be removed on its own: delete the secret instead.
 func (s *webhookSecretService) deleteVersion(ctx context.Context, orgID, handle string, version int) error {
-	return s.db().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := s.db().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		row, err := s.find(tx, orgID, handle)
 		if err != nil {
 			return err
@@ -295,14 +295,19 @@ func (s *webhookSecretService) deleteVersion(ctx context.Context, orgID, handle 
 		if err := s.secrets().In(tx).Delete(ctx, orgID, webhookSecretPath(row.ID, version)); err != nil {
 			return fmt.Errorf("delete the stored webhook secret: %w", err)
 		}
-		s.log.InfoContext(ctx, "webhook secret version deleted", "orgId", orgID, "handle", handle, "version", version)
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	// Logged once committed, at Error as every destructive operation is.
+	s.log.ErrorContext(ctx, "webhook secret version deleted", "orgId", orgID, "handle", handle, "version", version)
+	return nil
 }
 
 // delete removes a secret with all its versions: deliveries signed with it are refused from now on.
 func (s *webhookSecretService) delete(ctx context.Context, orgID, handle string) error {
-	return s.db().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := s.db().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		row, err := s.find(tx, orgID, handle)
 		if err != nil {
 			return err
@@ -327,9 +332,13 @@ func (s *webhookSecretService) delete(ctx context.Context, orgID, handle string)
 				return fmt.Errorf("delete the stored webhook secret: %w", err)
 			}
 		}
-		s.log.InfoContext(ctx, "webhook secret deleted", "orgId", orgID, "handle", handle)
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	s.log.ErrorContext(ctx, "webhook secret deleted", "orgId", orgID, "handle", handle)
+	return nil
 }
 
 // get returns a secret with its versions (no values).

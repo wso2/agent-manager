@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -178,8 +179,13 @@ func TestAuthenticateWithOrganizationSecrets(t *testing.T) {
 	})
 
 	t.Run("an empty secret never verifies", func(t *testing.T) {
+		// The provider holds a secret with no value, so the delivery's hash is found: it is refused for the
+		// empty value, not as an unknown hash.
+		withEmpty := &webhookReceiver{
+			cfg: r.cfg, secrets: stubSecrets{signers: []webhookSigner{{Secret: "", OrgID: acme}}}, core: r.core, now: r.now,
+		}
 		b := body(acme, "")
-		_, err := r.authenticate(ctx, Sign("", b, now), b)
+		_, err := withEmpty.authenticate(ctx, Sign("", b, now), b)
 		assert.ErrorIs(t, err, errSignatureInvalid, "anyone can sign with an empty secret")
 	})
 
@@ -202,6 +208,11 @@ func TestAuthenticateWithOrganizationSecrets(t *testing.T) {
 		_, err := failing.authenticate(ctx, Sign(acmePortal.Secret, b, now), b)
 		require.Error(t, err)
 		assert.False(t, isClientFault(err))
+
+		// An unsigned delivery is refused before any secret is read, so it is the sender's fault even then.
+		_, err = failing.authenticate(ctx, "", b)
+		assert.ErrorIs(t, err, errSignatureMissing)
+		assert.True(t, isClientFault(err))
 	})
 }
 
@@ -325,6 +336,11 @@ func TestWebhookConfigFrom(t *testing.T) {
 	assert.EqualValues(t, 2048, cfg.MaxBodyBytes)
 	assert.Equal(t, 5, cfg.SecretMaxVersions)
 
+	settings["webhook_signature_header"] = "X-Custom-Signature"
+	cfg, err = webhookConfigFrom(get)
+	require.NoError(t, err)
+	assert.Equal(t, "X-Custom-Signature", cfg.SignatureHeader, "any HTTP header name is taken")
+
 	settings["webhook_enabled"] = "false"
 	cfg, err = webhookConfigFrom(get)
 	require.NoError(t, err)
@@ -337,6 +353,7 @@ func TestWebhookConfigFrom(t *testing.T) {
 		"webhook_secret_max_versions":  "1",
 		"webhook_signature_tolerance":  "-1m",
 		"webhook_max_body_size":        "lots",
+		"webhook_signature_header":     "X-Portal-Signature:",
 	} {
 		bad := map[string]string{key: value}
 		_, err := webhookConfigFrom(func(k string) string { return bad[k] })
@@ -346,12 +363,20 @@ func TestWebhookConfigFrom(t *testing.T) {
 }
 
 func TestReceiverRejectsAlike(t *testing.T) {
-	r := &webhookReceiver{cfg: webhookConfig{
-		Enabled: true, SignatureHeader: DefaultWebhookSignatureHeader,
-		SignatureTolerance: time.Minute, MaxBodyBytes: 1 << 20,
-	}, log: slog.New(slog.DiscardHandler), now: time.Now}
-	for name, header := range map[string]string{"no signature": "", "bad signature": "t=1,v1=00"} {
-		req := httptest.NewRequest(http.MethodPost, WebhookRoutePath, strings.NewReader(`{"event_id":"e1"}`))
+	org := uuid.NewString()
+	r := &webhookReceiver{
+		cfg: webhookConfig{
+			Enabled: true, SignatureHeader: DefaultWebhookSignatureHeader,
+			SignatureTolerance: time.Minute, MaxBodyBytes: 1 << 20,
+		}, secrets: stubSecrets{signers: []webhookSigner{{Secret: testSecret, OrgID: org}}},
+		core: knownOrgs{ids: []string{org}}, log: slog.New(slog.DiscardHandler), now: time.Now,
+	}
+	// Both name a secret the receiver holds, so both reach the signature check: one has no signature, the other
+	// a current timestamp with the wrong HMAC.
+	body := `{"event_id":"e1","org":{"ref_id":"` + org + `"},"secret_hash":"` + SecretHash(testSecret) + `"}`
+	wrong := fmt.Sprintf("t=%d,v1=%s", time.Now().Unix(), strings.Repeat("0", 64))
+	for name, header := range map[string]string{"no signature": "", "wrong signature": wrong} {
+		req := httptest.NewRequest(http.MethodPost, WebhookRoutePath, strings.NewReader(body))
 		if header != "" {
 			req.Header.Set(DefaultWebhookSignatureHeader, header)
 		}
@@ -445,6 +470,7 @@ func TestWebhookSecretAuditRecord(t *testing.T) {
 		}
 	}
 	assert.Equal(t, map[string]bool{
-		PermWebhookSecretCreate: true, PermWebhookSecretRotate: true, PermWebhookSecretDelete: true,
-	}, declared, "each change is a credential action that declares its version")
+		PermWebhookSecretCreate: true, PermWebhookSecretRotate: true, PermWebhookSecretDelete: false,
+		ActionWebhookSecretVersionDelete: true,
+	}, declared, "each change is a credential action; those that make or remove a version declare it")
 }

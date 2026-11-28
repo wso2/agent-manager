@@ -338,7 +338,7 @@ The operations below emit a record describing what actually changed, not just th
 | Users | `user:invite` / `:create` / `:delete` | Fail-closed |
 | Agent lifecycle | `agent:delete`, `project:delete` | Fail-closed |
 | Event destinations | `event-destination:create` / `:update` / `:delete` / `:rotate-secret` | Fail-closed |
-| Developer portal webhook secrets | `ai-hub:webhook-secret-create` / `-rotate` / `-delete` (a secret or one of its versions) | Fail-closed |
+| Developer portal webhook secrets | `ai-hub:webhook-secret-create` / `-rotate` / `-delete`, `ai-hub:webhook-secret-versions.delete` | Fail-closed |
 | Event subscriptions | `event-subscription:create` / `:update` / `:delete` (organization, project and agent scope) | Fail-closed |
 | Gateways | `ai-gateway:gateways.delete`, `ai-gateway:gateways.set-identity-provider`, `ai-gateway:gateways.remove-identity-provider` | Fail-closed |
 | Gateways | `ai-gateway:gateways.create` / `:update` | Fail-open |
@@ -359,7 +359,7 @@ Three of these carry detail worth calling out:
 
 Every explicitly registered action this build can record — the class and severity that drive alerting, and the detail keys each is **permitted** to carry beyond the shared ones. A key not listed is dropped before the record is written. A permitted key is not necessarily set: the [sample records](#sample-records) below show what each emit site actually writes. Coverage-tier actions derived from a route's permission and not listed here are classified by `classify` in `audit/actions.go`.
 
-The registries are the source of truth: `audit/actions.go` and `audit/actions_domain.go` for the core (`audit.RegisteredActions()` enumerates them), and the AI Gateway manifest's `gwaudit.Actions` for the module.
+The registries are the source of truth: `audit/actions.go` and `audit/actions_domain.go` for the core (`audit.RegisteredActions()` enumerates them), the AI Gateway manifest's `gwaudit.Actions`, and the AI Hub manifest's `AuditActions` (`modules/aihub/aihub.go`).
 
 Core actions (`audit/actions.go`, `audit/actions_domain.go`, plus the shared keys in `audit/schema.go`):
 
@@ -474,6 +474,16 @@ AI Gateway actions (`modules/aigateway/gwaudit/gwaudit.go`), all 66 the module's
 | `ai-gateway:scopes.update` | identity | 4 critical | — |
 
 Core read actions (`agent:read`, `project:read`, `environment:read`) are declared so every MCP tool can name what it does; they are classified as reads and not recorded. An AI Gateway read action is recorded when a route names it with `modkit.Audit` — the API-key and gateway-token listings, the identity-provider listings, `gateways.read` on the platform failure summary and the gateway sync routes (`api-keys.sync`, `deployments.sync`, `artifacts.check-exists`). `deployments.read`, `llm-providers.read` and `mcp-servers.read` name MCP read tools and are not recorded.
+
+AI Hub actions (`modules/aihub/aihub.go`), all the module's manifest declares. A dash means the action permits only the shared keys:
+
+| Action | Class | Severity | Detail keys |
+|---|---|---|---|
+| `ai-hub:portal-sync` | config | 1 info | — |
+| `ai-hub:webhook-secret-create` | credential | 4 critical | `version` |
+| `ai-hub:webhook-secret-delete` | credential | 4 critical | — |
+| `ai-hub:webhook-secret-rotate` | credential | 4 critical | `version` |
+| `ai-hub:webhook-secret-versions.delete` | credential | 4 critical | `version` |
 
 ### Sample records
 

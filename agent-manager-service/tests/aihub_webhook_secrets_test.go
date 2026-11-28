@@ -109,10 +109,12 @@ func TestWebhookSecrets(t *testing.T) {
 		t.Helper()
 		return send(t, w.internal, signedDelivery(t, secret, ref, "subscription_plan.created", portalPlan(handle)))
 	}
-	planIn := func(h http.Handler, handle string) bool {
+	// planCode is what an organization gets reading the plan: 200 when it has it, 404 when it doesn't. Any other
+	// answer fails the check it is used in.
+	planCode := func(h http.Handler, handle string) int {
 		t.Helper()
 		code, _ := w.call(t, h, http.MethodGet, plansPath+"/"+handle, nil)
-		return code == http.StatusOK
+		return code
 	}
 
 	t.Run("changes are audited fail-closed, as credential changes", func(t *testing.T) {
@@ -120,6 +122,10 @@ func TestWebhookSecrets(t *testing.T) {
 		for _, r := range w.host.Routes(aihub.Name) {
 			if strings.HasPrefix(r.Path, "/webhook-secrets") {
 				got[r.Method+" "+r.Path] = r.AuditFailClosed
+			}
+			if r.Path == "/webhook-secrets/{webhookSecretId}/versions/{version}" {
+				assert.Equal(t, aihub.Name+":"+aihub.ActionWebhookSecretVersionDelete, r.AuditAction,
+					"deleting a version is its own action, though the delete permission gates it")
 			}
 		}
 		assert.Equal(t, map[string]bool{
@@ -167,20 +173,20 @@ func TestWebhookSecrets(t *testing.T) {
 	t.Run("several portals send to one organization; a portal reference maps to it", func(t *testing.T) {
 		code, body := deliver(acme.Secret, "default", "by-ref-"+suffix)
 		require.Equal(t, http.StatusOK, code, body)
-		assert.True(t, planIn(w.full, "by-ref-"+suffix), "the secret's organization got it")
-		assert.False(t, planIn(w.other, "by-ref-"+suffix), "not the other organization with the same reference")
+		assert.Equal(t, http.StatusOK, planCode(w.full, "by-ref-"+suffix), "the secret's organization got it")
+		assert.Equal(t, http.StatusNotFound, planCode(w.other, "by-ref-"+suffix), "not the other organization with the same reference")
 
 		code, body = deliver(acme.Secret, w.org, "by-id-"+suffix)
 		require.Equal(t, http.StatusOK, code, "the organization id is accepted too: "+body)
 
 		code, body = deliver(second.Secret, w.org, "second-"+suffix)
 		require.Equal(t, http.StatusOK, code, body)
-		assert.True(t, planIn(w.full, "second-"+suffix))
+		assert.Equal(t, http.StatusOK, planCode(w.full, "second-"+suffix))
 
 		code, body = deliver(globex.Secret, "default", "globex-"+suffix)
 		require.Equal(t, http.StatusOK, code, body)
-		assert.True(t, planIn(w.other, "globex-"+suffix))
-		assert.False(t, planIn(w.full, "globex-"+suffix))
+		assert.Equal(t, http.StatusOK, planCode(w.other, "globex-"+suffix))
+		assert.Equal(t, http.StatusNotFound, planCode(w.full, "globex-"+suffix))
 	})
 
 	t.Run("a secret signs only for its organization", func(t *testing.T) {
@@ -194,8 +200,8 @@ func TestWebhookSecrets(t *testing.T) {
 			code, body := send(t, w.internal, req)
 			assert.Equal(t, http.StatusUnauthorized, code, name+": "+body)
 		}
-		assert.False(t, planIn(w.full, "x-"+suffix))
-		assert.False(t, planIn(w.other, "x-"+suffix))
+		assert.Equal(t, http.StatusNotFound, planCode(w.full, "x-"+suffix))
+		assert.Equal(t, http.StatusNotFound, planCode(w.other, "x-"+suffix))
 	})
 
 	var v2, v3 string

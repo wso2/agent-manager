@@ -69,6 +69,10 @@ const (
 // deletes a plan or a subscription.
 const ActionPortalSync = "portal-sync"
 
+// ActionWebhookSecretVersionDelete is the audit action of deleting one version of a webhook secret, which the
+// webhook-secret-delete permission gates with deleting the whole secret.
+const ActionWebhookSecretVersionDelete = "webhook-secret-versions.delete"
+
 // auditResourceWebhookSecret and auditDetailVersion name, in the audit records of webhook secret changes, the secret
 // and the version made or removed.
 const (
@@ -135,7 +139,12 @@ func (module) Manifest() modkit.Manifest {
 				Details: map[string]string{auditDetailVersion: "count"},
 			},
 			{
-				Name: PermWebhookSecretDelete, Class: "credential", Description: "Delete a developer portal webhook secret or one of its versions",
+				Name: PermWebhookSecretDelete, Class: "credential", Description: "Delete a developer portal webhook secret",
+			},
+			// Deleting one version shares the delete permission but is its own action, so its intent record,
+			// written before the handler runs, already says which operation it is.
+			{
+				Name: ActionWebhookSecretVersionDelete, Class: "credential", Description: "Delete a version of a developer portal webhook secret",
 				Details: map[string]string{auditDetailVersion: "count"},
 			},
 		},
@@ -212,7 +221,7 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 	rt.Handle(http.MethodPost, "/webhook-secrets/{webhookSecretId}/rotate", PermWebhookSecretRotate, ws.rotateSecret,
 		failClosed)
 	rt.Handle(http.MethodDelete, "/webhook-secrets/{webhookSecretId}/versions/{version}", PermWebhookSecretDelete,
-		ws.deleteSecretVersion, failClosed)
+		ws.deleteSecretVersion, modkit.Audit(ActionWebhookSecretVersionDelete), failClosed)
 	// Gateways pull the subscriptions, and the plans they are on, when they connect; the AI Gateway pushes each
 	// subscription change, after its plan, on EventSubscriptionChanged.
 	rt.Provide(subplanv1.ID, planSource{plans: plans, subscriptions: subs})

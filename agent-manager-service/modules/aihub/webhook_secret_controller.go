@@ -106,13 +106,18 @@ func webhookSecretResponseFor(s *webhookSecret, value string) webhookSecretRespo
 }
 
 func (c *webhookSecretController) createSecret(w http.ResponseWriter, r *http.Request) {
-	org, actor, ok := c.writer(w, r)
+	org, actor, ok := c.caller(w, r)
 	if !ok {
 		return
 	}
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxWebhookSecretBodyBytes))
-	if err != nil {
+	var tooLarge *http.MaxBytesError
+	switch {
+	case errors.As(err, &tooLarge):
 		c.writeError(w, http.StatusRequestEntityTooLarge, codePayloadTooLarge, "The request body is too large")
+		return
+	case err != nil:
+		c.writeError(w, http.StatusBadRequest, codeValidationFailed, "The request body could not be read")
 		return
 	}
 	var req webhookSecretCreateRequest
@@ -120,8 +125,16 @@ func (c *webhookSecretController) createSecret(w http.ResponseWriter, r *http.Re
 		c.writeError(w, http.StatusBadRequest, codeValidationFailed, "Invalid request body")
 		return
 	}
-	created, value, err := c.secrets.create(r.Context(), org, actor,
-		webhookSecretInput{Handle: req.ID, DisplayName: req.Name, OrgRef: req.OrgRef})
+	// The input is checked before the organization is set up, so a refused request changes nothing.
+	in := webhookSecretInput{Handle: req.ID, DisplayName: req.Name, OrgRef: req.OrgRef}
+	if err := in.normalize(); err != nil {
+		c.fail(w, r, err)
+		return
+	}
+	if !c.ensureOrg(w, r, org) {
+		return
+	}
+	created, value, err := c.secrets.create(r.Context(), org, actor, in)
 	if err != nil {
 		c.fail(w, r, err)
 		return
@@ -163,7 +176,7 @@ func (c *webhookSecretController) getSecret(w http.ResponseWriter, r *http.Reque
 }
 
 func (c *webhookSecretController) rotateSecret(w http.ResponseWriter, r *http.Request) {
-	org, actor, ok := c.writer(w, r)
+	org, actor, ok := c.caller(w, r)
 	if !ok {
 		return
 	}
@@ -178,7 +191,7 @@ func (c *webhookSecretController) rotateSecret(w http.ResponseWriter, r *http.Re
 }
 
 func (c *webhookSecretController) deleteSecret(w http.ResponseWriter, r *http.Request) {
-	org, _, ok := c.writer(w, r)
+	org, _, ok := c.caller(w, r)
 	if !ok {
 		return
 	}
@@ -192,7 +205,7 @@ func (c *webhookSecretController) deleteSecret(w http.ResponseWriter, r *http.Re
 }
 
 func (c *webhookSecretController) deleteSecretVersion(w http.ResponseWriter, r *http.Request) {
-	org, _, ok := c.writer(w, r)
+	org, _, ok := c.caller(w, r)
 	if !ok {
 		return
 	}
@@ -246,22 +259,21 @@ func (c *webhookSecretController) fail(w http.ResponseWriter, r *http.Request, e
 		c.writeError(w, http.StatusConflict, codeWebhookSecretLastVersion,
 			"The last version of a webhook secret can't be deleted on its own: delete the secret instead")
 	default:
-		c.log.ErrorContext(r.Context(), "webhook secret request failed", "error", err)
+		c.log.ErrorContext(r.Context(), "webhook secret request failed", "orgId", modkit.OrgID(r.Context()),
+			"webhookSecretId", r.PathValue("webhookSecretId"), "error", err)
 		c.writeError(w, http.StatusInternalServerError, codeInternal, "The request could not be processed")
 	}
 }
 
-// writer is caller, for a change: it also makes sure the core has the organization.
-func (c *webhookSecretController) writer(w http.ResponseWriter, r *http.Request) (org, actor string, ok bool) {
-	if org, actor, ok = c.caller(w, r); !ok {
-		return "", "", false
-	}
+// ensureOrg makes sure the core has the caller's organization, before a secret is created in it. The other
+// changes act on a secret that exists, so its organization does too.
+func (c *webhookSecretController) ensureOrg(w http.ResponseWriter, r *http.Request, org string) bool {
 	if _, err := c.core().EnsureOrg(r.Context(), org); err != nil {
 		c.log.ErrorContext(r.Context(), "could not read the caller's organization", "orgId", org, "error", err)
 		c.writeError(w, http.StatusInternalServerError, codeInternal, "Failed to read the organization")
-		return "", "", false
+		return false
 	}
-	return org, actor, true
+	return true
 }
 
 // caller returns the organization and the acting user of a request, as the core signed the caller in.
