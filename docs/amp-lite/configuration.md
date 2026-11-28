@@ -95,7 +95,6 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 | `THUNDER_RESOLVE_TO_HOST` | `thunder.resolve_to_host` |  | host:port the API dials ThunderID at (a container name), while THUNDER_BASE_URL stays the issuer. |
 | `THUNDER_CLIENT_ID` | `thunder.client_id` | `amp-system-client` | ThunderID client the API administers it with. Also read as `AMP_SYSTEM_CLIENT_ID`. |
 | `THUNDER_CLIENT_SECRET` | `thunder.client_secret` | `generated` | Its secret. Also read as `AMP_SYSTEM_CLIENT_SECRET`. **Secret.** |
-| `IDP_TOKEN_URL` | `idp.token_url` | `THUNDER_BASE_URL/oauth2/token` | Token endpoint for the API's own client credentials. |
 | `IDP_CLIENT_ID` | `idp.client_id` | `amp-api-client` | The API's client. Also read as `AMP_API_CLIENT_ID`. |
 | `IDP_CLIENT_SECRET` | `idp.client_secret` | `generated` | Its secret. Also read as `AMP_API_CLIENT_SECRET`. **Secret.** |
 | `AMP_CONSOLE_CLIENT_ID` | `amp.console_client_id` | `amp-console-client` | The console's client. |
@@ -243,7 +242,7 @@ modules:
 | `default_gateway_display_name` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_DISPLAY_NAME` | `Default AI Gateway` | The registered gateway's display name. |
 | `default_gateway_vhost` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_VHOST` |  | The registered gateway's virtual host, the URL agents reach it at. |
 | `default_gateway_type` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TYPE` | `BOTH` | What the registered gateway handles: INGRESS, EGRESS or BOTH. |
-| `default_gateway_org_ou_id` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_ORG_OU_ID` | `00000000-0000-0000-0000-000000000001` | The organization the registered gateway belongs to: by default the trial organization file sign-in names. Change it together with the core's default.org_ou_id. |
+| `default_gateway_org_ou_id` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_ORG_OU_ID` | `00000000-0000-0000-0000-000000000001` | The organization the registered gateway belongs to: by default the trial organization file sign-in names. Change it together with the core's default.org_ou_id; with an identity provider, set it to that provider's organization (its tokens' ouId). |
 | `default_gateway_token` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN` |  | The registered gateway's registration token; generated and kept by amp init when unset. **Secret.** |
 | `default_gateway_token_file` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN_FILE` |  | A file holding the registration token, read when DEFAULT_GATEWAY_TOKEN is unset. |
 | `a2a_card_fetch_dial_addr` | `MODULE_AI_GATEWAY_A2A_CARD_FETCH_DIAL_ADDR` |  | host:port every A2A agent card fetch dials instead of the card URL's host. |
@@ -273,8 +272,8 @@ modules:
 | `controlplane_host` | `MODULE_AI_GATEWAY_CONTROLPLANE_HOST` |  | amp init: host:port of Agent Manager's gateway listener, written into the gateway's config.toml. |
 | `admin_password` | `MODULE_AI_GATEWAY_ADMIN_PASSWORD` |  | amp init: the gateway's admin password; generated and kept when unset. **Secret.** |
 | `amp_jwks_url` | `MODULE_AI_GATEWAY_AMP_JWKS_URL` |  | amp init: Agent Manager's key set, which the gateway validates agent tokens with. |
-| `thunder_issuer` | `MODULE_AI_GATEWAY_THUNDER_ISSUER` |  | amp init: ThunderID's token issuer, as the gateway checks it. |
-| `thunder_jwks_url` | `MODULE_AI_GATEWAY_THUNDER_JWKS_URL` |  | amp init: ThunderID's key set URL, as the gateway dials it. |
+| `thunder_issuer` | `MODULE_AI_GATEWAY_THUNDER_ISSUER` |  | amp init: the platform identity provider's token issuer, seeded as the gateway's ThunderKeyManager; optional, set together with THUNDER_JWKS_URL. |
+| `thunder_jwks_url` | `MODULE_AI_GATEWAY_THUNDER_JWKS_URL` |  | amp init: that identity provider's key set URL, as the gateway dials it. |
 | `host` | `MODULE_AI_GATEWAY_HOST` |  | amp init: the gateway's public host name, for MCP auth metadata and its listener certificate. |
 | `listener_port` | `MODULE_AI_GATEWAY_LISTENER_PORT` | `19080` | amp init: the gateway's listener port. |
 | `file_owner` | `MODULE_AI_GATEWAY_FILE_OWNER` |  | amp init: uid:gid the gateway's files are given. |

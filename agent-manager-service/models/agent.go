@@ -17,7 +17,6 @@
 package models
 
 import (
-	"strings"
 	"time"
 )
 
@@ -80,30 +79,6 @@ const (
 	// validated token header is forwarded to the upstream service unless disabled.
 	DefaultOAuthForwardToken = true
 )
-
-// ReservedIdentityProviderName is the gateway identity provider used internally
-// for platform trace ingestion auth. It lives in the gateway runtime config but
-// is hidden from users: never mirrored into AMS, never shown in the UI, and never
-// offered as an agent OAuth issuer.
-const ReservedIdentityProviderName = "agent-manager-service"
-
-// SystemIdentityProviderNames are the well-known identity providers seeded with
-// the platform. They are mirrored with type=system and cannot be deleted.
-var SystemIdentityProviderNames = map[string]bool{
-	"ThunderKeyManager": true,
-}
-
-// EnvThunderIdentityProviderPrefix matches the env-Thunder release names
-// (amp-thunder-<org>-<env>) that the gateway bootstrap job seeds as identity
-// providers. Must stay in sync with thundersvc.ThunderReleaseName and
-// deployments/scripts/thunder-naming.sh.
-const EnvThunderIdentityProviderPrefix = "amp-thunder-"
-
-// IsSystemIdentityProvider reports whether the given identity provider name is a
-// platform-seeded system provider.
-func IsSystemIdentityProvider(name string) bool {
-	return SystemIdentityProviderNames[name] || strings.HasPrefix(name, EnvThunderIdentityProviderPrefix)
-}
 
 type OAuthConfig struct {
 	Issuers          []string `json:"issuers,omitempty"`

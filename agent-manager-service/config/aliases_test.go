@@ -73,7 +73,7 @@ func TestAliasFallback(t *testing.T) {
 
 func TestDerivedDefaults(t *testing.T) {
 	reloadAfter(t)
-	unset(t, "KEY_MANAGER_JWKS_URL", "KEY_MANAGER_ISSUER", "KEY_MANAGER_AUDIENCE", "IDP_TOKEN_URL",
+	unset(t, "KEY_MANAGER_JWKS_URL", "KEY_MANAGER_ISSUER", "KEY_MANAGER_AUDIENCE",
 		"IDP_CLIENT_ID", "THUNDER_CLIENT_ID", "OAUTH_AUTHORIZATION_SERVERS", "THUNDER_RESOLVE_TO_HOST",
 		"SERVER_PUBLIC_URL", "THUNDER_BASE_URL", "PLATFORM_ADMIN_OU_ID", "AUTH_MODE",
 		"FILE_AUTH_USERS_PATH", "SERVER_PORT")
@@ -92,7 +92,6 @@ file_auth: {users_path: /tmp/users.yaml}
 		"urn:wso2:amp", "localhost", "amp-api-client", "amp-console-client", "amctl", "am-mcp",
 		"http://localhost:9000/mcp",
 	}, c.KeyManagerConfigurations.Audience)
-	assert.Equal(t, "http://thunder:8080/oauth2/token", c.IDP.TokenURL)
 	assert.Equal(t, "amp-api-client", c.IDP.ClientID)
 	assert.Equal(t, "amp-system-client", c.Thunder.ClientID)
 	assert.Equal(t, []string{"http://thunder.amp.localhost:8080"}, c.OAuthAuthorizationServers)

@@ -239,7 +239,6 @@ type GitHubConfig struct {
 }
 
 type IDPConfig struct {
-	TokenURL     string
 	ClientID     string
 	ClientSecret string `json:"-"`
 }

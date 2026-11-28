@@ -37,13 +37,11 @@ func (r ApiDeleteGatewayIdentityProviderRequest) Execute() (*http.Response, erro
 DeleteGatewayIdentityProvider Delete a gateway identity provider
 
 Remove an identity provider from the gateway's AMS mirror. As with upsert, the
-gateway runtime configuration must be patched separately. System identity
-providers (e.g. ThunderKeyManager) cannot be deleted.
+key manager entry must also be removed from the gateway's config.toml. System
+identity providers (e.g. ThunderKeyManager) cannot be deleted.
 
 Sharp edge: deleting only the mirror row leaves the issuer trusted by the
-gateway at runtime, and re-adding it elsewhere can mask the divergence. Use
-the manage-identity-provider script (ACTION=delete) so the mirror and the
-gateway runtime stay in sync.
+gateway at runtime, and re-adding it elsewhere can mask the divergence.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param gatewayID Gateway UUID or name
@@ -605,16 +603,14 @@ UpsertGatewayIdentityProvider Upsert a gateway identity provider
 Create or update an identity provider in the gateway's AMS mirror.
 
 This endpoint only updates the mirror used by the console and agent OAuth
-configuration. The gateway runtime configuration (ConfigMap) is the source
-of truth and must be patched separately via the manage-identity-provider
-script. The console renders that command rather than calling this endpoint
-directly.
+configuration. The gateway's own config.toml is the source of truth: add
+the provider's key manager entry there (the console generates it) and
+restart the gateway.
 
-Sharp edge: writing to the mirror without also patching the gateway runtime
-makes the two diverge. Agent OAuth deploy-time validation only checks the
-mirror, so an agent referencing a mirror-only issuer will deploy successfully
-while the gateway rejects every token at runtime. Use the
-manage-identity-provider script to keep them in sync.
+Sharp edge: writing to the mirror without also changing the gateway's
+config.toml makes the two diverge. Agent OAuth deploy-time validation only
+checks the mirror, so an agent referencing a mirror-only issuer will deploy
+successfully while the gateway rejects every token at runtime.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param gatewayID Gateway UUID or name

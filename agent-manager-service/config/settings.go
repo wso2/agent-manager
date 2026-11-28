@@ -100,7 +100,6 @@ var Settings = []Setting{
 	{Key: "THUNDER_RESOLVE_TO_HOST", Group: "Identity provider (ThunderID)", Default: "", Description: "host:port the API dials ThunderID at (a container name), while THUNDER_BASE_URL stays the issuer."},
 	{Key: "THUNDER_CLIENT_ID", Group: "Identity provider (ThunderID)", Default: "amp-system-client", Description: "ThunderID client the API administers it with."},
 	{Key: "THUNDER_CLIENT_SECRET", Group: "Identity provider (ThunderID)", Default: "generated", Description: "Its secret.", Secret: true},
-	{Key: "IDP_TOKEN_URL", Group: "Identity provider (ThunderID)", Default: "THUNDER_BASE_URL/oauth2/token", Description: "Token endpoint for the API's own client credentials."},
 	{Key: "IDP_CLIENT_ID", Group: "Identity provider (ThunderID)", Default: "amp-api-client", Description: "The API's client."},
 	{Key: "IDP_CLIENT_SECRET", Group: "Identity provider (ThunderID)", Default: "generated", Description: "Its secret.", Secret: true},
 	{Key: "AMP_CONSOLE_CLIENT_ID", Group: "Identity provider (ThunderID)", Default: "amp-console-client", Description: "The console's client."},
