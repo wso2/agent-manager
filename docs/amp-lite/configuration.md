@@ -124,6 +124,10 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 | `SECRET_VAULT_PROVIDER` | `secret.vault_provider` | `local` | The vault that seals stored secrets. |
 | `SECRET_VAULT_READERS` | `secret.vault_readers` |  | Other vaults kept for reading and cleanup, comma-separated. |
 | `SECRET_VAULT_BIND_LOCAL_ROWS` | `secret.vault_bind_local_rows` | `false` | Bind each locally sealed secret to its row. |
+| `OPENBAO_ADDR` | `openbao.addr` |  | Origin of a standalone OpenBao server, with SECRET_VAULT_PROVIDER=openbao: https://, or http:// only on a loopback host. |
+| `OPENBAO_TOKEN` | `openbao.token` |  | OpenBao token limited to the policy in vault/openbao/policy.hcl. **Secret.** |
+| `OPENBAO_KV_MOUNT` | `openbao.kv_mount` | `secret` | OpenBao KV v2 mount AMP stores secrets in; use one per deployment. |
+| `OPENBAO_ALLOW_INSECURE_HTTP` | `openbao.allow_insecure_http` | `false` | Allow plain http:// to a non-loopback OpenBao host. Sends the token unencrypted: disposable development servers only. |
 | `GITHUB_TOKEN` | `github.token` |  | GitHub token for repository API calls. **Secret.** |
 
 ## Events
@@ -251,6 +255,7 @@ modules:
 | `default_gateway_org_ou_id` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_ORG_OU_ID` | `00000000-0000-0000-0000-000000000001` | The organization the registered gateway belongs to: by default the trial organization file sign-in names. Change it together with the core's default.org_ou_id; with an identity provider, set it to that provider's organization (its tokens' ouId). |
 | `default_gateway_token` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN` |  | The registered gateway's registration token; generated and kept by amp init when unset. **Secret.** |
 | `default_gateway_token_file` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN_FILE` |  | A file holding the registration token, read when DEFAULT_GATEWAY_TOKEN is unset. |
+| `default_gateway_secret_delivery` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_SECRET_DELIVERY` | `inline` | How the registered gateway receives credentials: inline in its artifacts, or reference, fetched into its encrypted secret store. |
 | `a2a_card_fetch_dial_addr` | `MODULE_AI_GATEWAY_A2A_CARD_FETCH_DIAL_ADDR` |  | host:port every A2A agent card fetch dials instead of the card URL's host. |
 | `manifest_cache_backend` | `MODULE_AI_GATEWAY_MANIFEST_CACHE_BACKEND` | `memory` | Where deployment manifests are cached: memory or redis. |
 | `manifest_cache_redis_host` | `MODULE_AI_GATEWAY_MANIFEST_CACHE_REDIS_HOST` |  | Redis host for the manifest cache. |

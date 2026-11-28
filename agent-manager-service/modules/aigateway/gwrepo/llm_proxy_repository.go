@@ -137,7 +137,14 @@ func (r *LLMProxyRepo) getProxyUUIDByHandle(tx *gorm.DB, handle string, ouID str
 // caught by Delete's own HasAssociatedProxies check). There is no interleaving
 // where the proxy is inserted without either side observing the other.
 func (r *LLMProxyRepo) Create(ctx context.Context, p *gwmodels.LLMProxy, handle, name, version string, ouID string) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
+	if p.UUID == uuid.Nil {
+		p.UUID = uuid.Must(uuid.NewV7())
+	}
+	ctx, err := gwsecret.Prepare(ctx, r.secrets, ouID, gwsecret.LLMProxy(p.UUID), p.Configuration.UpstreamAuth)
+	if err != nil {
+		return err
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		deleting, err := r.providerRepo.IsDeletingForUpdate(ctx, tx, p.ProviderUUID)
 		if err != nil {
 			return fmt.Errorf("failed to check provider deleting status: %w", err)
@@ -146,9 +153,6 @@ func (r *LLMProxyRepo) Create(ctx context.Context, p *gwmodels.LLMProxy, handle,
 			return gwerr.ErrLLMProviderBeingDeleted
 		}
 
-		if p.UUID == uuid.Nil {
-			p.UUID = uuid.Must(uuid.NewV7())
-		}
 		p.OrgID = ouID
 		if p.Status == "" {
 			p.Status = gwmodels.StatusCreated
@@ -321,13 +325,22 @@ func (r *LLMProxyRepo) CountByProvider(ouID, providerUUID string) (int, error) {
 
 // Update modifies an existing LLM proxy
 func (r *LLMProxyRepo) Update(p *gwmodels.LLMProxy, handle string, ouID string) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Get the proxy UUID from handle
-		proxyUUID, err := r.getProxyUUIDByHandle(tx, handle, ouID)
+	proxyUUID, err := r.getProxyUUIDByHandle(r.db, handle, ouID)
+	if err != nil {
+		return err
+	}
+	ctx, err := gwsecret.Prepare(r.db.Statement.Context, r.secrets, ouID, gwsecret.LLMProxy(proxyUUID), p.Configuration.UpstreamAuth)
+	if err != nil {
+		return err
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		current, err := r.getProxyUUIDByHandle(tx, handle, ouID)
 		if err != nil {
 			return err
 		}
-
+		if current != proxyUUID {
+			return gorm.ErrRecordNotFound
+		}
 		if err := gwsecret.Seal(tx.Statement.Context, r.secrets.In(tx), ouID, gwsecret.LLMProxy(proxyUUID), p.Configuration.UpstreamAuth); err != nil {
 			return err
 		}

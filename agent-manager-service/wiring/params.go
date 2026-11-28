@@ -39,10 +39,14 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/vault"
+
+	_ "github.com/wso2/agent-manager/agent-manager-service/vault/openbao" // Register the standalone vault provider.
 )
 
 // AppParams contains all wired application dependencies
 type AppParams struct {
+	// SecretVaults are checked by the health probe.
+	SecretVaults *vault.Vaults
 	// Middleware
 	AuthMiddleware jwtassertion.Middleware
 	Logger         *slog.Logger

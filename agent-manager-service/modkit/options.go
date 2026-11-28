@@ -202,9 +202,20 @@ type MCPToolHandler func(ctx context.Context, args json.RawMessage) (any, error)
 // core's key. A module addresses its secrets by a path of its own
 // ("providers/<id>/api-key"); paths are the module's, so it can never read or
 // overwrite another module's secrets or the core's. Every secret belongs to
-// one organization. Called with a hook's ctx, they read and write through the
-// hook's transaction.
+// one organization. Called with a hook's ctx, they read and delete through
+// the hook's transaction.
+//
+// An external vault (SECRET_VAULT_PROVIDER other than local) is written
+// before the SQL transaction that records the value. To Put inside a
+// transaction (In or a hook's), first call Prepare with the same orgID, path
+// and value outside any transaction, and pass the context it returns to Put.
+// Prepare is a no-op for the local vault. A hook has no moment outside its
+// transaction, so it can read and delete secrets but cannot Put them under
+// an external vault.
 type Secrets interface {
+	// Prepare stages value for a later Put of the same path inside a
+	// transaction. Call it outside any transaction.
+	Prepare(ctx context.Context, orgID, path, value string) (context.Context, error)
 	// Put stores value at path, replacing what is there.
 	Put(ctx context.Context, orgID, path, value string) error
 	// Get returns the value at path, or ErrNotFound.
@@ -214,6 +225,15 @@ type Secrets interface {
 	// In returns Secrets that read and write through tx, so a change commits
 	// or rolls back with the module's own transaction.
 	In(tx *gorm.DB) Secrets
+}
+
+// SecretCreator is implemented by Secrets that can store a path's first value atomically, for a value every replica
+// must agree on, such as a key generated on first use.
+type SecretCreator interface {
+	// Create stores value at path unless path holds one, and returns what path holds afterwards: value, or what a
+	// concurrent Create stored first. Concurrent Creates of one path all return the same value. Like Put, it needs
+	// Prepare first when called inside a transaction under an external vault.
+	Create(ctx context.Context, orgID, path, value string) (string, error)
 }
 
 // APIDescriber is implemented by modules that describe the routes they mount

@@ -269,6 +269,23 @@ func (s moduleSecrets) check(ctx context.Context, orgID, path string, write bool
 	return st, tx, kind, owner, err
 }
 
+func (s moduleSecrets) Prepare(ctx context.Context, orgID, path, value string) (context.Context, error) {
+	st, tx, kind, owner, err := s.check(ctx, orgID, path, true)
+	if err != nil {
+		return ctx, err
+	}
+	preparer, ok := st.(interface {
+		Prepare(context.Context, string, string, uuid.UUID, string) (context.Context, error)
+	})
+	if !ok {
+		return ctx, nil
+	}
+	if tx != nil {
+		return ctx, errors.New("module secret preparation requires a context outside the transaction")
+	}
+	return preparer.Prepare(ctx, orgID, kind, owner, value)
+}
+
 func (s moduleSecrets) Put(ctx context.Context, orgID, path, value string) error {
 	if value == "" {
 		return errors.New("modkit: a secret value cannot be empty; use Delete")
@@ -278,6 +295,24 @@ func (s moduleSecrets) Put(ctx context.Context, orgID, path, value string) error
 		return err
 	}
 	return st.Put(ctx, tx, orgID, kind, owner, value)
+}
+
+// Create stores value at path unless path holds one; see modkit.SecretCreator.
+func (s moduleSecrets) Create(ctx context.Context, orgID, path, value string) (string, error) {
+	if value == "" {
+		return "", errors.New("modkit: a secret value cannot be empty")
+	}
+	st, tx, kind, owner, err := s.check(ctx, orgID, path, true)
+	if err != nil {
+		return "", err
+	}
+	creator, ok := st.(interface {
+		Create(context.Context, *gorm.DB, string, string, uuid.UUID, string) (string, error)
+	})
+	if !ok {
+		return "", modkit.ErrNotImplemented
+	}
+	return creator.Create(ctx, tx, orgID, kind, owner, value)
 }
 
 func (s moduleSecrets) Get(ctx context.Context, orgID, path string) (string, error) {

@@ -272,6 +272,9 @@ func (s *PlatformGatewayService) RegisterGateway(
 	if err != nil {
 		return nil, err
 	}
+	if err := validateSecretDeliveryProperty(properties); err != nil {
+		return nil, err
+	}
 
 	// 3. Check gateway name uniqueness within organization
 	existing, err := s.gatewayRepo.GetByNameAndOrgID(name, ouID)
@@ -523,6 +526,9 @@ func (s *PlatformGatewayService) UpdateGateway(
 		gateway.IsCritical = *isCritical
 	}
 	if properties != nil {
+		if err := validateSecretDeliveryProperty(*properties); err != nil {
+			return nil, err
+		}
 		gateway.Properties = *properties
 	}
 	// The address is mutable — unlike the role it is a fact about placement, so a stale

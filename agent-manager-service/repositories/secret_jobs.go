@@ -75,6 +75,9 @@ type SecretJobRunner struct {
 	vaults         *vault.Vaults
 	logger         *slog.Logger
 	attemptTimeout time.Duration
+	// orgID, when set, limits the runner to one organization's jobs. Tests use it so a runner never claims the jobs
+	// another test left behind.
+	orgID string
 }
 
 // NewSecretJobRunner runs secret jobs against db with the deployment's vaults.
@@ -91,6 +94,9 @@ func (r *SecretJobRunner) RunOnce(ctx context.Context, now time.Time) (ran, fail
 		Table: models.SecretJob{}.TableName(),
 		Key:   []string{"id"},
 		Due: func(q *gorm.DB) *gorm.DB {
+			if r.orgID != "" {
+				q = q.Where("org_id = ?", r.orgID)
+			}
 			return q.Where("available_at <= ?", now).Order("available_at, id")
 		},
 		Limit: secretJobBatch,
@@ -180,6 +186,22 @@ func (r *SecretJobRunner) run(ctx context.Context, job *secretJobAttempt) error 
 		return r.destroy(ctx, job)
 	case models.SecretJobPromote:
 		return r.promote(ctx, job)
+	case models.SecretJobAbandon:
+		if job.Provider == nil || job.ExternalRef == nil {
+			return errors.New("abandon job is missing its vault reference")
+		}
+		backend, err := r.vaults.For(*job.Provider)
+		if err != nil {
+			return err
+		}
+		external, ok := backend.(vault.ReferenceVault)
+		if !ok {
+			return errors.New("vault cannot abandon staged references")
+		}
+		if err := external.Abandon(ctx, jobRef(job.SecretJob), *job.ExternalRef); err != nil {
+			return err
+		}
+		return r.finishQueueing(ctx, job)
 	default:
 		return fmt.Errorf("unknown secret job action %q", job.Action)
 	}

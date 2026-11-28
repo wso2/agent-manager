@@ -37,6 +37,7 @@ func TestDefaults(t *testing.T) {
 	assert.Equal(t, 1000, s.WebSocket.MaxConnections)
 	assert.Equal(t, "*", s.AgentCORS.AllowOrigin)
 	assert.Empty(t, s.DefaultGateway.Name, "no default gateway unless named")
+	assert.Equal(t, "inline", s.DefaultGateway.SecretDelivery)
 }
 
 func TestInvalidSettings(t *testing.T) {
@@ -54,6 +55,7 @@ func TestInvalidSettings(t *testing.T) {
 		"credentials for any origin":  {map[string]string{"AGENT_CORS_ALLOW_CREDENTIALS": "true"}, "AGENT_CORS_ALLOW_CREDENTIALS"},
 		"default gateway with no url": {map[string]string{"DEFAULT_GATEWAY_NAME": "default"}, "DEFAULT_GATEWAY_VHOST"},
 		"dial address without a port": {map[string]string{"A2A_CARD_FETCH_DIAL_ADDR": "gateway-runtime"}, "A2A_CARD_FETCH_DIAL_ADDR"},
+		"unknown secret delivery":     {map[string]string{"DEFAULT_GATEWAY_SECRET_DELIVERY": "vault"}, "DEFAULT_GATEWAY_SECRET_DELIVERY"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

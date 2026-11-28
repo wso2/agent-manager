@@ -146,6 +146,10 @@ var gatewayInternalRoutes = []string{
 	"GET /llm-proxies/{proxyId}",
 	"GET /mcp-proxies/{proxyId}",
 	"GET /agents/{agentId}",
+	// Authenticated by the gateway's api-key inside the handler, and scoped to the secrets the calling gateway's
+	// own deployed artifacts refer to.
+	"GET /secrets",
+	"GET /secrets/{handle}/value",
 }
 
 func init() {

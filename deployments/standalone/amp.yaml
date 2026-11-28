@@ -39,11 +39,29 @@ db:
 events:
   mode: embedded
 
+# Stored secrets are sealed into the database with ENCRYPTION_KEY. To keep
+# them in a standalone OpenBao KV v2 server instead, put its token in
+# secrets/openbao-token next to this file, then uncomment and fill in
+# (README: Store secrets in OpenBao):
+# secret:
+#   vault_provider: openbao
+# openbao:
+#   addr: https://openbao.example.com:8200
+#   token: "${file:/run/secrets/openbao-token}"
+#   kv_mount: secret
+
 console:
   docs_url: https://wso2.com/agent-platform/docs/next
   # Console UI modules to turn on besides those the API's modules offer,
   # e.g. "agent-runtime agent-portal".
   ui_modules_enable: ""
+
+# How the bundled gateway receives credentials: inline (plaintext in its
+# artifacts) or reference (it fetches each one into its encrypted secret
+# store). Applied on every start; redeploy artifacts after changing.
+# module:
+#   ai_gateway:
+#     default_gateway_secret_delivery: reference
 
 # Modules are managed with `amp module ...`; ai-gateway is installed on first
 # start. A modules: list here would instead be applied at every boot.

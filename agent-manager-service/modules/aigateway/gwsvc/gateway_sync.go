@@ -92,13 +92,14 @@ func (s *GatewayInternalAPIService) FetchDeploymentBatch(
 	if err != nil {
 		return nil, err
 	}
+	replace := s.secretReplacerFor(ctx, ouID, gatewayID)
 	batch := make([]gwutil.BatchDeployment, 0, len(contents))
 	for _, c := range contents {
 		kind, artifactID, ok := s.artifacts.GatewayArtifact(c.ArtifactRef)
 		if !ok {
 			continue
 		}
-		resolved, err := s.resolveSecretsFor(ctx, ouID, kind, string(c.Content))
+		resolved, err := replaceSecretsFor(kind, string(c.Content), replace)
 		if err != nil {
 			slog.Error("GatewayInternalAPIService: leaving a deployment out of the gateway's batch: its secrets can't be resolved",
 				"deploymentID", c.DeploymentID, "artifactUUID", c.ArtifactUUID, "gatewayID", gatewayID, "error", err)
@@ -111,16 +112,23 @@ func (s *GatewayInternalAPIService) FetchDeploymentBatch(
 	return batch, nil
 }
 
-// resolveSecretsFor reads the organization's secrets a deployment's YAML refers to, by the kind the gateway knows
-// the artifact as.
-func (s *GatewayInternalAPIService) resolveSecretsFor(ctx context.Context, ouID, gatewayKind, content string) (string, error) {
+// resolveSecretsFor rewrites the secretRefs of a deployment's YAML for the gateway that fetches it, by the kind the
+// gateway knows the artifact as: to the plaintext, or to {{ secret }} placeholders when the gateway takes secrets by
+// reference.
+func (s *GatewayInternalAPIService) resolveSecretsFor(ctx context.Context, ouID, gatewayID, gatewayKind, content string) (string, error) {
+	return replaceSecretsFor(gatewayKind, content, s.secretReplacerFor(ctx, ouID, gatewayID))
+}
+
+// replaceSecretsFor rewrites the secretRefs of a deployment of gatewayKind with replace: the auth block of an LLM
+// provider or proxy, and every secretRef of any other kind.
+func replaceSecretsFor(gatewayKind, content string, replace secretReplacer) (string, error) {
 	switch gatewayKind {
 	case gwmodels.KindLLMProvider:
-		return s.resolveSecretsInYAML(ctx, ouID, content, "upstream.auth")
+		return resolveSecretsInYAML(content, "upstream.auth", replace)
 	case gwmodels.KindLLMProxy:
-		return s.resolveSecretsInYAML(ctx, ouID, content, "provider.auth")
+		return resolveSecretsInYAML(content, "provider.auth", replace)
 	default:
-		return s.resolveAllSecretsInYAML(ctx, ouID, content)
+		return resolveAllSecretsInYAML(content, replace)
 	}
 }
 

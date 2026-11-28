@@ -96,7 +96,10 @@ var (
 	ErrMCPProxyNotFound            = errors.New("MCP proxy not found")
 	// ErrAgentArtifactNotFound means no active Agent deployment exists for this
 	// artifact on this gateway.
-	ErrAgentArtifactNotFound     = errors.New("agent artifact not found")
+	ErrAgentArtifactNotFound = errors.New("agent artifact not found")
+	// ErrGatewaySecretNotFound means no artifact deployed to the gateway refers to the secret handle it asked for,
+	// or the gateway doesn't take secrets by reference.
+	ErrGatewaySecretNotFound     = errors.New("secret not found for this gateway")
 	ErrMCPProxyExists            = errors.New("MCP proxy already exists")
 	ErrMCPProxyHasMappings       = errors.New("cannot delete MCP proxy: it has associated MCP proxy mappings. Please delete all mappings before deleting the proxy")
 	ErrMCPEnvAlreadyBound        = errors.New("environment is already assigned to another endpoint in this MCP proxy")

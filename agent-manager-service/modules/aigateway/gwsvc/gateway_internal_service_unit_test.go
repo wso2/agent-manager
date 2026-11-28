@@ -151,7 +151,8 @@ func TestActiveAgentDeploymentResolvesTheUpstreamSecret(t *testing.T) {
 			return &gwmodels.Deployment{Content: []byte(stored)}, nil
 		},
 	}
-	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, secrets, gatewayKinds())
+	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, gatewayWithDelivery(gwmodels.SecretDeliveryInline), nil,
+		secrets, gatewayKinds())
 
 	got, err := svc.GetActiveAgentDeploymentByGateway(context.Background(), testArtifactID, "ou-1", "gw-1")
 	require.NoError(t, err)

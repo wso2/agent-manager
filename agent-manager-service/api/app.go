@@ -129,7 +129,7 @@ func MakeHTTPHandlerWithModules(params *wiring.AppParams, extraAPIRoutes func(*h
 	mux := http.NewServeMux()
 
 	// Register health check
-	registerHealthCheck(mux)
+	registerHealthCheck(mux, params.SecretVaults)
 
 	// Register JWKS endpoint at root level (no authentication required)
 	registerJWKSRoute(mux, params.AgentTokenController)

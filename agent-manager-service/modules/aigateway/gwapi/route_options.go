@@ -130,4 +130,8 @@ var internalRouteOptions = map[string][]modkit.RouteOption{
 	"POST /deployments/fetch-batch":       {modkit.Audit("deployments.sync")},
 	"POST /artifacts/exists":              {modkit.Audit("artifacts.check-exists")},
 	"POST /gateways/{gatewayId}/manifest": {modkit.Audit("gateways.push-manifest")},
+	// Both hand plaintext credentials to the gateway, as deployments.sync does for a gateway that takes them
+	// inline, and are recorded the same way. A gateway lists them once per connection.
+	"GET /secrets":                {modkit.Audit("secrets.sync")},
+	"GET /secrets/{handle}/value": {modkit.Audit("secrets.read")},
 }

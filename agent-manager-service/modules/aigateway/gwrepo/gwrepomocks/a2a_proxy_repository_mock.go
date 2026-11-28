@@ -46,6 +46,9 @@ import (
 //			LockAgentEnvFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) error {
 //				panic("mock out the LockAgentEnv method")
 //			},
+//			PrepareUpstreamFunc: func(ctx context.Context, org string, project string, agent string, env uuid.UUID, value string) (context.Context, uuid.UUID, error) {
+//				panic("mock out the PrepareUpstream method")
+//			},
 //			UpsertFunc: func(ctx context.Context, proxy *gwmodels.A2AProxy) error {
 //				panic("mock out the Upsert method")
 //			},
@@ -85,6 +88,9 @@ type A2AProxyRepositoryMock struct {
 
 	// LockAgentEnvFunc mocks the LockAgentEnv method.
 	LockAgentEnvFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) error
+
+	// PrepareUpstreamFunc mocks the PrepareUpstream method.
+	PrepareUpstreamFunc func(ctx context.Context, org string, project string, agent string, env uuid.UUID, value string) (context.Context, uuid.UUID, error)
 
 	// UpsertFunc mocks the Upsert method.
 	UpsertFunc func(ctx context.Context, proxy *gwmodels.A2AProxy) error
@@ -193,6 +199,21 @@ type A2AProxyRepositoryMock struct {
 			// EnvironmentUUID is the environmentUUID argument value.
 			EnvironmentUUID uuid.UUID
 		}
+		// PrepareUpstream holds details about calls to the PrepareUpstream method.
+		PrepareUpstream []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Org is the org argument value.
+			Org string
+			// Project is the project argument value.
+			Project string
+			// Agent is the agent argument value.
+			Agent string
+			// Env is the env argument value.
+			Env uuid.UUID
+			// Value is the value argument value.
+			Value string
+		}
 		// Upsert holds details about calls to the Upsert method.
 		Upsert []struct {
 			// Ctx is the ctx argument value.
@@ -215,6 +236,7 @@ type A2AProxyRepositoryMock struct {
 	lockListEnvironmentUUIDs sync.RWMutex
 	lockListForEnvironment   sync.RWMutex
 	lockLockAgentEnv         sync.RWMutex
+	lockPrepareUpstream      sync.RWMutex
 	lockUpsert               sync.RWMutex
 	lockWithTx               sync.RWMutex
 }
@@ -612,6 +634,58 @@ func (mock *A2AProxyRepositoryMock) LockAgentEnvCalls() []struct {
 	mock.lockLockAgentEnv.RLock()
 	calls = mock.calls.LockAgentEnv
 	mock.lockLockAgentEnv.RUnlock()
+	return calls
+}
+
+// PrepareUpstream calls PrepareUpstreamFunc.
+func (mock *A2AProxyRepositoryMock) PrepareUpstream(ctx context.Context, org string, project string, agent string, env uuid.UUID, value string) (context.Context, uuid.UUID, error) {
+	if mock.PrepareUpstreamFunc == nil {
+		panic("A2AProxyRepositoryMock.PrepareUpstreamFunc: method is nil but A2AProxyRepository.PrepareUpstream was just called")
+	}
+	callInfo := struct {
+		Ctx     context.Context
+		Org     string
+		Project string
+		Agent   string
+		Env     uuid.UUID
+		Value   string
+	}{
+		Ctx:     ctx,
+		Org:     org,
+		Project: project,
+		Agent:   agent,
+		Env:     env,
+		Value:   value,
+	}
+	mock.lockPrepareUpstream.Lock()
+	mock.calls.PrepareUpstream = append(mock.calls.PrepareUpstream, callInfo)
+	mock.lockPrepareUpstream.Unlock()
+	return mock.PrepareUpstreamFunc(ctx, org, project, agent, env, value)
+}
+
+// PrepareUpstreamCalls gets all the calls that were made to PrepareUpstream.
+// Check the length with:
+//
+//	len(mockedA2AProxyRepository.PrepareUpstreamCalls())
+func (mock *A2AProxyRepositoryMock) PrepareUpstreamCalls() []struct {
+	Ctx     context.Context
+	Org     string
+	Project string
+	Agent   string
+	Env     uuid.UUID
+	Value   string
+} {
+	var calls []struct {
+		Ctx     context.Context
+		Org     string
+		Project string
+		Agent   string
+		Env     uuid.UUID
+		Value   string
+	}
+	mock.lockPrepareUpstream.RLock()
+	calls = mock.calls.PrepareUpstream
+	mock.lockPrepareUpstream.RUnlock()
 	return calls
 }
 

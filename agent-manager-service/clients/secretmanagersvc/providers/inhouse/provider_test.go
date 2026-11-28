@@ -36,6 +36,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/vault"
 	"github.com/wso2/agent-manager/agent-manager-service/vault/vaulttest"
 )
 
@@ -196,7 +197,7 @@ func TestConcurrentPatchesKeepEveryKey(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.DeleteSecret(ctx, loc, "") })
 
-	const patchCount = 8
+	const patchCount = 16
 	start := make(chan struct{})
 	results := make(chan error, patchCount)
 	for i := range patchCount {
@@ -284,6 +285,60 @@ func TestPatchingAPromotedSecretKeepsEveryKey(t *testing.T) {
 	_, err = client.PatchSecret(ctx, loc, map[string]string{"b": "2"}, nil)
 	require.NoError(t, err)
 	info, err := client.GetSecret(ctx, ref)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a", "b"}, info.Keys)
+}
+
+// After writes move back to the local vault, patching a secret whose value is still external must read it outside
+// the row lock: on SQLite that lock is the database's write lock, which a vault request would hold for its duration.
+func TestPatchingAnExternalSecretAfterMovingBackToLocalReadsOutsideTheLock(t *testing.T) {
+	ctx := context.Background()
+	vaults, external := vaulttest.LocalAndExternal(t)
+	newClientOf := func(vaults *vault.Vaults) secretmanagersvc.SecretManagementClient {
+		client, err := secretmanagersvc.NewSecretManagementClient(&secretmanagersvc.StoreConfig{
+			Provider: inhouse.ProviderName,
+			DB:       db.GetDB(),
+			Secrets:  repositories.NewSecretStore(vaults),
+		}, inhouse.NewProvider())
+		require.NoError(t, err)
+		return client
+	}
+	client := newClientOf(vaults)
+	runner := repositories.NewSecretJobRunner(db.GetDB(), vaults, slog.New(slog.DiscardHandler))
+	promote := func() {
+		t.Helper()
+		_, failed, err := runner.RunOnce(ctx, time.Now().UTC())
+		require.NoError(t, err)
+		require.Zero(t, failed)
+	}
+	org := dbtest.Org(t, db.GetDB())
+	loc := secretmanagersvc.SecretLocation{OrgName: org, EntityName: "moved-back"}
+	ref, err := client.CreateSecret(ctx, loc, map[string]string{"a": "1"})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.DeleteSecret(ctx, loc, ""); promote() })
+	promote()
+	var row models.Secret
+	require.NoError(t, db.GetDB().Where("org_id = ? AND provider = ?", org, vaulttest.ExternalProvider).First(&row).Error,
+		"precondition: the secret lives in the external vault")
+
+	local, err := vault.NewLocal(vaulttest.Key)
+	require.NoError(t, err)
+	localWrites := newClientOf(vault.Of(local, external))
+	var lockedDuringRead []error
+	external.OnOpen = func() {
+		probe, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
+		lockedDuringRead = append(lockedDuringRead,
+			db.GetDB().WithContext(probe).Exec("UPDATE secrets SET version = version WHERE id = ?", row.ID).Error)
+	}
+	_, err = localWrites.PatchSecret(ctx, loc, map[string]string{"b": "2"}, nil)
+	external.OnOpen = nil
+	require.NoError(t, err)
+	require.NotEmpty(t, lockedDuringRead, "the patch read the external value")
+	for _, err := range lockedDuringRead {
+		assert.NoError(t, err, "the external value was read while the secret's row was locked")
+	}
+	info, err := localWrites.GetSecret(ctx, ref)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"a", "b"}, info.Keys)
 }

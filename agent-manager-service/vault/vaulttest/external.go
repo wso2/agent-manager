@@ -51,6 +51,8 @@ type External struct {
 	FailDestroy int
 	// Destroyed lists every reference Destroy removed, in order.
 	Destroyed []string
+	// OnOpen, when set, runs at the start of every Open, outside the vault's lock.
+	OnOpen func()
 }
 
 var _ vault.ExternalVault = (*External)(nil)
@@ -94,6 +96,9 @@ func (e *External) Seal(ctx context.Context, ref vault.Ref, plaintext []byte, _ 
 }
 
 func (e *External) Open(_ context.Context, _ vault.Ref, sealed vault.Sealed) ([]byte, error) {
+	if e.OnOpen != nil {
+		e.OnOpen()
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	value, ok := e.versions[sealed.ExternalRef]

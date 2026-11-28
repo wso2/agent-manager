@@ -82,7 +82,7 @@ func (s *DefaultGatewaySeeder) Seed(ctx context.Context) error {
 	switch {
 	case errors.Is(err, gwerr.ErrGatewayNotFound) || (err == nil && gateway == nil):
 		created, regErr := s.gateways.RegisterGateway(ouID, s.cfg.Name, s.cfg.DisplayName, "", s.cfg.Vhost, "",
-			false, s.cfg.FunctionalityType, nil, []string{env.ID}, gwmodels.GatewayHostingManaged)
+			false, s.cfg.FunctionalityType, s.registerProperties(), []string{env.ID}, gwmodels.GatewayHostingManaged)
 		if regErr != nil {
 			return fmt.Errorf("default gateway: register %q: %w", s.cfg.Name, regErr)
 		}
@@ -97,7 +97,39 @@ func (s *DefaultGatewaySeeder) Seed(ctx context.Context) error {
 			"name", s.cfg.Name, "registered", gateway.Vhost, "configured", s.cfg.Vhost)
 	}
 
+	if err := s.ensureSecretDelivery(gateway); err != nil {
+		return err
+	}
 	return s.ensureToken(ctx, gateway, token, prefix)
+}
+
+// registerProperties are the properties the default gateway is registered with.
+func (s *DefaultGatewaySeeder) registerProperties() map[string]interface{} {
+	if s.cfg.SecretDelivery == "" {
+		return nil
+	}
+	return map[string]interface{}{gwmodels.SecretDeliveryProperty: s.cfg.SecretDelivery}
+}
+
+// ensureSecretDelivery sets the gateway's secret delivery to the configured one, so changing the setting takes
+// effect on the next start. The gateway's other properties are kept.
+func (s *DefaultGatewaySeeder) ensureSecretDelivery(gateway *gwmodels.Gateway) error {
+	want := s.cfg.SecretDelivery
+	if want == "" || gateway.SecretDelivery() == want {
+		return nil
+	}
+	properties := make(map[string]interface{}, len(gateway.Properties)+1)
+	for k, v := range gateway.Properties {
+		properties[k] = v
+	}
+	properties[gwmodels.SecretDeliveryProperty] = want
+	gateway.Properties = properties
+	if err := s.repo.UpdateGateway(gateway); err != nil {
+		return fmt.Errorf("default gateway: set its secret delivery: %w", err)
+	}
+	s.logger.Info("Set the default gateway's secret delivery", "name", s.cfg.Name, "gatewayID", gateway.UUID,
+		"secretDelivery", want)
+	return nil
 }
 
 // token is the configured token, or the content of the configured token file.
