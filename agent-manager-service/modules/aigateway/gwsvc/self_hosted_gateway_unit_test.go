@@ -340,7 +340,7 @@ func TestIdentityProvider_ManagedRefusesCustom(t *testing.T) {
 	var upserted []string
 	var deleted string
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByNameAndOrgIDFunc: func(string, string) (*gwmodels.Gateway, error) { return gw, nil },
+		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return gw, nil },
 		ListIdentityProvidersByGatewayFunc: func(string) ([]gwmodels.GatewayIdentityProvider, error) {
 			return []gwmodels.GatewayIdentityProvider{{Name: seeded, Type: gwmodels.IdentityProviderTypeSystem}}, nil
 		},

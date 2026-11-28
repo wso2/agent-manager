@@ -89,7 +89,7 @@ test.describe('gateways', () => {
       await drawer.add.click();
       await expect(view.identityProviderRow(idpName)).toBeVisible();
       await expect.poll(async () => {
-        const { body } = await api.get(`${api.gw}/gateways/${gatewayId}/identity-providers`);
+        const { body } = await api.get(`${api.gatewayPath(gatewayId!)}/identity-providers`);
         return (body?.list ?? []).map((p: { name: string }) => p.name);
       }).toContain(idpName);
 

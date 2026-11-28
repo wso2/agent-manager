@@ -33,11 +33,18 @@ vi.mock("../../acp-core/hooks/telemetry", () => ({
 }));
 vi.mock("../apis/gateways", () => ({
   updateSelfHostedGateway: vi.fn(async () => ({})),
-  gatewayFromDocument: vi.fn(() => ({})),
+  // Only the status matters to these tests.
+  gatewayFromDocument: vi.fn((doc?: { status?: { state?: string } }) => ({
+    status: doc?.status?.state ?? "INACTIVE",
+  })),
+  gatewayEnvironment: vi.fn(),
   deleteGateway: vi.fn(async () => undefined),
   rotateGatewayToken: vi.fn(async () => ({})),
   revokeGatewayToken: vi.fn(async () => undefined),
   getGateway: vi.fn(),
+}));
+vi.mock("../../agent-runtime/apis/deployments", () => ({
+  listEnvironments: vi.fn(async () => []),
 }));
 
 import { getGateway } from "../apis/gateways";
@@ -110,7 +117,7 @@ describe("useGetGateway pollUntilActive", () => {
   ] as const)(
     "poll=%s status=%s refetches at %s and refreshes the list: %s",
     async (poll, status, interval, refreshesList) => {
-      vi.mocked(getGateway).mockResolvedValueOnce({ status } as never);
+      vi.mocked(getGateway).mockResolvedValueOnce({ status: { state: status } } as never);
       const qc = new QueryClient();
       qc.setQueryData(["gateways", {}], {});
       const gwParams = { orgName: "o", gatewayId: "g" };
