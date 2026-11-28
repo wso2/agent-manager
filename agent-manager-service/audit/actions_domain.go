@@ -85,6 +85,10 @@ const (
 	// code agents it found, with its scan token, or a signed-in user
 	// uploading its results file from the console.
 	ActionShadowScanPublish Action = "shadow-scan:publish"
+	// ActionShadowInventoryUpload is a signed-in user uploading a Bring your
+	// own inventory file: a finished scan of the connection whose agents
+	// replace the ones it listed before.
+	ActionShadowInventoryUpload Action = "shadow-inventory:upload"
 
 	// An event subscription decides which events are sent to a destination.
 	ActionEventSubscriptionCreate Action = "event-subscription:create"
@@ -385,6 +389,18 @@ func init() {
 		"scannedRepositories": KindCount,
 		"failedRepositories":  KindCount,
 		"complete":            KindFlag,
+	})
+	// An inventory file upload changes the organization's agents. The file's
+	// name and contents never reach the record: its format and counts do.
+	Register(ActionShadowInventoryUpload, ClassConfig, SeverityNotice)
+	RegisterDetailSchema(ActionShadowInventoryUpload, map[string]FieldKind{
+		"provider":       KindEnum,
+		"scanId":         KindIdentifier,
+		"format":         KindEnum,
+		"agentsRead":     KindCount,
+		"agents":         KindCount,
+		"leftOut":        KindCount,
+		"ignoredColumns": KindCount,
 	})
 
 	// A subscription holds no credential, but it decides which event data

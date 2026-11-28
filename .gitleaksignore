@@ -7,3 +7,5 @@ b9f91c5b9244e112764fa649b42fa07c0d223e86:console/workspaces/pages/gateways/src/s
 # Standard Webhooks specification's published test vector (key and expected signature), not a credential.
 ac2019eb87004efd2034838b0c454a08dc12d232:agent-manager-service/services/eventdestinations/webhook/webhook_test.go:generic-api-key:41
 ac2019eb87004efd2034838b0c454a08dc12d232:agent-manager-service/services/eventdestinations/webhook/webhook_test.go:generic-api-key:44
+# Placeholder "k-1234567890" in a test that the removed Bring your own inventory API key setting is refused, not a credential.
+20873542f681eae383018141668fbc4d7705f287:agent-manager-service/services/shadow_agent_service_unit_test.go:generic-api-key:1319

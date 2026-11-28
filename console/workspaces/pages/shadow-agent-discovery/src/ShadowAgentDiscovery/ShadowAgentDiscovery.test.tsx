@@ -17,7 +17,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import type {
   ShadowAgentSummary,
@@ -147,6 +147,42 @@ const cancelledScan = (): ShadowScanResponse => {
   };
 };
 
+/** Bring your own inventory, as the provider catalog gives it. */
+const inventorySpec = (): ShadowProviderSpec => ({
+  provider: "custom",
+  displayName: "Bring your own inventory",
+  description: "Agents from a file you upload.",
+  endpoints: [],
+  fields: [],
+  permissions: [],
+  docs: [],
+  capabilities: [],
+  fileUpload: true,
+  setupSteps: ["Download a template and list your agents in it.", "Upload the file."],
+  inventoryFields: [
+    { name: "id", required: true, description: "Your ID of the agent.", example: "hr-bot" },
+    { name: "name", required: true, description: "The agent's name.", example: "HR, \"helper\"" },
+    { name: "owner", required: false, description: "Who owns it.", example: "Ana" },
+    {
+      name: "labels",
+      required: false,
+      description: "Labels.",
+      example: "team=support; region=eu",
+    },
+  ],
+});
+
+/** What an upload of 12 agents with one row left out returns. */
+const uploadResult = () => ({
+  scan: { ...scan({ id: "s-up", connectionIds: ["c3"] }) },
+  agentsRead: 13,
+  agentsSaved: 12,
+  leftOut: 1,
+  problems: [{ row: 4, message: "no name", leftOut: true }],
+  problemCount: 1,
+  ignoredColumns: ["secret"],
+});
+
 const hoisted = vi.hoisted(() => ({
   findings: [] as ShadowFindingSummary[],
   findingsError: null as unknown,
@@ -182,6 +218,9 @@ const hoisted = vi.hoisted(() => ({
   providers: [] as ShadowProviderSpec[],
   createConnection: vi.fn(),
   updateConnection: vi.fn(),
+  uploadInventory: vi.fn(),
+  resetInventory: vi.fn(),
+  downloadTemplate: vi.fn(),
 }));
 
 vi.mock("@agent-management-platform/api-client", () => ({
@@ -244,6 +283,15 @@ vi.mock("@agent-management-platform/api-client", () => ({
     isPending: false,
   }),
   isRequestTooLargeError: () => false,
+  useUploadShadowInventory: () => ({
+    mutate: hoisted.uploadInventory,
+    reset: hoisted.resetInventory,
+    isPending: false,
+  }),
+  useDownloadShadowInventoryTemplate: () => ({
+    mutate: hoisted.downloadTemplate,
+    isPending: false,
+  }),
   useStartShadowScan: () => ({ mutate: hoisted.start, isPending: false }),
   useDeleteShadowConnection: () => ({ mutate: vi.fn(), isPending: false }),
   useTestShadowConnection: () => ({ mutate: hoisted.test, isPending: false }),
@@ -297,11 +345,18 @@ import { ScanProgressCard } from "./subComponents/ScanProgress";
 import { ScanFindings } from "./subComponents/ScanFindings";
 import { ShadowAgentDiscovery } from "./ShadowAgentDiscovery";
 import { AnalyzeSection } from "./subComponents/AnalyzeSection";
-import { ScanStatusChip } from "./shadowUi";
+import { latestCloudScan, ScanStatusChip } from "./shadowUi";
 import { SourceScanGuide } from "./subComponents/SourceScanGuide";
 import { DocLinks } from "./subComponents/PermissionsPanel";
 import { GenerateCommandDialog } from "./subComponents/GenerateCommandDialog";
-import { CUSTOM_CONTRACT_FILE, ConnectionEditor } from "./subComponents/ConnectionEditor";
+import { ConnectionEditor } from "./subComponents/ConnectionEditor";
+import {
+  csvValue,
+  exampleCsv,
+  exampleJson,
+  inventoryFormatOf,
+  inventoryUploadErrorMessage,
+} from "./subComponents/InventoryFilePanel";
 
 function ShowLocation() {
   const l = useLocation();
@@ -425,6 +480,20 @@ describe("OverviewPanel", () => {
     expect(screen.getByText("No scan yet.")).toBeInTheDocument();
     expect(screen.getByText("Get started")).toBeInTheDocument();
     expect(screen.queryByText("Agents by source")).not.toBeInTheDocument();
+  });
+
+  it("finishes Get started when the only agents came from an uploaded file", () => {
+    // An upload is not a scan: the summary has agents but no latest scan.
+    hoisted.summary = { totalFindings: 4, byProvider: { custom: 4 }, onboarded: 0, connections: 1 };
+    router(<OverviewPanel {...props} />);
+    expect(screen.queryByText("No scan yet.")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "No platform scan yet. The agents below include those from uploaded inventory files.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Get started")).not.toBeInTheDocument();
+    expect(screen.getByText("Agents by source")).toBeInTheDocument();
   });
 
   it("shows the agents found, by platform, and the latest scan, without scores", () => {
@@ -691,8 +760,28 @@ describe("RunScanButton", () => {
     unmountEmpty();
     // Source code repositories are scanned by the scan command, not by Run scan.
     hoisted.connections = [connection({ id: "c2", name: "Repos", provider: "github" })];
+    const { unmount: unmountRepos } = router(<RunScanButton orgName="acme" />);
+    expect(screen.getByRole("button", { name: "Run scan" })).toBeDisabled();
+    unmountRepos();
+    // Inventory agents come from uploaded files, not from Run scan.
+    hoisted.connections = [connection({ id: "c3", name: "Inventory", provider: "custom" })];
     router(<RunScanButton orgName="acme" />);
     expect(screen.getByRole("button", { name: "Run scan" })).toBeDisabled();
+  });
+
+  it("does not count or offer Bring your own inventory sources", () => {
+    hoisted.connections = [
+      ...hoisted.connections,
+      connection({ id: "c3", name: "Inventory", provider: "custom" }),
+    ];
+    router(<RunScanButton orgName="acme" />);
+    fireEvent.click(screen.getByRole("button", { name: "Run scan" }));
+    expect(screen.getByLabelText("All connectors (2)")).toBeChecked();
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "Bring your own inventory is not included",
+    );
+    fireEvent.click(screen.getByLabelText("Choose connectors"));
+    expect(screen.queryByLabelText(/^Inventory/)).not.toBeInTheDocument();
   });
 });
 
@@ -742,12 +831,20 @@ describe("ConnectionsTab (Platforms)", () => {
     expect(screen.getByRole("button", { name: "Edit Repos" })).toBeInTheDocument();
   });
 
-  it("lists Bring your own inventory platforms in their own section, after AI platforms and source code", () => {
+  it("lists Bring your own inventory sources in their own section, with Upload file", async () => {
     hoisted.connections = [
       connection(),
-      connection({ id: "c3", name: "Inventory", provider: "custom" }),
+      connection({
+        id: "c3",
+        name: "Inventory",
+        provider: "custom",
+        lastUploadAt: "2026-11-12T00:00:00Z",
+      }),
+      // No file uploaded yet.
+      connection({ id: "c4", name: "HR inventory", provider: "custom" }),
       connection({ id: "c2", name: "Repos", provider: "github", settings: { organization: "acme" } }),
     ];
+    hoisted.providers = [inventorySpec()];
     renderTab();
     const headings = screen
       .getAllByText(/^(AI platforms|Bring your own inventory|Source code repositories)$/)
@@ -755,28 +852,53 @@ describe("ConnectionsTab (Platforms)", () => {
     expect(headings).toEqual(["AI platforms", "Source code repositories", "Bring your own inventory"]);
     const [ai, , custom] = screen.getAllByRole("table");
     expect(within(ai).queryByText("Inventory")).not.toBeInTheDocument();
-    expect(within(custom).getByText("Inventory")).toBeInTheDocument();
-    expect(within(custom).getByText("Your inventory")).toBeInTheDocument();
-    // Your inventory is scanned and tested like an AI platform.
-    fireEvent.click(within(custom).getByRole("button", { name: "Scan Inventory" }));
-    expect(hoisted.start).toHaveBeenCalledWith({ connectionIds: ["c3"] }, expect.anything());
-    expect(within(custom).getByRole("button", { name: "Test Inventory" })).toBeInTheDocument();
+    expect(within(custom).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "Name",
+      "Source",
+      "Agents updated",
+      "Created",
+      "",
+    ]);
+    const [, row, noFile] = within(custom).getAllByRole("row");
+    expect(within(row).getByText("Your inventory")).toBeInTheDocument();
+    // Agents updated and Created (the mocked relative time).
+    expect(within(row).getAllByText("2 days ago")).toHaveLength(2);
+    expect(within(noFile).getByText("No file uploaded yet")).toBeInTheDocument();
+    expect(within(noFile).getAllByText("2 days ago")).toHaveLength(1);
+    // Nothing to scan or test: the agents come from uploaded files.
+    expect(screen.queryByRole("button", { name: "Scan Inventory" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Test Inventory" })).not.toBeInTheDocument();
+    expect(within(custom).getByRole("button", { name: "Edit Inventory" })).toBeInTheDocument();
+    fireEvent.click(within(custom).getByRole("button", { name: "Upload a file to Inventory" }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("Upload file: Inventory");
+    const upload = within(dialog).getByRole("button", { name: "Upload" });
+    expect(upload).toBeDisabled();
+    const file = new File(["{}"], "agents.json", { type: "application/json" });
+    fireEvent.change(within(dialog).getByTestId("inventory-file-input"), {
+      target: { files: [file] },
+    });
+    expect(dialog).toHaveTextContent("agents.json");
+    fireEvent.click(upload);
+    expect(hoisted.uploadInventory).toHaveBeenCalledWith(
+      { connectionId: "c3", file },
+      expect.anything(),
+    );
+    act(() => hoisted.uploadInventory.mock.calls[0][1].onSuccess(uploadResult()));
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("12 agents saved");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+    // The title keeps the source's name while the dialog closes.
+    expect(dialog).toHaveTextContent("Upload file: Inventory");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
-  it("puts Run scan with Bring your own inventory when there is no AI platform, never with repositories", () => {
-    hoisted.connections = [connection({ id: "c2", name: "Repos", provider: "github" })];
-    const { unmount } = renderTab();
-    expect(screen.queryByRole("button", { name: "Run scan" })).not.toBeInTheDocument();
-    unmount();
+  it("puts Run scan with the AI platforms only, never with inventories or repositories", () => {
     hoisted.connections = [
       connection({ id: "c2", name: "Repos", provider: "github" }),
       connection({ id: "c3", name: "Inventory", provider: "custom" }),
     ];
     renderTab();
-    const [source, custom] = screen.getAllByRole("table");
-    const runScan = screen.getByRole("button", { name: "Run scan" });
-    expect(runScan.compareDocumentPosition(source) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
-    expect(runScan.compareDocumentPosition(custom) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Run scan" })).not.toBeInTheDocument();
   });
 
   it("opens Generate command from a source code repository row", () => {
@@ -907,7 +1029,7 @@ describe("ConnectionsTab (Platforms)", () => {
     hoisted.connections = [
       connection(),
       connection({ id: "c2", name: "AWS prod", provider: "bedrock" }),
-      connection({ id: "c3", name: "Inventory", provider: "custom" }),
+      connection({ id: "c3", name: "Google prod", provider: "google" }),
     ];
     hoisted.summary = {
       totalFindings: 2,
@@ -987,7 +1109,7 @@ describe("ConnectionsTab (Platforms)", () => {
     hoisted.connections = [
       connection(),
       connection({ id: "c2", name: "AWS prod", provider: "bedrock" }),
-      connection({ id: "c3", name: "Inventory", provider: "custom" }),
+      connection({ id: "c3", name: "Google prod", provider: "google" }),
     ];
     const summary = (latestScan: ShadowScanResponse) => ({
       totalFindings: latestScan.findingsCount,
@@ -1043,6 +1165,27 @@ describe("ScansTab", () => {
     expect(screen.getByTestId("location")).toHaveTextContent(
       "/organizations/acme/shadow-agent-discovery/scans/s1",
     );
+  });
+
+  it("marks a scan recorded by a file upload", () => {
+    hoisted.scans = [
+      scan({
+        inventoryUpload: true,
+        connectionIds: ["c3"],
+        results: [
+          {
+            connectionId: "c3",
+            connectionName: "HR inventory",
+            provider: "custom",
+            outcome: "ok",
+            findingsCount: 3,
+            calls: [{ call: "Uploaded CSV file", outcome: "ok", items: 3 }],
+          },
+        ],
+      }),
+    ];
+    router(<ScansTab orgName="acme" canManage />);
+    expect(screen.getByText("HR inventory (file upload)")).toBeInTheDocument();
   });
 
   it("opens the scan's page when its row is clicked, with no drawer", () => {
@@ -1152,6 +1295,25 @@ describe("ScanProgressCard", () => {
         },
       ],
     });
+
+  it("says a file upload recorded the scan", () => {
+    const upload = scan({
+      inventoryUpload: true,
+      connectionIds: ["c3"],
+      results: [
+        {
+          connectionId: "c3",
+          connectionName: "HR inventory",
+          provider: "custom",
+          outcome: "ok",
+          findingsCount: 3,
+          calls: [{ call: "Uploaded CSV file", outcome: "ok", items: 3 }],
+        },
+      ],
+    });
+    render(<ScanProgressCard scan={upload} connections={[]} />);
+    expect(screen.getByText("Inventory file uploaded · 3 agents found.")).toBeInTheDocument();
+  });
 
   it("shows the failed repositories with their reasons", () => {
     render(<ScanProgressCard scan={sourceScan()} connections={[]} />);
@@ -1831,45 +1993,25 @@ describe("ConnectionEditor (source code repositories)", () => {
 });
 
 describe("ConnectionEditor (Bring your own inventory)", () => {
-  const customSpec = (): ShadowProviderSpec => ({
-    provider: "custom",
-    displayName: "Bring your own inventory",
-    description: "Your own REST API that lists your agents.",
-    endpoints: [],
-    fields: [
-      { key: "agentsUrl", label: "Agents URL", kind: "text", required: true },
-      { key: "apiKey", label: "API key", kind: "secret", required: true },
-    ],
-    permissions: [],
-    docs: [],
-    capabilities: [
-      {
-        key: "custom.agents",
-        title: "Agents in your inventory",
-        description: "Lists the agents your service returns via GET {Agents URL}.",
-        signals: ["custom.agent"],
-        needs: [],
-      },
-    ],
-    notListed: ["Anything else on your server: only GET on the Agents URL is called."],
-    setupSteps: ["Download the OpenAPI contract and implement its one call.", "Run the service."],
-    apiContract: "openapi: 3.0.3\n",
-  });
   const openNew = () => {
-    hoisted.providers = [customSpec()];
+    hoisted.providers = [inventorySpec()];
     router(
       <Routes>
         <Route path="/new" element={<ConnectionEditor orgName="acme" listPath="/list" />} />
+        <Route path="/list" element={<div>Sources list</div>} />
       </Routes>,
       "/new",
     );
     fireEvent.click(screen.getByRole("button", { name: "Connect Bring your own inventory" }));
   };
+  const choose = (file: File) =>
+    fireEvent.change(screen.getByTestId("inventory-file-input"), { target: { files: [file] } });
+  const jsonFile = () => new File(['{"agents":[]}'], "agents.json", { type: "application/json" });
 
   it("shows Bring your own inventory as its own group when adding a platform", () => {
     hoisted.providers = [
-      { ...customSpec(), provider: "openai", displayName: "OpenAI" },
-      customSpec(),
+      { ...inventorySpec(), provider: "openai", displayName: "OpenAI", fileUpload: false },
+      inventorySpec(),
       sourceHostSpec(),
     ];
     router(
@@ -1886,33 +2028,268 @@ describe("ConnectionEditor (Bring your own inventory)", () => {
     expect(
       within(custom).getByRole("button", { name: "Connect Bring your own inventory" }),
     ).toHaveAccessibleDescription(
-      "Your own API that lists your agents. Implement the Agent Manager contract, then add its URL and an API key.",
+      "Agents listed in a JSON, CSV or Excel file you upload, in the Agent Manager format",
     );
-    expect(screen.queryByText("Azure DevOps")).not.toBeInTheDocument();
+    expect(within(custom).getByText("File upload")).toBeInTheDocument();
   });
 
-  it("offers the OpenAPI contract and explains the steps in See what it lists", () => {
-    const createObjectURL = vi.fn(() => "blob:contract");
-    const revokeObjectURL = vi.fn();
-    Object.assign(URL, { createObjectURL, revokeObjectURL });
-    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  it("asks for a name and a file only: no URL, key, contract or connection test", () => {
     openNew();
-    expect(screen.getByText("Build your inventory API")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Download contract" }));
-    expect(createObjectURL).toHaveBeenCalledTimes(1);
-    expect(click).toHaveBeenCalledTimes(1);
-    expect((click.mock.instances[0] as unknown as HTMLAnchorElement).download).toBe(
-      CUSTOM_CONTRACT_FILE,
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("My agent inventory");
+    expect(screen.getByText("Download a template and list your agents in it.")).toBeInTheDocument();
+    expect(screen.queryByText(/Agents URL|API key|contract/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Download contract|See what it lists/ }))
+      .not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add source" })).toBeInTheDocument();
+  });
+
+  it("shows each format's fields, an example and its template", () => {
+    openNew();
+    const tabs = screen.getAllByRole("tab").map((t) => t.textContent);
+    expect(tabs).toEqual(["JSON", "CSV", "Excel"]);
+    const fields = screen.getByRole("table", { name: "Inventory fields" });
+    expect(within(fields).getAllByRole("row")).toHaveLength(5);
+    expect(within(fields).getByText("labels")).toBeInTheDocument();
+    // JSON: labels are an object, and the example is a whole file.
+    expect(within(fields).getByText('{"team":"support","region":"eu"}')).toBeInTheDocument();
+    expect(screen.getByLabelText("Example JSON file")).toHaveTextContent('"agents": [');
+    expect(screen.getByText(/an agents array, one object per agent/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Download template" }));
+    expect(hoisted.downloadTemplate).toHaveBeenLastCalledWith("json");
+
+    fireEvent.click(screen.getByRole("tab", { name: "CSV" }));
+    expect(screen.getByText(/first row is the column names/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Example CSV file").textContent).toBe(
+      'id,name,owner,labels\nhr-bot,"HR, ""helper""",Ana,team=support; region=eu',
     );
-    fireEvent.click(screen.getByRole("button", { name: "See what it lists" }));
-    const dialog = screen.getByRole("dialog");
-    expect(dialog).toHaveTextContent("How to set it up");
-    expect(dialog).toHaveTextContent("Download the OpenAPI contract and implement its one call.");
-    expect(dialog).toHaveTextContent("Agents in your inventory");
-    expect(dialog).toHaveTextContent("Not read or listed");
-    expect(within(dialog).getByRole("button", { name: "Download contract" })).toBeInTheDocument();
-    expect(screen.getByText("Agents URL")).toBeInTheDocument();
-    expect(screen.getByText("API key")).toBeInTheDocument();
-    click.mockRestore();
+    expect(
+      within(screen.getByRole("table", { name: "Inventory fields" })).getByText(
+        "team=support; region=eu",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Download template" }));
+    expect(hoisted.downloadTemplate).toHaveBeenLastCalledWith("csv");
+
+    fireEvent.click(screen.getByRole("tab", { name: "Excel" }));
+    const sheet = screen.getByRole("table", { name: "Example Excel sheet" });
+    expect(within(sheet).getByText("hr-bot")).toBeInTheDocument();
+    expect(within(sheet).getByText("D")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Download template" }));
+    expect(hoisted.downloadTemplate).toHaveBeenLastCalledWith("xlsx");
+  });
+
+  it("rejects a file of another kind or over 5 MB, and opens the tab of a known kind", () => {
+    openNew();
+    choose(new File(["x"], "agents.txt"));
+    expect(screen.getByText("Choose a .json, .csv or .xlsx file.")).toBeInTheDocument();
+    const big = new File(["x"], "agents.json");
+    Object.defineProperty(big, "size", { value: 5 * 1024 * 1024 + 1 });
+    choose(big);
+    expect(
+      screen.getByText("This file is larger than 5 MB, the most Agent Manager accepts."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add source" })).toBeInTheDocument();
+    // A CSV chosen on the JSON tab opens the CSV tab.
+    choose(new File(["id,name\n"], "agents.csv", { type: "text/csv" }));
+    expect(screen.getByRole("tab", { name: "CSV" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("agents.csv")).toBeInTheDocument();
+    expect(screen.queryByText(/Choose a \.json/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Remove agents.csv" }));
+    expect(screen.queryByText("agents.csv")).not.toBeInTheDocument();
+  });
+
+  it("saves the source, uploads the file to it and shows what it gave", () => {
+    openNew();
+    const file = jsonFile();
+    choose(file);
+    fireEvent.click(screen.getByRole("button", { name: "Add source and upload" }));
+    expect(hoisted.createConnection).toHaveBeenCalledWith(
+      { name: "My agent inventory", provider: "custom", endpoints: {}, settings: {} },
+      expect.anything(),
+    );
+    act(() => hoisted.createConnection.mock.calls[0][1].onSuccess(connection({ id: "c9" })));
+    expect(hoisted.uploadInventory).toHaveBeenCalledWith(
+      { connectionId: "c9", file },
+      expect.anything(),
+    );
+    act(() => hoisted.uploadInventory.mock.calls[0][1].onSuccess(uploadResult()));
+    const result = screen.getByRole("alert");
+    expect(result).toHaveTextContent("12 agents saved, 1 agent left out.");
+    expect(result).toHaveTextContent("Ignored column (not stored): secret");
+    fireEvent.click(within(result).getByRole("button", { name: "Show details" }));
+    expect(within(result).getByText("Left out")).toBeInTheDocument();
+    expect(within(result).getByText("Agent 4: no name")).toBeInTheDocument();
+    fireEvent.click(within(result).getByRole("button", { name: "View scan" }));
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/organizations/acme/shadow-agent-discovery/scans/s-up",
+    );
+  });
+
+  it("links to the agents found, and Done returns to the sources", () => {
+    openNew();
+    choose(jsonFile());
+    fireEvent.click(screen.getByRole("button", { name: "Add source and upload" }));
+    act(() => hoisted.createConnection.mock.calls[0][1].onSuccess(connection({ id: "c9" })));
+    act(() => hoisted.uploadInventory.mock.calls[0][1].onSuccess(uploadResult()));
+    expect(screen.getByRole("textbox", { name: "Name" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.getByText("Sources list")).toBeInTheDocument();
+  });
+
+  it("shows why an upload failed and lets the user upload again to the saved source", () => {
+    openNew();
+    choose(jsonFile());
+    fireEvent.click(screen.getByRole("button", { name: "Add source and upload" }));
+    act(() => hoisted.createConnection.mock.calls[0][1].onSuccess(connection({ id: "c9" })));
+    act(() =>
+      hoisted.uploadInventory.mock.calls[0][1].onError(
+        Object.assign(new Error("The file has no name column."), { status: 400 }),
+      ),
+    );
+    expect(
+      screen.getByText("The source is saved. The file has no name column."),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Upload" }));
+    expect(hoisted.uploadInventory).toHaveBeenCalledTimes(2);
+    expect(hoisted.createConnection).toHaveBeenCalledTimes(1);
+    expect(hoisted.uploadInventory.mock.calls[1][0].connectionId).toBe("c9");
+  });
+
+  it("keeps the chosen file when another tab is shown", () => {
+    openNew();
+    choose(new File(["id,name\n"], "agents.csv", { type: "text/csv" }));
+    fireEvent.click(screen.getByRole("tab", { name: "JSON" }));
+    // The file's name and its format chip.
+    const chosen = screen.getByText("agents.csv").parentElement as HTMLElement;
+    expect(within(chosen).getByText("CSV")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add source and upload" })).toBeInTheDocument();
+  });
+
+  it("splits rows left out from warnings, in the uploaded file's wording", () => {
+    openNew();
+    choose(new File(["id,name\n"], "agents.csv", { type: "text/csv" }));
+    // The JSON tab is shown, but the file is CSV: rows, not agents.
+    fireEvent.click(screen.getByRole("tab", { name: "JSON" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add source and upload" }));
+    act(() => hoisted.createConnection.mock.calls[0][1].onSuccess(connection({ id: "c9" })));
+    act(() =>
+      hoisted.uploadInventory.mock.calls[0][1].onSuccess({
+        ...uploadResult(),
+        agentsSaved: 10,
+        leftOut: 1,
+        problems: [
+          { row: 4, message: "no name", leftOut: true },
+          { row: 7, message: "createdAt is not a date; left empty", leftOut: false },
+        ],
+        problemCount: 2,
+      }),
+    );
+    const result = screen.getByRole("alert");
+    expect(result).toHaveTextContent(
+      "10 agents saved, 1 row left out. 1 row saved with a warning.",
+    );
+    fireEvent.click(within(result).getByRole("button", { name: "Show details" }));
+    expect(within(result).getByText("Row 4: no name")).toBeInTheDocument();
+    expect(within(result).getByText("Saved with a warning")).toBeInTheDocument();
+    expect(
+      within(result).getByText("Row 7: createdAt is not a date; left empty"),
+    ).toBeInTheDocument();
+    expect(within(result).queryByText(/Showing the first/)).not.toBeInTheDocument();
+  });
+
+  it("says when the server sent only the first problems", () => {
+    openNew();
+    choose(jsonFile());
+    fireEvent.click(screen.getByRole("button", { name: "Add source and upload" }));
+    act(() => hoisted.createConnection.mock.calls[0][1].onSuccess(connection({ id: "c9" })));
+    act(() =>
+      hoisted.uploadInventory.mock.calls[0][1].onSuccess({
+        ...uploadResult(),
+        leftOut: 80,
+        problemCount: 80,
+        problems: Array.from({ length: 50 }, (_v, i) => ({
+          row: i + 1,
+          message: "no name",
+          leftOut: true,
+        })),
+      }),
+    );
+    const result = screen.getByRole("alert");
+    expect(result).toHaveTextContent("12 agents saved, 80 agents left out.");
+    fireEvent.click(within(result).getByRole("button", { name: "Show details" }));
+    expect(within(result).getByText("Showing the first 50 of 80.")).toBeInTheDocument();
+  });
+
+  it("shows the smaller size limit when the deployment caps request bodies", async () => {
+    const { globalConfig } = await import("@agent-management-platform/types");
+    const config = globalConfig as unknown as Record<string, unknown>;
+    const saved = config.maxRequestBodyBytes;
+    config.maxRequestBodyBytes = 57344;
+    try {
+      openNew();
+      expect(screen.getByText("Up to 56 KB and 5,000 agents")).toBeInTheDocument();
+      const big = new File(["x"], "agents.json");
+      Object.defineProperty(big, "size", { value: 57345 });
+      choose(big);
+      expect(
+        screen.getByText("This file is larger than 56 KB, the most Agent Manager accepts."),
+      ).toBeInTheDocument();
+    } finally {
+      config.maxRequestBodyBytes = saved;
+    }
+  });
+
+  it("adds a source without a file and returns to the sources", () => {
+    openNew();
+    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
+    act(() => hoisted.createConnection.mock.calls[0][1].onSuccess(connection({ id: "c9" })));
+    expect(hoisted.uploadInventory).not.toHaveBeenCalled();
+    expect(screen.getByText("Sources list")).toBeInTheDocument();
+  });
+});
+
+describe("inventory file helpers", () => {
+  it("explains a superseded upload and an audit outage", () => {
+    const superseded =
+      "A newer file was uploaded to this source while this one was being saved. " +
+      "Upload it again if it is the one you want.";
+    expect(
+      inventoryUploadErrorMessage(Object.assign(new Error(superseded), { status: 409 })),
+    ).toBe(superseded);
+    expect(inventoryUploadErrorMessage(Object.assign(new Error("x"), { status: 503 }))).toBe(
+      "Agent Manager couldn't record the upload in the audit log, so nothing was saved. " +
+        "Try again later.",
+    );
+  });
+
+  it("never takes an upload for the latest cloud scan", () => {
+    expect(latestCloudScan({ latestScan: scan({ inventoryUpload: true }) })).toBeUndefined();
+    expect(latestCloudScan({ latestScan: scan() })?.id).toBe("s1");
+    expect(latestCloudScan(undefined)).toBeUndefined();
+  });
+
+  it("knows a file's format by its extension", () => {
+    expect(inventoryFormatOf("a.JSON")).toBe("json");
+    expect(inventoryFormatOf("a.csv")).toBe("csv");
+    expect(inventoryFormatOf("a.xlsx")).toBe("xlsx");
+    expect(inventoryFormatOf("a.xls")).toBeUndefined();
+    expect(inventoryFormatOf("xlsx")).toBeUndefined();
+  });
+
+  it("builds the examples from the fields", () => {
+    const fields = inventorySpec().inventoryFields ?? [];
+    expect(JSON.parse(exampleJson(fields))).toEqual({
+      agents: [
+        {
+          id: "hr-bot",
+          name: 'HR, "helper"',
+          owner: "Ana",
+          labels: { team: "support", region: "eu" },
+        },
+      ],
+    });
+    expect(exampleCsv(fields).split("\n")[0]).toBe("id,name,owner,labels");
+    expect(csvValue("plain")).toBe("plain");
+    expect(csvValue('a "b"')).toBe('"a ""b"""');
   });
 });

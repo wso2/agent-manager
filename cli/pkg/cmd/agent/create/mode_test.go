@@ -137,7 +137,7 @@ func TestCreate_FileMode_External_TokenFlow(t *testing.T) {
 				Name:         "testing",
 				DisplayName:  "Testing",
 				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
-				Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeExternal},
+				Provisioning: amsvc.Provisioning{Type: amsvc.External},
 				ProjectName:  "triage",
 				Uuid:         "u",
 				CreatedAt:    time.Date(2026, 6, 11, 12, 0, 0, 0, time.UTC),
