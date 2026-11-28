@@ -61,7 +61,7 @@ type consoleParam struct {
 
 // consoleParams maps the console's trace-list URL params to CLI flags, in the
 // order links write them. The filters follow TRACE_FILTER_KEYS in
-// console/workspaces/pages/traces/src/traceFilters.ts; the window, sortOrder and
+// console/workspaces/ui-modules/ai-observability/pages/traces/src/traceFilters.ts; the window, sortOrder and
 // limit follow Traces.Component.tsx.
 var consoleParams = []consoleParam{
 	{param: "status", flag: "status", filter: true, condition: conditionErrorStatus,

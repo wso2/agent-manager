@@ -106,7 +106,7 @@ var (
 
 // consoleParamFlags maps each console trace-list param to the CLI flags that send
 // it. Keep it in step with TRACE_FILTER_KEYS in
-// console/workspaces/pages/traces/src/traceFilters.ts and the window, sortOrder,
+// console/workspaces/ui-modules/ai-observability/pages/traces/src/traceFilters.ts and the window, sortOrder,
 // limit and cursor handling in Traces.Component.tsx.
 var consoleParamFlags = []struct {
 	param string
