@@ -79,7 +79,7 @@ This works only before the bundled gateway has registered elsewhere. After a tri
 
 ### Connecting another identity provider
 
-`auth.mode: idp` uses the bundled ThunderID unless `idp.issuer` names another OpenID Connect provider. The API then trusts that provider's tokens and nothing of ThunderID's: it finds the provider's key set through its discovery document (`<issuer>/.well-known/openid-configuration`), accepts its issuer and the audiences in `idp.audience`, and advertises it to MCP clients as their authorization server.
+`auth.mode: idp` uses the bundled ThunderID unless `idp.issuer` names another OpenID Connect provider. The API then trusts that provider's tokens and nothing of ThunderID's: it finds the provider's key set through its discovery document (`<issuer>/.well-known/openid-configuration`; a `KEY_MANAGER_JWKS_URL` you set wins, so remove one that names ThunderID's keys), accepts its issuer and the audiences in `idp.audience`, and advertises it to MCP clients as their authorization server.
 
 ```yaml
 auth:

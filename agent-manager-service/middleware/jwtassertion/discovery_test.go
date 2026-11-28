@@ -21,8 +21,10 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 )
@@ -116,5 +118,35 @@ func TestKeySetURLRefusesABadDiscoveryDocument(t *testing.T) {
 				t.Errorf("discovery document fetched %d times, want twice", hits.Load())
 			}
 		})
+	}
+}
+
+// Token checks arriving together for an issuer not yet discovered share one
+// lookup, rather than queueing a lookup each.
+func TestKeySetURLSharesOneLookupAcrossConcurrentTokens(t *testing.T) {
+	resetDiscovery(t)
+	var hits atomic.Int32
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		time.Sleep(50 * time.Millisecond)
+		_ = json.NewEncoder(w).Encode(map[string]string{"issuer": srv.URL, "jwks_uri": "https://idp.example.com/jwks"})
+	}))
+	t.Cleanup(srv.Close)
+	km := config.KeyManagerConfigurations{DiscoveryIssuer: srv.URL}
+
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if got, err := keySetURL(km); err != nil || got != "https://idp.example.com/jwks" {
+				t.Errorf("keySetURL() = %q, %v", got, err)
+			}
+		}()
+	}
+	wg.Wait()
+	if hits.Load() != 1 {
+		t.Errorf("discovery document fetched %d times, want once", hits.Load())
 	}
 }

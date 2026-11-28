@@ -25,6 +25,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -95,7 +96,9 @@ func resolveOrgFromToken() func(http.HandlerFunc) http.HandlerFunc {
 			// Refused here with a reason naming the claim, rather than as a
 			// missing organization deep in a repository.
 			if _, err := uuid.Parse(claims.OuId); err != nil {
-				slog.Warn("RequireOrgMatch rejected", "reason", "ouId in token is not a UUID", "sub", claims.Sub, "path", r.URL.Path)
+				slog.Warn("RequireOrgMatch rejected", "reason", "ouId in token is not a UUID",
+					"correlationId", logger.GetCorrelationId(r.Context()),
+					"ouId", sanitizeForLog(claims.OuId), "sub", claims.Sub, "path", r.URL.Path)
 				RecordAuthzDeny(r, "invalid-ou-id")
 				httpx.WriteErrorResponse(w, http.StatusForbidden, "ouId in token must be a UUID")
 				return

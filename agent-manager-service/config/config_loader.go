@@ -233,7 +233,8 @@ func loadSettings(strict bool) {
 		if strings.TrimSpace(config.KeyManagerConfigurations.JWKSUrl) == "" {
 			config.KeyManagerConfigurations.DiscoveryIssuer = idpIssuer
 		}
-		validateIdentityProviderAudience(idpIssuer, idpAudience, Value("KEY_MANAGER_AUDIENCE"), r)
+		validateIdentityProviderAudience(idpIssuer, idpAudience, Value("KEY_MANAGER_AUDIENCE"),
+			config.KeyManagerConfigurations.Audience, r)
 	}
 	if config.AuthMode == AuthModeFile {
 		// Checked here rather than at login time: a deployment that cannot
@@ -543,11 +544,19 @@ func validateThunderConfig(cfg *Config, r *configReader) {
 
 // validateIdentityProviderAudience requires the audience an identity provider
 // other than the bundled ThunderID names in its tokens for AMP: it cannot be
-// guessed, since AMP's own client ids are the bundled ThunderID's.
-func validateIdentityProviderAudience(issuer, idpAudience, keyManagerAudience string, r *configReader) {
-	if strings.TrimSpace(idpAudience) == "" && strings.TrimSpace(keyManagerAudience) == "" {
+// guessed, since AMP's own client ids are the bundled ThunderID's. The
+// audiences the token check ends up with (effective) must not be empty either:
+// a value of only commas or spaces leaves none, and every token would then be
+// refused.
+func validateIdentityProviderAudience(issuer, idpAudience, keyManagerAudience string, effective []string, r *configReader) {
+	switch {
+	case strings.TrimSpace(idpAudience) == "" && strings.TrimSpace(keyManagerAudience) == "":
 		r.errors = append(r.errors, fmt.Errorf(
 			"IDP_AUDIENCE is required when IDP_ISSUER (%q) is not the bundled ThunderID: the audience its tokens name for AMP", issuer,
+		))
+	case len(effective) == 0:
+		r.errors = append(r.errors, fmt.Errorf(
+			"IDP_AUDIENCE and KEY_MANAGER_AUDIENCE name no audience for IDP_ISSUER (%q): give at least one", issuer,
 		))
 	}
 }

@@ -197,18 +197,20 @@ auth: {mode: idp}
 func TestValidateIdentityProviderAudience(t *testing.T) {
 	for _, tc := range []struct {
 		name, idpAudience, keyManagerAudience string
-		wantErr                               bool
+		effective                             []string
+		wantErr                               string
 	}{
-		{"neither set", "", " ", true},
-		{"IDP_AUDIENCE set", "amp-api", "", false},
-		{"KEY_MANAGER_AUDIENCE set", "", "amp-api", false},
+		{"neither set", "", " ", nil, "IDP_AUDIENCE is required"},
+		{"IDP_AUDIENCE set", "amp-api", "", []string{"amp-api"}, ""},
+		{"KEY_MANAGER_AUDIENCE set", "", "amp-api", []string{"amp-api"}, ""},
+		{"only separators", ",", "", nil, "name no audience"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := &configReader{}
-			validateIdentityProviderAudience("https://idp.example.com", tc.idpAudience, tc.keyManagerAudience, r)
-			if tc.wantErr {
+			validateIdentityProviderAudience("https://idp.example.com", tc.idpAudience, tc.keyManagerAudience, tc.effective, r)
+			if tc.wantErr != "" {
 				require.Len(t, r.errors, 1)
-				assert.Contains(t, r.errors[0].Error(), "IDP_AUDIENCE is required")
+				assert.Contains(t, r.errors[0].Error(), tc.wantErr)
 			} else {
 				assert.Empty(t, r.errors)
 			}

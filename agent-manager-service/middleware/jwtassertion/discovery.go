@@ -25,6 +25,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/singleflight"
+
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 )
 
@@ -33,9 +35,12 @@ import (
 const openIDConfigurationPath = "/.well-known/openid-configuration"
 
 var (
-	discoveredJWKSMu  sync.Mutex
+	discoveredJWKSMu  sync.RWMutex
 	discoveredJWKSURL = map[string]string{}
-	discoveryClient   = &http.Client{Timeout: 10 * time.Second}
+	// discoveryGroup makes concurrent token checks for an issuer not yet
+	// discovered share one lookup, which runs outside discoveredJWKSMu.
+	discoveryGroup  singleflight.Group
+	discoveryClient = &http.Client{Timeout: 10 * time.Second}
 )
 
 // keySetURL is the URL of the key set tokens are checked with: KEY_MANAGER_JWKS_URL
@@ -49,18 +54,28 @@ func keySetURL(km config.KeyManagerConfigurations) (string, error) {
 	if issuer == "" {
 		return "", nil
 	}
-	discoveredJWKSMu.Lock()
-	defer discoveredJWKSMu.Unlock()
-	if u, ok := discoveredJWKSURL[issuer]; ok {
+	discoveredJWKSMu.RLock()
+	u, ok := discoveredJWKSURL[issuer]
+	discoveredJWKSMu.RUnlock()
+	if ok {
 		return u, nil
 	}
 	// A failure is not remembered, so the next token tries again: the
 	// identity provider may simply not have been up yet.
-	u, err := discoverJWKSURL(issuer)
+	v, err, _ := discoveryGroup.Do(issuer, func() (any, error) {
+		u, err := discoverJWKSURL(issuer)
+		if err != nil {
+			return "", err
+		}
+		discoveredJWKSMu.Lock()
+		discoveredJWKSURL[issuer] = u
+		discoveredJWKSMu.Unlock()
+		return u, nil
+	})
 	if err != nil {
 		return "", fmt.Errorf("%w: discover the key set of %s: %w", ErrKeySetUnavailable, issuer, err)
 	}
-	discoveredJWKSURL[issuer] = u
+	u, _ = v.(string)
 	return u, nil
 }
 
