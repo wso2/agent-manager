@@ -58,11 +58,27 @@ const (
 	PermPlanCreate = "plan-create"
 	PermPlanUpdate = "plan-update"
 	PermPlanDelete = "plan-delete"
+
+	PermWebhookSecretRead   = "webhook-secret-read"
+	PermWebhookSecretCreate = "webhook-secret-create"
+	PermWebhookSecretRotate = "webhook-secret-rotate"
+	PermWebhookSecretDelete = "webhook-secret-delete"
 )
 
 // ActionPortalSync is the audit action of a developer portal's webhook delivery, which creates, changes or
 // deletes a plan or a subscription.
 const ActionPortalSync = "portal-sync"
+
+// ActionWebhookSecretVersionDelete is the audit action of deleting one version of a webhook secret, which the
+// webhook-secret-delete permission gates with deleting the whole secret.
+const ActionWebhookSecretVersionDelete = "webhook-secret-versions.delete"
+
+// auditResourceWebhookSecret and auditDetailVersion name, in the audit records of webhook secret changes, the secret
+// and the version made or removed.
+const (
+	auditResourceWebhookSecret = "webhook-secret"
+	auditDetailVersion         = "version"
+)
 
 func init() { modkit.Register(Module()) }
 
@@ -78,6 +94,7 @@ func (module) Manifest() modkit.Manifest {
 		Version:     "0.1.0",
 		Description: "AI Hub: subscription plans for MCP servers and agents",
 		CoreAPI:     modkit.CoreAPIVersion,
+		Settings:    settings,
 		// Its plans and subscriptions, for gateways. It depends on no gateway: the AI Gateway reads them and
 		// subscribes to EventSubscriptionChanged, so the dependency runs one way only.
 		Provides: []string{subplanv1.ID},
@@ -86,12 +103,22 @@ func (module) Manifest() modkit.Manifest {
 			{Name: PermPlanCreate, DisplayName: "Create Subscription Plans", Description: "Create subscription plans"},
 			{Name: PermPlanUpdate, DisplayName: "Change Subscription Plans", Description: "Change subscription plans"},
 			{Name: PermPlanDelete, DisplayName: "Deprecate Subscription Plans", Description: "Deprecate (soft-delete) subscription plans"},
+			{Name: PermWebhookSecretRead, DisplayName: "View Webhook Secrets", Description: "View developer portal webhook secrets (masked)"},
+			{Name: PermWebhookSecretCreate, DisplayName: "Create Webhook Secrets", Description: "Create developer portal webhook secrets"},
+			{Name: PermWebhookSecretRotate, DisplayName: "Rotate Webhook Secrets", Description: "Rotate developer portal webhook secrets"},
+			{Name: PermWebhookSecretDelete, DisplayName: "Delete Webhook Secrets", Description: "Delete developer portal webhook secrets and their versions"},
 		},
 		RoleGrants: map[string][]string{
-			"Agent Manager Admin": {PermPlanRead, PermPlanCreate, PermPlanUpdate, PermPlanDelete},
-			"Platform Engineer":   {PermPlanRead, PermPlanCreate, PermPlanUpdate, PermPlanDelete},
-			"AI Lead":             {PermPlanRead},
-			"Developer":           {PermPlanRead},
+			"Agent Manager Admin": {
+				PermPlanRead, PermPlanCreate, PermPlanUpdate, PermPlanDelete,
+				PermWebhookSecretRead, PermWebhookSecretCreate, PermWebhookSecretRotate, PermWebhookSecretDelete,
+			},
+			"Platform Engineer": {
+				PermPlanRead, PermPlanCreate, PermPlanUpdate, PermPlanDelete,
+				PermWebhookSecretRead, PermWebhookSecretCreate, PermWebhookSecretRotate, PermWebhookSecretDelete,
+			},
+			"AI Lead":   {PermPlanRead},
+			"Developer": {PermPlanRead},
 		},
 		Events: []modkit.EventType{
 			{Name: EventPlanChanged, Description: "A subscription plan was created, changed or deprecated."},
@@ -101,6 +128,25 @@ func (module) Manifest() modkit.Manifest {
 			// A plan made in a developer portal, copied in by a signed webhook delivery: a change to the
 			// organization's configuration, made on the internal server.
 			{Name: ActionPortalSync, Description: "Copy in a subscription plan or a subscription from a developer portal"},
+			// Webhook secrets are credentials: their records name the secret (AuditResource, by its handle) and the
+			// version made or removed, never its value or hash.
+			{
+				Name: PermWebhookSecretCreate, Class: "credential", Description: "Create a developer portal webhook secret",
+				Details: map[string]string{auditDetailVersion: "count"},
+			},
+			{
+				Name: PermWebhookSecretRotate, Class: "credential", Description: "Rotate a developer portal webhook secret",
+				Details: map[string]string{auditDetailVersion: "count"},
+			},
+			{
+				Name: PermWebhookSecretDelete, Class: "credential", Description: "Delete a developer portal webhook secret",
+			},
+			// Deleting one version shares the delete permission but is its own action, so its intent record,
+			// written before the handler runs, already says which operation it is.
+			{
+				Name: ActionWebhookSecretVersionDelete, Class: "credential", Description: "Delete a version of a developer portal webhook secret",
+				Details: map[string]string{auditDetailVersion: "count"},
+			},
 		},
 		// The console's Organization > Manage > Subscription Plans page (UI module "ai-hub").
 		UI: &modkit.UI{Pages: []modkit.Page{{ID: "ai-hub/subscription-plans", Permission: PermPlanRead}}},
@@ -148,12 +194,34 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 		log: log.With("component", "subscriptions"), now: time.Now,
 	}
 	a := &planController{plans: plans, core: rt.Core, log: log}
+	cfg, err := webhookConfigFrom(rt.Config)
+	if err != nil {
+		return err
+	}
+	secrets := &webhookSecretService{
+		db: rt.DB, secrets: rt.Secrets, maxVersions: cfg.SecretMaxVersions,
+		log: log.With("component", "webhook-secrets"), now: time.Now, generate: newWebhookSecretValue,
+	}
 	// The webhook a developer portal delivers plans to, on the internal server at /m/ai-hub/webhooks/events. It
-	// has no user sign-in: the receiver authenticates each delivery by its signature.
+	// has no user sign-in: the receiver authenticates each delivery by its signature, with one of the
+	// organizations' webhook secrets.
 	rt.HandleWebhook(http.MethodPost, webhookPath, (&webhookReceiver{
-		cfg: webhookConfigFrom(rt.Config, log), plans: plans, subscriptions: subs, core: rt.Core(),
+		cfg: cfg, plans: plans, subscriptions: subs, secrets: secrets, core: rt.Core(),
 		log: log.With("component", "plan-webhook"), now: time.Now,
 	}).ServeHTTP, modkit.Audit(ActionPortalSync))
+	// The organization's webhook secrets, one per developer portal that sends it deliveries, under /m/ai-hub.
+	// Changes to them are credential changes, so they are audited fail-closed, as the AI Gateway's API keys and
+	// gateway tokens are: the core writes an intent record before the handler runs, and answers 503 when it can't.
+	ws := &webhookSecretController{secrets: secrets, core: rt.Core, log: log}
+	failClosed := modkit.AuditFailClosed()
+	rt.Handle(http.MethodPost, "/webhook-secrets", PermWebhookSecretCreate, ws.createSecret, failClosed)
+	rt.Handle(http.MethodGet, "/webhook-secrets", PermWebhookSecretRead, ws.listSecrets)
+	rt.Handle(http.MethodGet, "/webhook-secrets/{webhookSecretId}", PermWebhookSecretRead, ws.getSecret)
+	rt.Handle(http.MethodDelete, "/webhook-secrets/{webhookSecretId}", PermWebhookSecretDelete, ws.deleteSecret, failClosed)
+	rt.Handle(http.MethodPost, "/webhook-secrets/{webhookSecretId}/rotate", PermWebhookSecretRotate, ws.rotateSecret,
+		failClosed)
+	rt.Handle(http.MethodDelete, "/webhook-secrets/{webhookSecretId}/versions/{version}", PermWebhookSecretDelete,
+		ws.deleteSecretVersion, modkit.Audit(ActionWebhookSecretVersionDelete), failClosed)
 	// Gateways pull the subscriptions, and the plans they are on, when they connect; the AI Gateway pushes each
 	// subscription change, after its plan, on EventSubscriptionChanged.
 	rt.Provide(subplanv1.ID, planSource{plans: plans, subscriptions: subs})

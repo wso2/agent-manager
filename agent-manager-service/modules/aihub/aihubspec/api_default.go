@@ -1,7 +1,7 @@
 /*
 AI Hub API
 
-Subscription plans of the AI Hub module. A plan is a set of conditions (request, tool call, token and custom limits) that MCP servers offer and agents subscribe to. The caller's organization comes from the token. A plan is never removed: deleting it deprecates it (a soft delete). A deprecated plan stays, read only, for the subscriptions on it, and gateways still get it; it can't be changed, offered on an MCP server or subscribed to again. A plan is a document, as Kubernetes resources are: `apiVersion` (the document schema's version, separate from the URL's), `kind`, `metadata` (`name` is the plan's handle; the rest is set by the server), `spec` (what the caller declares) and `status` (what the server observes, ignored on input). Bodies are JSON, or YAML with `Content-Type: application/yaml`; a response is YAML when the request accepts `application/yaml`.
+Subscription plans of the AI Hub module. A plan is a set of conditions (request, tool call, token and custom limits) that MCP servers offer and agents subscribe to. The caller's organization comes from the token. A plan is never removed: deleting it deprecates it (a soft delete). A deprecated plan stays, read only, for the subscriptions on it, and gateways still get it; it can't be changed, offered on an MCP server or subscribed to again. A plan is a document, as Kubernetes resources are: `apiVersion` (the document schema's version, separate from the URL's), `kind`, `metadata` (`name` is the plan's handle; the rest is set by the server), `spec` (what the caller declares) and `status` (what the server observes, ignored on input). Bodies are JSON, or YAML with `Content-Type: application/yaml`; a response is YAML when the request accepts `application/yaml`. Webhook secrets (`/webhook-secrets`) are the secrets developer portals sign their deliveries to this organization with, one per portal (or per portal organization). A secret's value is returned once, when it is created or rotated; reads return a masked value and the hash a delivery names it by.
 
 API version: 0.1.0
 */
@@ -137,6 +137,332 @@ func (a *DefaultAPIService) CreateSubscriptionPlanExecute(r ApiCreateSubscriptio
 	}
 
 	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiCreateWebhookSecretRequest struct {
+	ctx                        context.Context
+	ApiService                 *DefaultAPIService
+	webhookSecretCreateRequest *WebhookSecretCreateRequest
+}
+
+func (r ApiCreateWebhookSecretRequest) WebhookSecretCreateRequest(webhookSecretCreateRequest WebhookSecretCreateRequest) ApiCreateWebhookSecretRequest {
+	r.webhookSecretCreateRequest = &webhookSecretCreateRequest
+	return r
+}
+
+func (r ApiCreateWebhookSecretRequest) Execute() (*WebhookSecret, *http.Response, error) {
+	return r.ApiService.CreateWebhookSecretExecute(r)
+}
+
+/*
+CreateWebhookSecret Create a webhook secret for a developer portal
+
+Creates a secret with its first version and returns its value, once (`secret`). Give it to the portal's webhook subscriber for this organization. A delivery signed with it is for this organization only: its `org.ref_id` must be this organization's id, or `orgRef` when given (the portal organization's control-plane reference, such as the organization handle another control plane needs). 409 WEBHOOK_SECRET_EXISTS when the id is taken.
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@return ApiCreateWebhookSecretRequest
+*/
+func (a *DefaultAPIService) CreateWebhookSecret(ctx context.Context) ApiCreateWebhookSecretRequest {
+	return ApiCreateWebhookSecretRequest{
+		ApiService: a,
+		ctx:        ctx,
+	}
+}
+
+// Execute executes the request
+//
+//	@return WebhookSecret
+func (a *DefaultAPIService) CreateWebhookSecretExecute(r ApiCreateWebhookSecretRequest) (*WebhookSecret, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodPost
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *WebhookSecret
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.CreateWebhookSecret")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/webhook-secrets"
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+	if r.webhookSecretCreateRequest == nil {
+		return localVarReturnValue, nil, reportError("webhookSecretCreateRequest is required and must be specified")
+	}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{"application/json"}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	// body params
+	localVarPostBody = r.webhookSecretCreateRequest
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		var v ErrorResponse
+		err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+		if err != nil {
+			newErr.error = err.Error()
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+		newErr.model = v
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiDeleteWebhookSecretRequest struct {
+	ctx             context.Context
+	ApiService      *DefaultAPIService
+	webhookSecretId string
+}
+
+func (r ApiDeleteWebhookSecretRequest) Execute() (*http.Response, error) {
+	return r.ApiService.DeleteWebhookSecretExecute(r)
+}
+
+/*
+DeleteWebhookSecret Delete a webhook secret and all its versions
+
+Deliveries signed with any of its versions are refused from then on.
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param webhookSecretId The secret's id (its handle).
+	@return ApiDeleteWebhookSecretRequest
+*/
+func (a *DefaultAPIService) DeleteWebhookSecret(ctx context.Context, webhookSecretId string) ApiDeleteWebhookSecretRequest {
+	return ApiDeleteWebhookSecretRequest{
+		ApiService:      a,
+		ctx:             ctx,
+		webhookSecretId: webhookSecretId,
+	}
+}
+
+// Execute executes the request
+func (a *DefaultAPIService) DeleteWebhookSecretExecute(r ApiDeleteWebhookSecretRequest) (*http.Response, error) {
+	var (
+		localVarHTTPMethod = http.MethodDelete
+		localVarPostBody   interface{}
+		formFiles          []formFile
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.DeleteWebhookSecret")
+	if err != nil {
+		return nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/webhook-secrets/{webhookSecretId}"
+	localVarPath = strings.Replace(localVarPath, "{"+"webhookSecretId"+"}", url.PathEscape(parameterValueToString(r.webhookSecretId, "webhookSecretId")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		var v ErrorResponse
+		err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+		if err != nil {
+			newErr.error = err.Error()
+			return localVarHTTPResponse, newErr
+		}
+		newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+		newErr.model = v
+		return localVarHTTPResponse, newErr
+	}
+
+	return localVarHTTPResponse, nil
+}
+
+type ApiDeleteWebhookSecretVersionRequest struct {
+	ctx             context.Context
+	ApiService      *DefaultAPIService
+	webhookSecretId string
+	version         int32
+}
+
+func (r ApiDeleteWebhookSecretVersionRequest) Execute() (*http.Response, error) {
+	return r.ApiService.DeleteWebhookSecretVersionExecute(r)
+}
+
+/*
+DeleteWebhookSecretVersion Delete one version of a webhook secret
+
+Deliveries signed with that version are refused from then on. The last version can't be deleted on its own (409 WEBHOOK_SECRET_LAST_VERSION): delete the secret instead.
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param webhookSecretId The secret's id (its handle).
+	@param version
+	@return ApiDeleteWebhookSecretVersionRequest
+*/
+func (a *DefaultAPIService) DeleteWebhookSecretVersion(ctx context.Context, webhookSecretId string, version int32) ApiDeleteWebhookSecretVersionRequest {
+	return ApiDeleteWebhookSecretVersionRequest{
+		ApiService:      a,
+		ctx:             ctx,
+		webhookSecretId: webhookSecretId,
+		version:         version,
+	}
+}
+
+// Execute executes the request
+func (a *DefaultAPIService) DeleteWebhookSecretVersionExecute(r ApiDeleteWebhookSecretVersionRequest) (*http.Response, error) {
+	var (
+		localVarHTTPMethod = http.MethodDelete
+		localVarPostBody   interface{}
+		formFiles          []formFile
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.DeleteWebhookSecretVersion")
+	if err != nil {
+		return nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/webhook-secrets/{webhookSecretId}/versions/{version}"
+	localVarPath = strings.Replace(localVarPath, "{"+"webhookSecretId"+"}", url.PathEscape(parameterValueToString(r.webhookSecretId, "webhookSecretId")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"version"+"}", url.PathEscape(parameterValueToString(r.version, "version")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+	if r.version < 1 {
+		return nil, reportError("version must be greater than 1")
+	}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		var v ErrorResponse
+		err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+		if err != nil {
+			newErr.error = err.Error()
+			return localVarHTTPResponse, newErr
+		}
+		newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+		newErr.model = v
+		return localVarHTTPResponse, newErr
+	}
+
+	return localVarHTTPResponse, nil
 }
 
 type ApiDeprecateSubscriptionPlanRequest struct {
@@ -361,6 +687,116 @@ func (a *DefaultAPIService) GetSubscriptionPlanExecute(r ApiGetSubscriptionPlanR
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
+type ApiGetWebhookSecretRequest struct {
+	ctx             context.Context
+	ApiService      *DefaultAPIService
+	webhookSecretId string
+}
+
+func (r ApiGetWebhookSecretRequest) Execute() (*WebhookSecret, *http.Response, error) {
+	return r.ApiService.GetWebhookSecretExecute(r)
+}
+
+/*
+GetWebhookSecret Get a webhook secret with its versions (values masked)
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param webhookSecretId The secret's id (its handle).
+	@return ApiGetWebhookSecretRequest
+*/
+func (a *DefaultAPIService) GetWebhookSecret(ctx context.Context, webhookSecretId string) ApiGetWebhookSecretRequest {
+	return ApiGetWebhookSecretRequest{
+		ApiService:      a,
+		ctx:             ctx,
+		webhookSecretId: webhookSecretId,
+	}
+}
+
+// Execute executes the request
+//
+//	@return WebhookSecret
+func (a *DefaultAPIService) GetWebhookSecretExecute(r ApiGetWebhookSecretRequest) (*WebhookSecret, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *WebhookSecret
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.GetWebhookSecret")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/webhook-secrets/{webhookSecretId}"
+	localVarPath = strings.Replace(localVarPath, "{"+"webhookSecretId"+"}", url.PathEscape(parameterValueToString(r.webhookSecretId, "webhookSecretId")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		var v ErrorResponse
+		err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+		if err != nil {
+			newErr.error = err.Error()
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+		newErr.model = v
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
 type ApiListSubscriptionPlansRequest struct {
 	ctx        context.Context
 	ApiService *DefaultAPIService
@@ -453,6 +889,224 @@ func (a *DefaultAPIService) ListSubscriptionPlansExecute(r ApiListSubscriptionPl
 
 	// to determine the Accept header
 	localVarHTTPHeaderAccepts := []string{"application/json", "application/yaml"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		var v ErrorResponse
+		err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+		if err != nil {
+			newErr.error = err.Error()
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+		newErr.model = v
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiListWebhookSecretsRequest struct {
+	ctx        context.Context
+	ApiService *DefaultAPIService
+}
+
+func (r ApiListWebhookSecretsRequest) Execute() (*WebhookSecretListResponse, *http.Response, error) {
+	return r.ApiService.ListWebhookSecretsExecute(r)
+}
+
+/*
+ListWebhookSecrets List the organization's webhook secrets, by id, with their versions (values masked)
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@return ApiListWebhookSecretsRequest
+*/
+func (a *DefaultAPIService) ListWebhookSecrets(ctx context.Context) ApiListWebhookSecretsRequest {
+	return ApiListWebhookSecretsRequest{
+		ApiService: a,
+		ctx:        ctx,
+	}
+}
+
+// Execute executes the request
+//
+//	@return WebhookSecretListResponse
+func (a *DefaultAPIService) ListWebhookSecretsExecute(r ApiListWebhookSecretsRequest) (*WebhookSecretListResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *WebhookSecretListResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ListWebhookSecrets")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/webhook-secrets"
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		var v ErrorResponse
+		err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+		if err != nil {
+			newErr.error = err.Error()
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+		newErr.model = v
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiRotateWebhookSecretRequest struct {
+	ctx             context.Context
+	ApiService      *DefaultAPIService
+	webhookSecretId string
+}
+
+func (r ApiRotateWebhookSecretRequest) Execute() (*WebhookSecret, *http.Response, error) {
+	return r.ApiService.RotateWebhookSecretExecute(r)
+}
+
+/*
+RotateWebhookSecret Add a version to a webhook secret
+
+Adds a version and returns its value, once (`secret`). The older versions keep verifying deliveries until they are deleted, so the portal can switch to the new value without a refused delivery. A secret keeps at most `webhook_secret_max_versions` versions (3 by default): 409 WEBHOOK_SECRET_VERSION_LIMIT until an old version is deleted.
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param webhookSecretId The secret's id (its handle).
+	@return ApiRotateWebhookSecretRequest
+*/
+func (a *DefaultAPIService) RotateWebhookSecret(ctx context.Context, webhookSecretId string) ApiRotateWebhookSecretRequest {
+	return ApiRotateWebhookSecretRequest{
+		ApiService:      a,
+		ctx:             ctx,
+		webhookSecretId: webhookSecretId,
+	}
+}
+
+// Execute executes the request
+//
+//	@return WebhookSecret
+func (a *DefaultAPIService) RotateWebhookSecretExecute(r ApiRotateWebhookSecretRequest) (*WebhookSecret, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodPost
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *WebhookSecret
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.RotateWebhookSecret")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/webhook-secrets/{webhookSecretId}/rotate"
+	localVarPath = strings.Replace(localVarPath, "{"+"webhookSecretId"+"}", url.PathEscape(parameterValueToString(r.webhookSecretId, "webhookSecretId")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
 
 	// set Accept header
 	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)

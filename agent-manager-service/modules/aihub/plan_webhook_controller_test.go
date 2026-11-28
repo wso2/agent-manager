@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -64,21 +65,185 @@ func TestSecretHash(t *testing.T) {
 	assert.Equal(t, strings.ToLower(h), h)
 }
 
+// Only an organization's webhook secret signs: there is no secret shared by every organization, so a delivery
+// naming a secret this receiver doesn't hold is refused, whatever organization it names.
 func TestAuthenticate(t *testing.T) {
+	ctx := context.Background()
 	now := time.Now()
-	r := &webhookReceiver{cfg: webhookConfig{Secret: testSecret, SignatureTolerance: time.Minute}, now: func() time.Time { return now }}
-	withHash := []byte(`{"event_id":"e1","secret_hash":"` + SecretHash(testSecret) + `"}`)
-	assert.NoError(t, r.authenticate(Sign(testSecret, withHash, now), withHash))
+	org := uuid.NewString()
+	portal := webhookSigner{Secret: testSecret, OrgID: org}
+	r := &webhookReceiver{
+		cfg:     webhookConfig{SignatureTolerance: time.Minute},
+		secrets: stubSecrets{signers: []webhookSigner{portal}},
+		core:    knownOrgs{ids: []string{org}},
+		now:     func() time.Time { return now },
+	}
+	withHash := []byte(`{"event_id":"e1","org":{"ref_id":"` + org + `"},"secret_hash":"` + SecretHash(testSecret) + `"}`)
+	signer, err := r.authenticate(ctx, Sign(testSecret, withHash, now), withHash)
+	require.NoError(t, err)
+	assert.Equal(t, portal, signer)
 
-	otherHash := []byte(`{"event_id":"e1","secret_hash":"` + SecretHash("other") + `"}`)
-	assert.ErrorIs(t, r.authenticate(Sign(testSecret, otherHash, now), otherHash), errSignatureInvalid,
-		"a delivery naming a secret this receiver doesn't hold is refused")
+	otherHash := []byte(`{"event_id":"e1","org":{"ref_id":"` + org + `"},"secret_hash":"` + SecretHash("other") + `"}`)
+	_, err = r.authenticate(ctx, Sign("other", otherHash, now), otherHash)
+	assert.ErrorIs(t, err, errSignatureInvalid, "a delivery naming a secret this receiver doesn't hold is refused")
 
-	noHash := []byte(`{"event_id":"e1"}`)
-	assert.ErrorIs(t, r.authenticate(Sign(testSecret, noHash, now), noHash), errSignatureInvalid,
-		"without secret_hash, only when legacy deliveries are allowed")
+	noHash := []byte(`{"event_id":"e1","org":{"ref_id":"` + org + `"}}`)
+	_, err = r.authenticate(ctx, Sign(testSecret, noHash, now), noHash)
+	assert.ErrorIs(t, err, errSignatureInvalid, "without secret_hash, only when legacy deliveries are allowed")
 	r.cfg.LegacySharedSecret = true
-	assert.NoError(t, r.authenticate(Sign(testSecret, noHash, now), noHash))
+	signer, err = r.authenticate(ctx, Sign(testSecret, noHash, now), noHash)
+	require.NoError(t, err)
+	assert.Equal(t, portal, signer)
+
+	_, err = r.orgOf(ctx, org, webhookSigner{Secret: testSecret})
+	assert.ErrorIs(t, err, errOrganizationNotFound, "a secret of no organization names none")
+	_, err = (&webhookReceiver{cfg: r.cfg, now: r.now}).authenticate(ctx, Sign(testSecret, withHash, now), withHash)
+	assert.ErrorIs(t, err, errSignatureInvalid, "with no secrets held, nothing verifies")
+}
+
+// stubSecrets holds organizations' webhook secrets in memory, as the receiver reads them.
+type stubSecrets struct {
+	signers []webhookSigner
+	err     error
+}
+
+func (s stubSecrets) signerByHash(_ context.Context, hash string) (webhookSigner, bool, error) {
+	if s.err != nil {
+		return webhookSigner{}, false, s.err
+	}
+	for _, sg := range s.signers {
+		if SecretHash(sg.Secret) == hash {
+			return sg, true, nil
+		}
+	}
+	return webhookSigner{}, false, nil
+}
+
+func (s stubSecrets) signersForRef(_ context.Context, ref string, limit int) ([]webhookSigner, error) {
+	var out []webhookSigner
+	for _, sg := range s.signers {
+		if (sg.OrgRef == ref || sg.OrgID == ref) && len(out) < limit {
+			out = append(out, sg)
+		}
+	}
+	return out, s.err
+}
+
+// An organization's webhook secret signs only for that organization, named by its id or the reference the
+// secret was given.
+func TestAuthenticateWithOrganizationSecrets(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now()
+	acme, globex := uuid.NewString(), uuid.NewString()
+	acmePortal := webhookSigner{Secret: "whsec_acme", OrgID: acme, OrgRef: "default"}
+	acmeSecondPortal := webhookSigner{Secret: "whsec_acme2", OrgID: acme}
+	globexPortal := webhookSigner{Secret: "whsec_globex", OrgID: globex, OrgRef: "globex"}
+	r := &webhookReceiver{
+		cfg:     webhookConfig{SignatureTolerance: time.Minute},
+		secrets: stubSecrets{signers: []webhookSigner{acmePortal, acmeSecondPortal, globexPortal}},
+		core:    knownOrgs{ids: []string{acme, globex}},
+		now:     func() time.Time { return now },
+	}
+	body := func(ref, secret string) []byte {
+		return []byte(`{"event_id":"e1","org":{"ref_id":"` + ref + `"},"secret_hash":"` + SecretHash(secret) + `"}`)
+	}
+
+	t.Run("the secret a delivery names verifies it and fixes the organization", func(t *testing.T) {
+		for _, tc := range []struct {
+			signer webhookSigner
+			ref    string
+		}{{acmePortal, "default"}, {acmePortal, acme}, {acmeSecondPortal, acme}, {globexPortal, "globex"}} {
+			b := body(tc.ref, tc.signer.Secret)
+			signer, err := r.authenticate(ctx, Sign(tc.signer.Secret, b, now), b)
+			require.NoError(t, err, tc.ref)
+			assert.Equal(t, tc.signer, signer)
+			org, err := r.orgOf(ctx, tc.ref, signer)
+			require.NoError(t, err, tc.ref)
+			assert.Equal(t, tc.signer.OrgID, org)
+		}
+	})
+
+	t.Run("a secret of one organization doesn't sign for another", func(t *testing.T) {
+		for _, ref := range []string{globex, "globex", "other"} {
+			_, err := r.orgOf(ctx, ref, acmePortal)
+			assert.ErrorIs(t, err, errOrganizationNotFound, ref)
+		}
+		_, err := r.orgOf(ctx, "default", acmeSecondPortal)
+		assert.ErrorIs(t, err, errOrganizationNotFound, "a secret with no reference takes the organization id only")
+	})
+
+	t.Run("a delivery signed with another secret than it names is refused", func(t *testing.T) {
+		b := body("default", acmePortal.Secret)
+		_, err := r.authenticate(ctx, Sign(globexPortal.Secret, b, now), b)
+		assert.ErrorIs(t, err, errSignatureInvalid)
+	})
+
+	t.Run("an empty secret never verifies", func(t *testing.T) {
+		// The provider holds a secret with no value, so the delivery's hash is found: it is refused for the
+		// empty value, not as an unknown hash.
+		withEmpty := &webhookReceiver{
+			cfg: r.cfg, secrets: stubSecrets{signers: []webhookSigner{{Secret: "", OrgID: acme}}}, core: r.core, now: r.now,
+		}
+		b := body(acme, "")
+		_, err := withEmpty.authenticate(ctx, Sign("", b, now), b)
+		assert.ErrorIs(t, err, errSignatureInvalid, "anyone can sign with an empty secret")
+	})
+
+	t.Run("legacy: no secret_hash, tried against the secrets of the organization it names", func(t *testing.T) {
+		r.cfg.LegacySharedSecret = true
+		defer func() { r.cfg.LegacySharedSecret = false }()
+		b := []byte(`{"event_id":"e1","org":{"ref_id":"globex"}}`)
+		signer, err := r.authenticate(ctx, Sign(globexPortal.Secret, b, now), b)
+		require.NoError(t, err)
+		assert.Equal(t, globexPortal, signer)
+		_, err = r.authenticate(ctx, Sign(acmePortal.Secret, b, now), b)
+		assert.ErrorIs(t, err, errSignatureInvalid, "only that organization's secrets are tried")
+		_, err = r.authenticate(ctx, Sign(globexPortal.Secret, b, now.Add(-time.Hour)), b)
+		assert.ErrorIs(t, err, errTimestampOutOfTolerance)
+	})
+
+	t.Run("a failure reading the secrets is ours, not the sender's", func(t *testing.T) {
+		failing := &webhookReceiver{cfg: r.cfg, secrets: stubSecrets{err: errors.New("database is down")}, now: r.now}
+		b := body(acme, acmePortal.Secret)
+		_, err := failing.authenticate(ctx, Sign(acmePortal.Secret, b, now), b)
+		require.Error(t, err)
+		assert.False(t, isClientFault(err))
+
+		// An unsigned delivery is refused before any secret is read, so it is the sender's fault even then.
+		_, err = failing.authenticate(ctx, "", b)
+		assert.ErrorIs(t, err, errSignatureMissing)
+		assert.True(t, isClientFault(err))
+	})
+}
+
+func TestWebhookSecretValue(t *testing.T) {
+	v, err := newWebhookSecretValue()
+	require.NoError(t, err)
+	assert.True(t, strings.HasPrefix(v, "whsec_"))
+	assert.Len(t, v, len("whsec_")+64)
+	other, err := newWebhookSecretValue()
+	require.NoError(t, err)
+	assert.NotEqual(t, v, other)
+	assert.Equal(t, "whsec_****"+v[len(v)-4:], maskWebhookSecret(v))
+	assert.Equal(t, "whsec_****", maskWebhookSecret("short"))
+	assert.Equal(t, "webhook-secrets/abc/v2", webhookSecretPath("abc", 2))
+}
+
+func TestWebhookSecretInput(t *testing.T) {
+	in := webhookSecretInput{Handle: " acme-portal ", OrgRef: " default "}
+	require.NoError(t, in.normalize())
+	assert.Equal(t, webhookSecretInput{Handle: "acme-portal", DisplayName: "acme-portal", OrgRef: "default"}, in)
+	for name, bad := range map[string]webhookSecretInput{
+		"no id":      {},
+		"bad id":     {Handle: "Acme Portal"},
+		"long id":    {Handle: strings.Repeat("a", maxHandleChars+1)},
+		"long name":  {Handle: "a", DisplayName: strings.Repeat("n", maxWebhookSecretNameChars+1)},
+		"long ref":   {Handle: "a", OrgRef: strings.Repeat("r", maxWebhookOrgRefChars+1)},
+		"hyphen end": {Handle: "acme-"},
+	} {
+		var v *validationError
+		assert.ErrorAs(t, bad.normalize(), &v, name)
+	}
 }
 
 func TestEnvelope(t *testing.T) {
@@ -150,31 +315,68 @@ func TestWebhookConditions(t *testing.T) {
 func TestWebhookConfigFrom(t *testing.T) {
 	settings := map[string]string{}
 	get := func(k string) string { return settings[k] }
-	cfg := webhookConfigFrom(get, slog.New(slog.DiscardHandler))
-	assert.False(t, cfg.Enabled, "off without a secret")
+	cfg, err := webhookConfigFrom(get)
+	require.NoError(t, err)
+	assert.True(t, cfg.Enabled, "on by default: a delivery still needs one of an organization's webhook secrets")
+	assert.False(t, cfg.LegacySharedSecret)
 	assert.Equal(t, DefaultWebhookSignatureHeader, cfg.SignatureHeader)
 	assert.Equal(t, 5*time.Minute, cfg.SignatureTolerance)
 	assert.EqualValues(t, 1<<20, cfg.MaxBodyBytes)
+	assert.Equal(t, DefaultWebhookSecretMaxVersions, cfg.SecretMaxVersions)
 
-	settings["webhook_secret"] = testSecret
 	settings["webhook_signature_tolerance"] = "90s"
 	settings["webhook_max_body_size"] = "2048"
-	cfg = webhookConfigFrom(get, slog.New(slog.DiscardHandler))
-	assert.True(t, cfg.Enabled, "on once a secret is set")
+	settings["webhook_secret_max_versions"] = "5"
+	settings["webhook_legacy_shared_secret"] = "true"
+	cfg, err = webhookConfigFrom(get)
+	require.NoError(t, err)
+	assert.True(t, cfg.Enabled)
+	assert.True(t, cfg.LegacySharedSecret)
 	assert.Equal(t, 90*time.Second, cfg.SignatureTolerance)
 	assert.EqualValues(t, 2048, cfg.MaxBodyBytes)
+	assert.Equal(t, 5, cfg.SecretMaxVersions)
+
+	settings["webhook_signature_header"] = "X-Custom-Signature"
+	cfg, err = webhookConfigFrom(get)
+	require.NoError(t, err)
+	assert.Equal(t, "X-Custom-Signature", cfg.SignatureHeader, "any HTTP header name is taken")
 
 	settings["webhook_enabled"] = "false"
-	assert.False(t, webhookConfigFrom(get, slog.New(slog.DiscardHandler)).Enabled, "and can be switched off")
+	cfg, err = webhookConfigFrom(get)
+	require.NoError(t, err)
+	assert.False(t, cfg.Enabled, "and can be switched off")
+
+	// A setting that is set but invalid stops the module from activating, rather than leaving a default in place.
+	for key, value := range map[string]string{
+		"webhook_enabled":              "flase",
+		"webhook_legacy_shared_secret": "yes please",
+		"webhook_secret_max_versions":  "1",
+		"webhook_signature_tolerance":  "-1m",
+		"webhook_max_body_size":        "lots",
+		"webhook_signature_header":     "X-Portal-Signature:",
+	} {
+		bad := map[string]string{key: value}
+		_, err := webhookConfigFrom(func(k string) string { return bad[k] })
+		require.Error(t, err, key)
+		assert.Contains(t, err.Error(), key)
+	}
 }
 
 func TestReceiverRejectsAlike(t *testing.T) {
-	r := &webhookReceiver{cfg: webhookConfig{
-		Enabled: true, Secret: testSecret, SignatureHeader: DefaultWebhookSignatureHeader,
-		SignatureTolerance: time.Minute, MaxBodyBytes: 1 << 20,
-	}, log: slog.New(slog.DiscardHandler), now: time.Now}
-	for name, header := range map[string]string{"no signature": "", "bad signature": "t=1,v1=00"} {
-		req := httptest.NewRequest(http.MethodPost, WebhookRoutePath, strings.NewReader(`{"event_id":"e1"}`))
+	org := uuid.NewString()
+	r := &webhookReceiver{
+		cfg: webhookConfig{
+			Enabled: true, SignatureHeader: DefaultWebhookSignatureHeader,
+			SignatureTolerance: time.Minute, MaxBodyBytes: 1 << 20,
+		}, secrets: stubSecrets{signers: []webhookSigner{{Secret: testSecret, OrgID: org}}},
+		core: knownOrgs{ids: []string{org}}, log: slog.New(slog.DiscardHandler), now: time.Now,
+	}
+	// Both name a secret the receiver holds, so both reach the signature check: one has no signature, the other
+	// a current timestamp with the wrong HMAC.
+	body := `{"event_id":"e1","org":{"ref_id":"` + org + `"},"secret_hash":"` + SecretHash(testSecret) + `"}`
+	wrong := fmt.Sprintf("t=%d,v1=%s", time.Now().Unix(), strings.Repeat("0", 64))
+	for name, header := range map[string]string{"no signature": "", "wrong signature": wrong} {
+		req := httptest.NewRequest(http.MethodPost, WebhookRoutePath, strings.NewReader(body))
 		if header != "" {
 			req.Header.Set(DefaultWebhookSignatureHeader, header)
 		}
@@ -187,6 +389,21 @@ func TestReceiverRejectsAlike(t *testing.T) {
 	assert.False(t, isClientFault(errors.New("database is down")))
 }
 
+// knownOrgs answers organization lookups for the ids it holds.
+type knownOrgs struct {
+	modkit.CoreAPI
+	ids []string
+}
+
+func (k knownOrgs) GetOrg(_ context.Context, id string) (modkit.Org, error) {
+	for _, known := range k.ids {
+		if known == id {
+			return modkit.Org{ID: id, Handle: id}, nil
+		}
+	}
+	return modkit.Org{}, modkit.ErrNotFound
+}
+
 // failingCore fails every organization lookup, as a database that is down would.
 type failingCore struct{ modkit.CoreAPI }
 
@@ -196,11 +413,15 @@ func (failingCore) GetOrg(context.Context, string) (modkit.Org, error) {
 
 // A failure on this side answers 503, not 401, which would blame the sender for it.
 func TestReceiverAnswersOurFailuresWithServiceUnavailable(t *testing.T) {
-	r := &webhookReceiver{cfg: webhookConfig{
-		Enabled: true, Secret: testSecret, SignatureHeader: DefaultWebhookSignatureHeader,
-		SignatureTolerance: time.Minute, MaxBodyBytes: 1 << 20,
-	}, core: failingCore{}, log: slog.New(slog.DiscardHandler), now: time.Now}
-	body := []byte(`{"event_id":"e1","event_type":"subscription_plan.deleted","org":{"ref_id":"` + uuid.NewString() + `"},` +
+	org := uuid.NewString()
+	r := &webhookReceiver{
+		cfg: webhookConfig{
+			Enabled: true, SignatureHeader: DefaultWebhookSignatureHeader,
+			SignatureTolerance: time.Minute, MaxBodyBytes: 1 << 20,
+		}, secrets: stubSecrets{signers: []webhookSigner{{Secret: testSecret, OrgID: org}}},
+		core: failingCore{}, log: slog.New(slog.DiscardHandler), now: time.Now,
+	}
+	body := []byte(`{"event_id":"e1","event_type":"subscription_plan.deleted","org":{"ref_id":"` + org + `"},` +
 		`"secret_hash":"` + SecretHash(testSecret) + `","data":{"handle":"gold"}}`)
 	req := httptest.NewRequest(http.MethodPost, WebhookRoutePath, bytes.NewReader(body))
 	req.Header.Set(DefaultWebhookSignatureHeader, Sign(testSecret, body, time.Now()))
@@ -210,4 +431,46 @@ func TestReceiverAnswersOurFailuresWithServiceUnavailable(t *testing.T) {
 	assert.JSONEq(t, `{"status":"error","code":"SERVICE_UNAVAILABLE","message":"The delivery could not be processed. Retry later."}`,
 		rec.Body.String())
 	assert.True(t, isClientFault(errWebhookDisabled), "a disabled webhook stays a 401: a retry can't succeed")
+}
+
+// recordedAudit keeps what a request adds to its audit record.
+type recordedAudit struct {
+	resource []string
+	details  map[string]any
+}
+
+func (a *recordedAudit) AuditDetail(key string, value any) { a.details[key] = value }
+func (a *recordedAudit) AuditResource(kind, id, name string) {
+	a.resource = []string{kind, id, name}
+}
+func (a *recordedAudit) AuditEnvironment(string)                                    {}
+func (a *recordedAudit) AuditInternalCaller(context.Context, modkit.InternalCaller) {}
+
+// A webhook secret change names the secret by its handle and the version, and nothing of the value.
+func TestWebhookSecretAuditRecord(t *testing.T) {
+	rec := &recordedAudit{details: map[string]any{}}
+	ctx := modkit.WithAuditScope(context.Background(), rec)
+	secret := &webhookSecret{
+		Handle: "acme-portal", DisplayName: "Acme portal",
+		Versions: []webhookSecretVersion{{Version: 3}, {Version: 1}, {Version: 2}},
+	}
+
+	auditSecretVersion(ctx, secret.Handle, secret.DisplayName, newestVersion(secret))
+	assert.Equal(t, []string{auditResourceWebhookSecret, "acme-portal", "Acme portal"}, rec.resource)
+	assert.Equal(t, map[string]any{auditDetailVersion: 3}, rec.details)
+
+	rec.details = map[string]any{}
+	auditSecretVersion(ctx, "acme-portal", "acme-portal", 0)
+	assert.Empty(t, rec.details, "no version, no detail")
+
+	declared := map[string]bool{}
+	for _, a := range Module().Manifest().AuditActions {
+		if a.Class == "credential" {
+			declared[a.Name] = a.Details[auditDetailVersion] == "count"
+		}
+	}
+	assert.Equal(t, map[string]bool{
+		PermWebhookSecretCreate: true, PermWebhookSecretRotate: true, PermWebhookSecretDelete: false,
+		ActionWebhookSecretVersionDelete: true,
+	}, declared, "each change is a credential action; those that make or remove a version declare it")
 }

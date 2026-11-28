@@ -51,7 +51,7 @@ func TestDecryptField(t *testing.T) {
 }
 
 func TestSubscriptionChangeFromAnEvent(t *testing.T) {
-	r := &webhookReceiver{cfg: webhookConfig{Secret: testSecret}, log: slog.New(slog.DiscardHandler)}
+	r := &webhookReceiver{log: slog.New(slog.DiscardHandler)}
 	token, err := SealField(testSecret, "k-1", []byte("0123456789ab"))
 	require.NoError(t, err)
 	data := func(apiType string, withToken bool) json.RawMessage {
@@ -67,7 +67,7 @@ func TestSubscriptionChangeFromAnEvent(t *testing.T) {
 		return raw
 	}
 
-	ch, err := r.subscriptionChange(&envelope{EventType: EventSubscriptionCreated, Data: data("Mcp", true)})
+	ch, err := r.subscriptionChange(&envelope{EventType: EventSubscriptionCreated, Data: data("Mcp", true)}, testSecret)
 	require.NoError(t, err)
 	assert.Equal(t, "created", ch.Event)
 	assert.Equal(t, "s-1", ch.SourceID)
@@ -76,13 +76,16 @@ func TestSubscriptionChangeFromAnEvent(t *testing.T) {
 	require.NotNil(t, ch.Token)
 	assert.Equal(t, "k-1", *ch.Token)
 
-	_, err = r.subscriptionChange(&envelope{EventType: EventSubscriptionCreated, Data: data("RestApi", true)})
+	_, err = r.subscriptionChange(&envelope{EventType: EventSubscriptionCreated, Data: data("Mcp", true)}, "another-secret")
+	assert.Error(t, err, "the token opens only with the secret that sealed it: the one that signed the delivery")
+
+	_, err = r.subscriptionChange(&envelope{EventType: EventSubscriptionCreated, Data: data("RestApi", true)}, testSecret)
 	assert.True(t, errors.Is(err, errUnsupportedEvent), "only MCP servers take subscriptions here")
 
-	ch, err = r.subscriptionChange(&envelope{EventType: EventSubscriptionUpdated, Data: data("Mcp", false)})
+	ch, err = r.subscriptionChange(&envelope{EventType: EventSubscriptionUpdated, Data: data("Mcp", false)}, testSecret)
 	require.NoError(t, err)
 	assert.Nil(t, ch.Token, "an update carries no token")
 
-	_, err = r.subscriptionChange(&envelope{EventType: EventSubscriptionDeleted, Data: json.RawMessage(`{"api":{}}`)})
+	_, err = r.subscriptionChange(&envelope{EventType: EventSubscriptionDeleted, Data: json.RawMessage(`{"api":{}}`)}, testSecret)
 	assert.True(t, errors.Is(err, errInvalidEnvelope), "a subscription id is required")
 }

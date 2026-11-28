@@ -278,6 +278,27 @@ modules:
 | `listener_port` | `MODULE_AI_GATEWAY_LISTENER_PORT` | `19080` | amp init: the gateway's listener port. |
 | `file_owner` | `MODULE_AI_GATEWAY_FILE_OWNER` |  | amp init: uid:gid the gateway's files are given. |
 
+## Module: ai-hub
+
+Set as `MODULE_AI_HUB_<KEY>`, or under `config:` in the module's `modules:` entry in `amp.yaml`:
+
+```yaml
+modules:
+  - name: ai-hub
+    config:
+      webhook_enabled: ...
+```
+
+| Key | Variable | Default | Description |
+|---|---|---|---|
+| `webhook_enabled` | `MODULE_AI_HUB_WEBHOOK_ENABLED` | `true` | Accept developer portal deliveries at /m/ai-hub/webhooks/events, each signed with one of an organization's webhook secrets; false refuses every delivery. |
+| `webhook_secret_max_versions` | `MODULE_AI_HUB_WEBHOOK_SECRET_MAX_VERSIONS` | `3` | Versions an organization's webhook secret keeps through rotation; at least 2. |
+| `webhook_legacy_shared_secret` | `MODULE_AI_HUB_WEBHOOK_LEGACY_SHARED_SECRET` | `false` | Accept deliveries with no secret_hash, from a portal that predates it, checked against the named organization's webhook secrets (at most 32). |
+| `webhook_signature_header` | `MODULE_AI_HUB_WEBHOOK_SIGNATURE_HEADER` | `X-Api-Portal-Signature` | The header carrying a delivery's t=...,v1=... signature; must match the portal's. |
+| `webhook_signature_tolerance` | `MODULE_AI_HUB_WEBHOOK_SIGNATURE_TOLERANCE` | `5m` | How far a delivery's signature time may be from the server's clock (replay protection). |
+| `webhook_max_body_size` | `MODULE_AI_HUB_WEBHOOK_MAX_BODY_SIZE` | `1048576` | The largest delivery body accepted, in bytes. |
+| `webhook_source_name` | `MODULE_AI_HUB_WEBHOOK_SOURCE_NAME` | `developer-portal` | The origin recorded on plans the developer portal copies in. |
+
 ## Module: observability
 
 Set as `MODULE_OBSERVABILITY_<KEY>`, or under `config:` in the module's `modules:` entry in `amp.yaml`:

@@ -66,7 +66,8 @@ const ampScopes = "amp:agent:build amp:agent:create amp:agent:delete amp:agent:r
 	// The observability module's permissions.
 	"amp:observability:traces-read " +
 	// The AI Hub module's permissions.
-	"amp:ai-hub:plan-read amp:ai-hub:plan-create amp:ai-hub:plan-update amp:ai-hub:plan-delete"
+	"amp:ai-hub:plan-read amp:ai-hub:plan-create amp:ai-hub:plan-update amp:ai-hub:plan-delete " +
+	"amp:ai-hub:webhook-secret-read amp:ai-hub:webhook-secret-create amp:ai-hub:webhook-secret-rotate amp:ai-hub:webhook-secret-delete"
 
 // FetchToken obtains an OAuth2 access token from the Thunder IDP using the
 // client_credentials grant type, carrying the full ampScopes superset. It

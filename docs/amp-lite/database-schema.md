@@ -11,7 +11,7 @@ AMP Lite is a version of Agent Manager that runs anywhere, with no OpenChoreo. E
 ## Decisions that shape the schema
 
 - Lite only connects external agents. Agent runtime (builds, deployments, env vars, resources, git credentials, agent kinds) are deferred, and evaluation (evaluators, monitors, runs, scores, alerts) is removed from Lite; if they come back, they come as modules with their own tables.
-- The schema is split between the core and modules (see [Modules](#modules)). The core owns tenancy, agents, identity, secrets, events, audit and the module host's own tables. A module's tables are named `mod_<module>_<table>` and come from the module's own migrations. The AI Gateway's 33 tables are listed under [Gateway module tables](#gateway-module-tables) and the AI Hub's three under [AI Hub module tables](#ai-hub-module-tables); `amp-core` (no modules) doesn't have them.
+- The schema is split between the core and modules (see [Modules](#modules)). The core owns tenancy, agents, identity, secrets, events, audit and the module host's own tables. A module's tables are named `mod_<module>_<table>` and come from the module's own migrations. The AI Gateway's 33 tables are listed under [Gateway module tables](#gateway-module-tables) and the AI Hub's five under [AI Hub module tables](#ai-hub-module-tables); `amp-core` (no modules) doesn't have them.
 - Multi-tenant, with the organization taken from the caller's token. No table holds organizations: every tenant-owned row carries its `org_id`, and an organization exists in the database through its `default` environment, created on its first request.
 - Environments are kept for a later version but hidden in Lite. Every org gets one `default` environment. Lite's API and console never show or accept an environment; the service always uses the org's default. Tables that are per-environment today keep an `environment_id`, so adding more environments later needs no table changes. No deployment pipeline or promotion.
 - Console login is file-based to start with: a default username and password belong to a trial org (`DEFAULT_ORG_OU_ID`); connecting an identity provider starts in the provider's own org, and the trial org's rows stay behind under its id; a file maps scopes to roles (admin, developer). No users, roles or scopes tables. Tables refer to users by username.
@@ -458,7 +458,7 @@ Organizations are not deleted in Lite.
 
 ### AI Hub module tables
 
-The `ai-hub` module (`modules/aihub`) creates its three tables with its own migrations, rendered from `modules/aihub/schema/001_subscription_plans.yaml` and `002_subscriptions.yaml` by `make schema`. They have no foreign keys into core tables: `org_id` holds the organization's id. `amp-core` doesn't have them. In `amp` they are created by `amp migrate` like every compiled-in module's tables, whether or not the module is installed.
+The `ai-hub` module (`modules/aihub`) creates its five tables with its own migration, rendered from `modules/aihub/schema/001_init.yaml` by `make schema`, as the AI Gateway's are. They have no foreign keys into core tables: `org_id` holds the organization's id. `amp-core` doesn't have them. In `amp` they are created by `amp migrate` like every compiled-in module's tables, whether or not the module is installed. `001_init` replaced the module's earlier `001_subscription_plans` and `002_subscriptions` before any release had them, so a development database that applied those must be recreated: `amp migrate` refuses it, as it refuses a migration it doesn't know.
 
 **mod_ai_hub_subscription_plans**: one row per plan of an organization. A plan is never deleted, only deprecated (`deprecated_at`).
 
@@ -508,6 +508,32 @@ PK (plan_id, condition_id).
 | source_changed_at | time | no | When the subscription last changed at the portal, by its clock; an older event changes nothing |
 
 Unique (org_id, source_id), (org_id, artifact_kind, artifact_handle, subscriber_id) and (org_id, id).
+
+**mod_ai_hub_webhook_secrets**: the secrets developer portals sign their webhook deliveries to an organization with, one per portal (or per portal organization). A delivery names its secret by `secret_hash`, and the secret's row says which organization the delivery is for. The values are not in these tables: each version is in the core's `secrets` table at `webhook-secrets/<id>/v<version>`, encrypted with the core's key.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| id | ID | no | PK |
+| org_id | ID | no | The organization's id (no foreign key) |
+| handle | short text (40) | no | The secret's id in the API. Unique per organization |
+| display_name | short text (255) | no | |
+| org_ref | short text (255) | yes | The `org.ref_id` the portal sends when it isn't the organization's id (which is always accepted) |
+| last_version | integer | no | The highest version issued; a version number is never reused |
+| created_by | short text (255) | yes | The subject that created the secret |
+| created_at, updated_at | time | no | |
+
+Unique (org_id, handle) and (org_id, id).
+
+**mod_ai_hub_webhook_secret_versions**: the versions of a secret a portal may still sign with. A rotation adds one; the older ones verify deliveries until they are deleted. At most `webhook_secret_max_versions` per secret (3 by default).
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| org_id, secret_id | ID | no | FK (org_id, secret_id) → mod_ai_hub_webhook_secrets(org_id, id) ON DELETE CASCADE |
+| version | integer | no | PK with secret_id |
+| secret_hash | short text (64) | no | Hex SHA3-256 of `api-portal-webhook-secret-hash-v1:<secret>`, the `secret_hash` a delivery carries. Unique |
+| masked_secret | short text (32) | no | The prefix and the last four characters |
+| created_by | short text (255) | yes | |
+| created_at | time | no | |
 
 ## Known differences from the code
 

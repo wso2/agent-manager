@@ -30,7 +30,10 @@ func TestPermissionNamesMatchManifest(t *testing.T) {
 		names = append(names, p.Name)
 	}
 	assert.Equal(t, Name, mf.Name)
-	assert.ElementsMatch(t, []string{PermPlanRead, PermPlanCreate, PermPlanUpdate, PermPlanDelete}, names)
+	assert.ElementsMatch(t, []string{
+		PermPlanRead, PermPlanCreate, PermPlanUpdate, PermPlanDelete,
+		PermWebhookSecretRead, PermWebhookSecretCreate, PermWebhookSecretRotate, PermWebhookSecretDelete,
+	}, names)
 }
 
 // The module ships no UI of its own (the console builds it in) and its migrations from schema/.
