@@ -23,8 +23,6 @@
 export interface FeatureFlags {
   /** Hides the environment ThunderID console link; other Agent ID features are unchanged. */
   disableThunderConsole: boolean;
-  /** Identity provider management calls the REST API instead of showing the script. */
-  enableIdentityProviderManagedMode: boolean;
   /**
    * Enables Profile Settings editing and the organization Settings navigation. Off for
    * deployments where an external identity platform owns users and the organization.

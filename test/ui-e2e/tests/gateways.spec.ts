@@ -1,4 +1,10 @@
-import { AddGatewayDrawer, GatewaysPage, GatewayViewPage } from '../pages/GatewayPages';
+import {
+  AddGatewayPage,
+  GatewaysPage,
+  GatewayViewPage,
+  IdentityProviderDrawer,
+  SetupGatewayPage,
+} from '../pages/GatewayPages';
 import { uniqueName } from '../support/env';
 import { expect, test } from '../support/fixtures';
 
@@ -13,26 +19,33 @@ test.describe('gateways', () => {
     if (gatewayId) await api.delete(api.gatewayPath(gatewayId));
   });
 
-  test('register a self-hosted gateway, issue a token and remove it', async ({ page, api }) => {
+  test('register a self-hosted gateway, issue a token, add an identity provider and remove it', async ({ page, api }) => {
     const gateways = new GatewaysPage(page);
-    const drawer = new AddGatewayDrawer(page);
+    const addPage = new AddGatewayPage(page);
+    const setup = new SetupGatewayPage(page);
+    const idpName = uniqueName('idp');
+    let command = '';
 
     await test.step('register', async () => {
       await gateways.goto();
       await expect(gateways.heading).toBeVisible();
       await gateways.add.click();
-      await drawer.displayName.fill(displayName);
-      await drawer.name.fill(name);
-      await drawer.publicUrl.fill('https://uie2e-gateway.example.com');
-      await drawer.description.fill('Registered by the UI e2e suite');
-      await drawer.create.click();
-      await expect(drawer.created).toBeVisible();
+      await addPage.displayName.fill(displayName);
+      await addPage.name.fill(name);
+      await addPage.publicUrl.fill('https://uie2e-gateway.example.com');
+      await addPage.description.fill('Registered by the UI e2e suite');
+      await addPage.create.click();
+      await expect(page).toHaveURL(/\/gateways\/setup\/[^/]+$/);
+      gatewayId = page.url().split('/').pop();
+      await expect(setup.created).toBeVisible();
 
       // The configure command carries the registration token.
-      await drawer.copyConfigure.click();
-      const command = await page.evaluate(() => navigator.clipboard.readText());
+      await setup.copyConfigure.click();
+      command = await page.evaluate(() => navigator.clipboard.readText());
       expect(command.length).toBeGreaterThan(20);
-      await drawer.done.click();
+      await setup.finishLater.click();
+      await expect(page).toHaveURL(/\/gateways\/view\/[^/]+$/);
+      await gateways.goto();
       await expect(gateways.row(displayName)).toBeVisible();
     });
 
@@ -44,6 +57,13 @@ test.describe('gateways', () => {
       const revoke = view.revoke();
       // Registration issued the first token.
       await expect(revoke).toHaveCount(1);
+      // The listing shows only the token's start, enough to match it to the
+      // token in the configure command.
+      await expect(view.tokenPrefixes).toHaveCount(1);
+      const shown = (await view.tokenPrefixes.textContent()) ?? '';
+      const prefix = shown.split('-•')[0];
+      expect(prefix).toMatch(/^[0-9a-f]{8}$/);
+      expect(command).toContain(prefix);
       await view.newToken.click();
       await expect(view.tokenCreated).toBeVisible();
       await expect(revoke).toHaveCount(2);
@@ -52,6 +72,31 @@ test.describe('gateways', () => {
         .getByRole('button', { name: 'Revoke' }).click();
       await expect(page.getByText('Revoked').first()).toBeVisible();
       await expect(revoke).toHaveCount(1);
+    });
+
+    await test.step('record a trusted identity provider for the owner to apply', async () => {
+      const view = new GatewayViewPage(page);
+      const drawer = new IdentityProviderDrawer(page);
+      const issuer = `https://${idpName}.example.com`;
+
+      await view.addIdentityProvider.click();
+      await drawer.name.fill(idpName);
+      await drawer.issuer.fill(issuer);
+      await drawer.jwksUri.fill(`${issuer}/jwks`);
+      // A self-hosted gateway is MANUAL: the drawer hands over the config.toml entry.
+      await expect(drawer.addManualNote).toBeVisible();
+      await expect(drawer.snippet(issuer)).toBeVisible();
+      await drawer.add.click();
+      await expect(view.identityProviderRow(idpName)).toBeVisible();
+      await expect.poll(async () => {
+        const { body } = await api.get(`${api.gatewayPath(gatewayId!)}/identity-providers`);
+        return (body?.list ?? []).map((p: { name: string }) => p.name);
+      }).toContain(idpName);
+
+      await view.removeIdentityProvider(idpName);
+      await expect(drawer.removeManualNote).toBeVisible();
+      await drawer.remove.click();
+      await expect(view.identityProviderRow(idpName)).toHaveCount(0);
     });
 
     await test.step('remove', async () => {

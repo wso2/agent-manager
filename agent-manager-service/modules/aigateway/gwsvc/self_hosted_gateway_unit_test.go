@@ -246,17 +246,133 @@ func TestRemoveGatewayFromEnvironment_SelfHostedRefused(t *testing.T) {
 	require.ErrorIs(t, err, gwerr.ErrGatewayEnvironmentFixed)
 }
 
-func TestIdentityProvider_SelfHostedIsNotFound(t *testing.T) {
+// A token is listed with only the start of its prefix: enough to match it to the token
+// a gateway uses, never the full lookup key.
+func TestListTokens_ShowsShortPrefix(t *testing.T) {
 	gw := storedGateway(gwmodels.GatewayHostingSelfHosted, "org")
+	prefix := "9b2c41d0-5717-4562-b3fc-2c963f66afa6"
+	repo := &gwrepomocks.GatewayRepositoryMock{
+		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return gw, nil },
+		GetActiveTokensByGatewayUUIDFunc: func(string) ([]*gwmodels.GatewayToken, error) {
+			return []*gwmodels.GatewayToken{{UUID: uuid.New(), TokenPrefix: prefix, Status: "active"}}, nil
+		},
+	}
+	svc := NewPlatformGatewayService(repo)
+
+	resp, err := svc.ListTokens(gw.UUID.String(), "org")
+
+	require.NoError(t, err)
+	require.Len(t, resp.List, 1)
+	require.Equal(t, "9b2c41d0", resp.List[0].Prefix)
+	require.Equal(t, "", shownTokenPrefix(""))
+}
+
+// The mode a gateway reports is what an identity provider change does to it: a
+// self-hosted gateway's owner applies it by hand; nothing applies it to a managed one.
+func TestIdentityProviderMode(t *testing.T) {
+	managed := storedGateway(gwmodels.GatewayHostingManaged, "org")
+	selfHosted := storedGateway(gwmodels.GatewayHostingSelfHosted, "org")
+
+	require.Equal(t, IdentityProviderModeUnsupported, toGatewayResponse(managed).IdentityProviderMode)
+	require.Equal(t, IdentityProviderModeManual, toGatewayResponse(selfHosted).IdentityProviderMode)
+}
+
+// A self-hosted gateway's identity providers are recorded in the mirror: its owner
+// keeps the key managers in the gateway's config.toml.
+func TestIdentityProvider_SelfHostedRecordsMirror(t *testing.T) {
+	gw := storedGateway(gwmodels.GatewayHostingSelfHosted, "org")
+	var upserted *gwmodels.GatewayIdentityProvider
+	var deleted string
+	repo := &gwrepomocks.GatewayRepositoryMock{
+		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return gw, nil },
+		ListIdentityProvidersByGatewayFunc: func(string) ([]gwmodels.GatewayIdentityProvider, error) {
+			return nil, nil
+		},
+		UpsertIdentityProviderFunc: func(p *gwmodels.GatewayIdentityProvider) error {
+			upserted = p
+			return nil
+		},
+		DeleteIdentityProviderFunc: func(gatewayID, name string) error {
+			deleted = gatewayID + "/" + name
+			return nil
+		},
+	}
+	svc := NewPlatformGatewayService(repo)
+
+	provider, err := svc.UpsertIdentityProvider(context.Background(), gw.UUID.String(), "org", "idp",
+		"https://issuer", "https://issuer/jwks", "", false)
+	require.NoError(t, err)
+	require.Equal(t, gw.UUID, provider.GatewayUUID)
+	require.Same(t, provider, upserted)
+	require.Equal(t, "idp", upserted.Name)
+	require.Equal(t, "https://issuer", upserted.Issuer)
+	require.Equal(t, "https://issuer/jwks", upserted.JWKSUri)
+	require.Equal(t, gwmodels.IdentityProviderTypeCustom, upserted.Type)
+
+	require.NoError(t, svc.DeleteIdentityProvider(context.Background(), gw.UUID.String(), "org", "idp"))
+	require.Equal(t, gw.UUID.String()+"/idp", deleted)
+}
+
+// Another organization's gateway stays not found, whatever its hosting.
+func TestIdentityProvider_OtherOrgIsNotFound(t *testing.T) {
+	gw := storedGateway(gwmodels.GatewayHostingSelfHosted, "other")
 	repo := &gwrepomocks.GatewayRepositoryMock{
 		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return gw, nil },
 		// Every other func left nil: a repository mutation panics.
 	}
 	svc := NewPlatformGatewayService(repo)
 
-	_, err := svc.UpsertIdentityProvider(context.Background(), gw.UUID.String(), "org", "idp", "https://issuer", "https://issuer/jwks", "", false)
+	_, err := svc.UpsertIdentityProvider(context.Background(), gw.UUID.String(), "org", "idp",
+		"https://issuer", "https://issuer/jwks", "", false)
 	require.ErrorIs(t, err, gwerr.ErrGatewayNotFound)
 
 	err = svc.DeleteIdentityProvider(context.Background(), gw.UUID.String(), "org", "idp")
 	require.ErrorIs(t, err, gwerr.ErrGatewayNotFound)
+}
+
+// Nothing applies a custom identity provider to a managed gateway (UNSUPPORTED), so
+// adding one is refused before anything is recorded; a system provider is still
+// recorded, and a custom one can still be removed.
+func TestIdentityProvider_ManagedRefusesCustom(t *testing.T) {
+	gw := storedGateway(gwmodels.GatewayHostingManaged, "org")
+	// The platform seeded an env-Thunder provider on this gateway.
+	seeded := "amp-thunder-org-dev"
+	var upserted []string
+	var deleted string
+	repo := &gwrepomocks.GatewayRepositoryMock{
+		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return gw, nil },
+		ListIdentityProvidersByGatewayFunc: func(string) ([]gwmodels.GatewayIdentityProvider, error) {
+			return []gwmodels.GatewayIdentityProvider{{Name: seeded, Type: gwmodels.IdentityProviderTypeSystem}}, nil
+		},
+		UpsertIdentityProviderFunc: func(p *gwmodels.GatewayIdentityProvider) error {
+			upserted = append(upserted, p.Name)
+			return nil
+		},
+		DeleteIdentityProviderFunc: func(gatewayID, name string) error {
+			deleted = gatewayID + "/" + name
+			return nil
+		},
+	}
+	svc := NewPlatformGatewayService(repo)
+
+	// A custom provider is refused, also one named like an env-Thunder provider: the
+	// name alone doesn't make a provider system.
+	for _, name := range []string{"idp", "amp-thunder-org-other"} {
+		_, err := svc.UpsertIdentityProvider(context.Background(), gw.UUID.String(), "org", name,
+			"https://issuer", "https://issuer/jwks", "", false)
+		require.ErrorIs(t, err, gwerr.ErrGatewayIdentityProviderUnsupported, name)
+	}
+	require.Empty(t, upserted, "a refused provider is not recorded")
+
+	// The well-known provider, and one the platform recorded as system, are system.
+	for _, name := range []string{"ThunderKeyManager", seeded} {
+		provider, err := svc.UpsertIdentityProvider(context.Background(), gw.UUID.String(), "org", name,
+			"https://thunder", "https://thunder/jwks", "", false)
+		require.NoError(t, err, name)
+		require.Equal(t, gwmodels.IdentityProviderTypeSystem, provider.Type, name)
+	}
+	require.Equal(t, []string{"ThunderKeyManager", seeded}, upserted)
+
+	require.NoError(t, svc.DeleteIdentityProvider(context.Background(), gw.UUID.String(), "org", "idp"))
+	require.Equal(t, gw.UUID.String()+"/idp", deleted)
 }

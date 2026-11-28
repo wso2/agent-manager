@@ -140,6 +140,8 @@ func handleGatewayErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 		httpx.WriteErrorResponse(w, http.StatusConflict, err.Error())
 	case errors.Is(err, gwerr.ErrGatewayEnvironmentFixed):
 		httpx.WriteErrorResponseWithReason(w, http.StatusConflict, err.Error(), "", gwerr.ErrCodeGatewayEnvironmentFixed)
+	case errors.Is(err, gwerr.ErrGatewayIdentityProviderUnsupported):
+		httpx.WriteErrorResponseWithReason(w, http.StatusConflict, err.Error(), "", gwerr.ErrCodeIdentityProviderUnsupported)
 	case errors.Is(err, gwerr.ErrGatewayTokenLimitReached):
 		httpx.WriteErrorResponse(w, http.StatusConflict, err.Error())
 	case errors.Is(err, gwerr.ErrGatewayTokenNotFound):
@@ -390,7 +392,7 @@ func (c *gatewayController) ListGatewayTokens(w http.ResponseWriter, r *http.Req
 	// Map service DTOs to spec types
 	tokenInfos := make([]gwspec.GatewayTokenInfo, 0, len(svcResp.List))
 	for _, t := range svcResp.List {
-		info := gwspec.NewGatewayTokenInfo(t.ID, t.Status, t.CreatedAt)
+		info := gwspec.NewGatewayTokenInfo(t.ID, t.Prefix, t.Status, t.CreatedAt)
 		if t.RevokedAt != nil {
 			info.SetRevokedAt(*t.RevokedAt)
 		} else {

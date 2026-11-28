@@ -82,6 +82,7 @@ export function gatewayFromDocument(
     isCritical: spec.isCritical ?? false,
     properties: spec.properties,
     status: status?.state ?? "INACTIVE",
+    identityProviderMode: status?.identityProviderMode,
     createdAt: metadata.creationTimestamp ?? "",
     updatedAt: metadata.updateTimestamp ?? "",
     environments,

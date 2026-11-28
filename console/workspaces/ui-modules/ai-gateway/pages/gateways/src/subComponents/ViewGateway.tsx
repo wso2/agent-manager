@@ -26,14 +26,13 @@ import {
   Button,
   Card,
   Chip,
-  Grid,
   Skeleton,
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
 import { AlertTriangle, Edit } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
-import { useGetGateway } from "@agent-management-platform/api-client";
+import { isGatewayActive, useGetGateway } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
   isSelfHostedGateway,
@@ -41,8 +40,10 @@ import {
 import { PageLayout } from "@agent-management-platform/views";
 import { useGatewayFeatures } from "@agent-management-platform/feature-management";
 import { GatewayIdentityProvidersCard } from "./GatewayIdentityProvidersCard";
+import { identityProviderConfigMode } from "./ManageIdentityProviderDialog";
 import { SelfHostedGatewayTokensCard } from "./SelfHostedGatewayTokensCard";
 import { SelfHostedSetupSteps } from "./SelfHostedSetupSteps";
+import { useForgetNewGatewayTokenOnLeave } from "./newGatewayToken";
 
 export const ViewGateway: React.FC = () => {
   const { gatewayId, orgId } = useParams<{
@@ -55,6 +56,7 @@ export const ViewGateway: React.FC = () => {
     data: gateway,
     isLoading,
     error,
+    refetch,
   } = useGetGateway({
     orgName: orgId,
     gatewayId,
@@ -62,10 +64,13 @@ export const ViewGateway: React.FC = () => {
 
   const isSelfHosted = gateway !== undefined && isSelfHostedGateway(gateway);
 
+  // The setup steps show the gateway's one-time token while this session holds it:
+  // the user may have left the add page before it could open setup, and this page is
+  // where they find the gateway again. As on the setup page, leaving forgets it.
+  useForgetNewGatewayTokenOnLeave(gateway?.uuid);
+
   const displayName = gateway?.displayName ?? gateway?.name ?? gatewayId ?? "";
-  const isActive =
-    gateway?.status === "ACTIVE" ||
-    (gateway as { isActive?: boolean } | undefined)?.isActive;
+  const isActive = isGatewayActive(gateway);
 
   return (
     <>
@@ -140,28 +145,6 @@ export const ViewGateway: React.FC = () => {
               </Stack>
             </Card>
 
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
-                  <Stack spacing={0.5}>
-                    <Skeleton variant="text" width="30%" height={14} />
-                    <Skeleton variant="text" width="80%" height={20} />
-                  </Stack>
-                </Card>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
-                  <Stack spacing={0.5}>
-                    <Skeleton variant="text" width="35%" height={14} />
-                    <Stack direction="row" spacing={0.5}>
-                      <Skeleton variant="rounded" width={80} height={24} />
-                      <Skeleton variant="rounded" width={80} height={24} />
-                    </Stack>
-                  </Stack>
-                </Card>
-              </Grid>
-            </Grid>
-
             <Card variant="outlined" sx={{ p: 3 }}>
               <Stack spacing={2}>
                 <Skeleton variant="text" width={160} height={24} />
@@ -184,88 +167,45 @@ export const ViewGateway: React.FC = () => {
           </Alert>
         ) : null}
 
-        {gateway && !error && (
+        {/* Stays mounted when a refetch fails: the alert above reports it, and the
+            setup steps keep polling. */}
+        {gateway && (
           <Stack spacing={3}>
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
-                  <Stack spacing={0.5}>
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      sx={{ fontWeight: 500 }}
-                    >
-                      Virtual Host
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ fontFamily: "monospace", wordBreak: "break-all" }}
-                    >
-                      {gateway.vhost}
-                    </Typography>
-                  </Stack>
-                </Card>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
-                  <Stack spacing={0.5}>
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      sx={{ fontWeight: 500 }}
-                    >
-                      Environments
-                    </Typography>
-                    {gateway.environments && gateway.environments.length > 0 ? (
-                      <Stack
-                        direction="row"
-                        spacing={0.5}
-                        flexWrap="wrap"
-                        useFlexGap
-                      >
-                        {gateway.environments.map((env) => (
-                          <Chip
-                            key={env.id}
-                            label={env.displayName || env.name}
-                            size="small"
-                            variant="outlined"
-                          />
-                        ))}
-                      </Stack>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary">
-                        —
-                      </Typography>
-                    )}
-                  </Stack>
-                </Card>
-              </Grid>
-            </Grid>
-
-            {isSelfHosted ? (
+            {isSelfHosted && (
               <>
-                <Card variant="outlined" sx={{ p: 3 }}>
-                  <Stack spacing={2}>
-                    <Typography variant="h6">Set up the gateway</Typography>
-                    <SelfHostedSetupSteps
-                      orgName={orgId ?? ""}
-                      gatewayId={gateway.uuid}
-                    />
-                  </Stack>
-                </Card>
+                {/* Setup is only needed until the gateway connects; once it is active,
+                    tokens are rotated from the tokens card. */}
+                {!isActive && (
+                  <Card variant="outlined" sx={{ p: 3 }}>
+                    <Stack spacing={2}>
+                      <Typography variant="h6">Set up the gateway</Typography>
+                      {/* The steps poll by UUID; this page may have been opened by
+                          name, so it re-reads its own copy once they see the
+                          gateway connect. */}
+                      {/* Keyed by gateway: moving to another gateway's page starts the
+                          steps afresh, so no reconfigure state carries over. */}
+                      <SelfHostedSetupSteps
+                        key={gateway.uuid}
+                        orgName={orgId ?? ""}
+                        gatewayId={gateway.uuid}
+                        onConnected={() => void refetch()}
+                      />
+                    </Stack>
+                  </Card>
+                )}
                 <SelfHostedGatewayTokensCard
                   orgName={orgId ?? ""}
                   gatewayId={gateway.uuid}
                 />
               </>
-            ) : (
-              <GatewayIdentityProvidersCard
-                orgId={orgId ?? ""}
-                gatewayId={gateway.uuid}
-                gatewayName={gateway.displayName || gateway.name}
-                environments={gateway.environments ?? []}
-              />
             )}
+            <GatewayIdentityProvidersCard
+              orgId={orgId ?? ""}
+              gatewayId={gateway.uuid}
+              gatewayName={gateway.displayName || gateway.name}
+              environments={gateway.environments ?? []}
+              configMode={identityProviderConfigMode(gateway)}
+            />
           </Stack>
         )}
       </PageLayout>

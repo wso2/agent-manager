@@ -573,9 +573,11 @@ func (r *GatewayRepo) UpsertIdentityProvider(provider *gwmodels.GatewayIdentityP
 // DeleteIdentityProvider removes an identity provider mirror row by gateway and
 // name. System providers (and the reserved internal provider) cannot be deleted.
 func (r *GatewayRepo) DeleteIdentityProvider(gatewayID, name string) error {
-	if name == gwmodels.ReservedIdentityProviderName || gwmodels.IsSystemIdentityProvider(name) {
+	if name == gwmodels.ReservedIdentityProviderName || gwmodels.IsWellKnownSystemIdentityProvider(name) {
 		return httpx.ErrInvalidInput
 	}
+	// Any other provider is protected by its recorded type, not its name, so one a
+	// caller recorded as custom stays removable whatever it is called.
 	var existing gwmodels.GatewayIdentityProvider
 	err := r.db.Where("gateway_id = ? AND name = ?", gatewayID, name).First(&existing).Error
 	if err != nil {

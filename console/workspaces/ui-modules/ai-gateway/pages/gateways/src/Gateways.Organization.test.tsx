@@ -53,6 +53,9 @@ vi.mock("@agent-management-platform/views", () => ({
       {children}
     </div>
   ),
+  returnToState: (location: { pathname: string; search: string }) => ({
+    from: `${location.pathname}${location.search}`,
+  }),
 }));
 
 vi.mock("./subComponents/AIGatewaysTable", () => ({
@@ -72,22 +75,17 @@ vi.mock("./subComponents/EditGateway", () => ({
   EditGateway: () => <div>edit gateway {useParams().gatewayId}</div>,
 }));
 
-vi.mock("./subComponents/AddSelfHostedGatewayDrawer", () => ({
-  AddSelfHostedGatewayDrawer: ({
-    open,
-    onClose,
-    orgId,
-  }: {
-    open: boolean;
-    onClose: () => void;
-    orgId: string;
-  }) =>
-    open ? (
-      <div>
-        add drawer for {orgId}
-        <button onClick={onClose}>close drawer</button>
-      </div>
-    ) : null,
+vi.mock("./subComponents/AddGateway", () => ({
+  AddGateway: () => (
+    <div>
+      add gateway for {useParams().orgId} from{" "}
+      {(useLocation().state as { from?: string } | null)?.from ?? "nowhere"}
+    </div>
+  ),
+}));
+
+vi.mock("./subComponents/SetupGateway", () => ({
+  SetupGateway: () => <div>setup gateway {useParams().gatewayId}</div>,
 }));
 
 const Location = () => <div data-testid="location">{useLocation().pathname}</div>;
@@ -119,18 +117,16 @@ beforeEach(() => {
 });
 
 describe("GatewaysOrganization", () => {
-  it("lists gateways and opens the add drawer from the header", () => {
+  it("lists gateways and opens the add page from the header", () => {
     renderAt("/org/acme/gateways");
 
     expect(screen.getByRole("heading", { name: "Gateways" })).toBeInTheDocument();
     expect(screen.getByText("gateways table")).toBeInTheDocument();
-    expect(screen.queryByText(/add drawer/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Add gateway" }));
-    expect(screen.getByText("add drawer for acme")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "close drawer" }));
-    expect(screen.queryByText(/add drawer/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent(/^\/org\/acme\/gateways\/add$/);
+    // The add page can return to the list that opened it.
+    expect(screen.getByText("add gateway for acme from /org/acme/gateways")).toBeInTheDocument();
   });
 
   it("leaves adding to the table's empty state when there are no gateways", () => {
@@ -139,7 +135,7 @@ describe("GatewaysOrganization", () => {
 
     expect(screen.queryByRole("button", { name: "Add gateway" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "empty state add" }));
-    expect(screen.getByText("add drawer for acme")).toBeInTheDocument();
+    expect(screen.getByText("add gateway for acme from /org/acme/gateways")).toBeInTheDocument();
   });
 
   it("hides Add gateway when self-hosted gateways are off", () => {
@@ -156,6 +152,17 @@ describe("GatewaysOrganization", () => {
     expect(screen.getByTestId("location")).toHaveTextContent(/^\/org\/acme\/gateways$/);
     expect(screen.queryByRole("button", { name: "Add gateway" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "empty state add" })).not.toBeInTheDocument();
+  });
+
+  it("keeps a user who cannot create tokens off the add page", () => {
+    renderAt("/org/acme/gateways/add", { access: { gateway_token_write: false } });
+    expect(screen.queryByText(/add gateway for/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent(/^\/org\/acme\/gateways$/);
+  });
+
+  it("routes to the setup page for a writer", () => {
+    renderAt("/org/acme/gateways/setup/gw-3");
+    expect(screen.getByText("setup gateway gw-3")).toBeInTheDocument();
   });
 
   it("routes to the view page", () => {

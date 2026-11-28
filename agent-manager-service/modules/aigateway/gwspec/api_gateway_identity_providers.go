@@ -36,12 +36,15 @@ func (r ApiDeleteGatewayIdentityProviderRequest) Execute() (*http.Response, erro
 /*
 DeleteGatewayIdentityProvider Delete a gateway identity provider
 
-Remove an identity provider from the gateway's AMS mirror. As with upsert, the
-key manager entry must also be removed from the gateway's config.toml. System
-identity providers (e.g. ThunderKeyManager) cannot be deleted.
+Remove an identity provider recorded for a gateway. System identity providers
+(e.g. ThunderKeyManager) cannot be deleted.
 
-Sharp edge: deleting only the mirror row leaves the issuer trusted by the
-gateway at runtime, and re-adding it elsewhere can mask the divergence.
+Only the record is removed, for any gateway. For a self-hosted gateway, its
+owner also removes the key manager from the gateway's config.toml and restarts
+it.
+
+Sharp edge: removing only the record leaves the issuer trusted by the gateway
+at runtime.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param gatewayID Gateway UUID or name
@@ -600,16 +603,23 @@ func (r ApiUpsertGatewayIdentityProviderRequest) Execute() (*IdentityProvider, *
 /*
 UpsertGatewayIdentityProvider Upsert a gateway identity provider
 
-Create or update an identity provider in the gateway's AMS mirror.
+Create or update an identity provider (token issuer) recorded for a gateway.
+The console and agent OAuth configuration read this record.
 
-This endpoint only updates the mirror used by the console and agent OAuth
-configuration. The gateway's own config.toml is the source of truth: add
-the provider's key manager entry there (the console generates it) and
-restart the gateway.
+Only the record is written. What applies it to the gateway follows the
+gateway's identityProviderMode:
 
-Sharp edge: writing to the mirror without also changing the gateway's
-config.toml makes the two diverge. Agent OAuth deploy-time validation only
-checks the mirror, so an agent referencing a mirror-only issuer will deploy
+  - MANUAL (self-hosted): its owner adds the matching key manager to the
+    gateway's config.toml under [[policy_configurations.jwtauth_v1.keymanagers]]
+    and restarts it.
+  - UNSUPPORTED (managed): nothing applies a custom provider to the gateway, so
+    a custom provider is refused with 409. System providers (e.g.
+    ThunderKeyManager) are configured with the platform and can still be
+    recorded.
+
+Sharp edge: a successful response does not by itself mean the gateway trusts
+the issuer. Agent OAuth deploy-time validation only checks the record, so an
+agent referencing an issuer missing from the gateway's config deploys
 successfully while the gateway rejects every token at runtime.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
@@ -717,6 +727,17 @@ func (a *GatewayIdentityProvidersAPIService) UpsertGatewayIdentityProviderExecut
 			return localVarReturnValue, localVarHTTPResponse, newErr
 		}
 		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 409 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {

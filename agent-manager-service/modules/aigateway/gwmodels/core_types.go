@@ -17,7 +17,6 @@
 package gwmodels
 
 import (
-	"strings"
 	"time"
 )
 
@@ -42,18 +41,16 @@ const (
 // agent OAuth issuer.
 const ReservedIdentityProviderName = "agent-manager-service"
 
-// systemIdentityProviderNames are the identity providers seeded with the
-// platform. They are mirrored with type=system and cannot be deleted.
+// systemIdentityProviderNames are the identity providers seeded with every
+// gateway's config. They are mirrored with type=system and cannot be deleted.
 var systemIdentityProviderNames = map[string]bool{"ThunderKeyManager": true}
 
-// envThunderIdentityProviderPrefix matches the env-Thunder release names
-// (amp-thunder-<org>-<env>) the gateway bootstrap seeds as identity providers.
-const envThunderIdentityProviderPrefix = "amp-thunder-"
-
-// IsSystemIdentityProvider reports whether the identity provider is a
-// platform-seeded system provider.
-func IsSystemIdentityProvider(name string) bool {
-	return systemIdentityProviderNames[name] || strings.HasPrefix(name, envThunderIdentityProviderPrefix)
+// IsWellKnownSystemIdentityProvider reports whether the name is one of the fixed
+// identity providers every gateway is seeded with. Other system providers (the
+// env-Thunder ones, amp-thunder-<org>-<env>) are known by their recorded type, not
+// their name, so a caller can't make a provider system by choosing its name.
+func IsWellKnownSystemIdentityProvider(name string) bool {
+	return systemIdentityProviderNames[name]
 }
 
 // GatewayEnvironmentResponse is an environment as a gateway response lists it.

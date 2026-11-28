@@ -769,16 +769,23 @@ paths:
         - Gateway Identity Providers
       summary: Upsert a gateway identity provider
       description: |
-        Create or update an identity provider in the gateway's AMS mirror.
+        Create or update an identity provider (token issuer) recorded for a gateway.
+        The console and agent OAuth configuration read this record.
 
-        This endpoint only updates the mirror used by the console and agent OAuth
-        configuration. The gateway's own config.toml is the source of truth: add
-        the provider's key manager entry there (the console generates it) and
-        restart the gateway.
+        Only the record is written. What applies it to the gateway follows the
+        gateway's identityProviderMode:
 
-        Sharp edge: writing to the mirror without also changing the gateway's
-        config.toml makes the two diverge. Agent OAuth deploy-time validation only
-        checks the mirror, so an agent referencing a mirror-only issuer will deploy
+        - MANUAL (self-hosted): its owner adds the matching key manager to the
+          gateway's config.toml under [[policy_configurations.jwtauth_v1.keymanagers]]
+          and restarts it.
+        - UNSUPPORTED (managed): nothing applies a custom provider to the gateway, so
+          a custom provider is refused with 409. System providers (e.g.
+          ThunderKeyManager) are configured with the platform and can still be
+          recorded.
+
+        Sharp edge: a successful response does not by itself mean the gateway trusts
+        the issuer. Agent OAuth deploy-time validation only checks the record, so an
+        agent referencing an issuer missing from the gateway's config deploys
         successfully while the gateway rejects every token at runtime.
       operationId: upsertGatewayIdentityProvider
       requestBody:
@@ -812,6 +819,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: |
+            A custom identity provider can't be added to this gateway: its
+            identityProviderMode is UNSUPPORTED (reason IDENTITY_PROVIDER_UNSUPPORTED).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:
@@ -824,12 +839,15 @@ paths:
         - Gateway Identity Providers
       summary: Delete a gateway identity provider
       description: |
-        Remove an identity provider from the gateway's AMS mirror. As with upsert, the
-        key manager entry must also be removed from the gateway's config.toml. System
-        identity providers (e.g. ThunderKeyManager) cannot be deleted.
+        Remove an identity provider recorded for a gateway. System identity providers
+        (e.g. ThunderKeyManager) cannot be deleted.
 
-        Sharp edge: deleting only the mirror row leaves the issuer trusted by the
-        gateway at runtime, and re-adding it elsewhere can mask the divergence.
+        Only the record is removed, for any gateway. For a self-hosted gateway, its
+        owner also removes the key manager from the gateway's config.toml and restarts
+        it.
+
+        Sharp edge: removing only the record leaves the issuer trusted by the gateway
+        at runtime.
       operationId: deleteGatewayIdentityProvider
       responses:
         "204":
@@ -6611,6 +6629,8 @@ components:
       properties:
         state:
           $ref: "#/components/schemas/GatewayStatus"
+        identityProviderMode:
+          $ref: "#/components/schemas/GatewayIdentityProviderMode"
 
     GatewayListResponse:
       type: object
@@ -6721,6 +6741,21 @@ components:
         - MANAGED: the platform provisions and runs it.
         - SELF_HOSTED: the customer runs it and connects it to the platform.
 
+    GatewayIdentityProviderMode:
+      type: string
+      enum:
+        - APPLIED
+        - MANUAL
+        - UNSUPPORTED
+      description: |
+        How a change to the gateway's custom identity providers reaches the gateway.
+        - APPLIED: the service patches the gateway's runtime configuration. Reserved
+          for a service with a gateway config applier; no current service sends it.
+        - MANUAL: the service only records the provider; the gateway's owner edits its
+          config.toml and restarts it (a self-hosted gateway).
+        - UNSUPPORTED: nothing applies a custom provider to the gateway (a managed
+          gateway), so the service refuses to add one (409); one can still be removed.
+
     GatewayTokenResponse:
       type: object
       required:
@@ -6756,6 +6791,7 @@ components:
       type: object
       required:
         - id
+        - prefix
         - status
         - createdAt
       properties:
@@ -6763,6 +6799,12 @@ components:
           type: string
           description: Unique token identifier (UUID)
           example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        prefix:
+          type: string
+          description: |
+            The first characters of the token itself, so a token in use can be matched
+            to its entry. Not enough to authenticate with.
+          example: 9b2c41d0
         status:
           type: string
           enum:

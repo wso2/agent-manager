@@ -24,6 +24,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
@@ -169,12 +170,12 @@ var postgresDatabase func(t *testing.T) (database, bool)
 // databases are the databases the lifecycle runs on: SQLite always, and
 // PostgreSQL in the integration tier.
 func databases(t *testing.T) []database {
-	dsn := "file:" + filepath.Join(t.TempDir(), "amp.db") +
+	dsn := "file:" + filepath.Join(sqliteDir(t), "amp.db") +
 		"?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_txlock=immediate&_time_format=sqlite"
 	out := []database{{driver: "sqlite", open: func(t *testing.T) *gorm.DB {
 		g, err := gorm.Open(sqlitedialect.Open(dsn), &gorm.Config{Logger: logger.Discard})
 		require.NoError(t, err)
-		// Close before the parent's TempDir cleanup: an open connection keeps
+		// Close before sqliteDir's cleanup: an open connection keeps
 		// the WAL and shared-memory files, so removing the directory fails.
 		sqlDB, err := g.DB()
 		require.NoError(t, err)
@@ -187,6 +188,26 @@ func databases(t *testing.T) []database {
 		}
 	}
 	return out
+}
+
+// sqliteDir is a directory for a test's SQLite file. Not t.TempDir, which fails the test when the
+// directory cannot be removed: a host's workers stop asynchronously once the test's context is
+// cancelled, and one still writing the WAL file as the test ends makes that removal fail.
+func sqliteDir(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "modhost-test-")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		var err error
+		for range 50 {
+			if err = os.RemoveAll(dir); err == nil {
+				return
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		t.Errorf("remove SQLite test directory %s: %v", dir, err)
+	})
+	return dir
 }
 
 var quiet = slog.New(slog.NewTextHandler(io.Discard, nil))

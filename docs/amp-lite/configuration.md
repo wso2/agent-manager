@@ -183,7 +183,6 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 | `CONSOLE_FEATURE_FLAG_ENABLE_PROFILE_MANAGEMENT` | `console.feature_flag_enable_profile_management` |  | Show profile management. |
 | `CONSOLE_FEATURE_FLAG_ENABLE_USER_MANAGEMENT` | `console.feature_flag_enable_user_management` |  | Show user management. |
 | `CONSOLE_FEATURE_FLAG_ENABLE_SELF_HOSTED_GATEWAYS` | `console.feature_flag_enable_self_hosted_gateways` |  | Show self-hosted gateways. |
-| `CONSOLE_FEATURE_FLAG_ENABLE_IDENTITY_PROVIDER_MANAGED_MODE` | `console.feature_flag_enable_identity_provider_managed_mode` |  | Identity-provider-managed mode. |
 | `CONSOLE_FEATURE_FLAG_EXTERNALLY_MANAGED_GATEWAY` | `console.feature_flag_externally_managed_gateway` |  | Externally managed gateways. |
 
 ## amp init

@@ -16,10 +16,12 @@
  * under the License.
  */
 
+import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "../../shared/react-query-notifications";
 import { useUIModulePresent } from "../../shared/useUIModulePresent";
+import { POLL_INTERVAL } from "../../shared/utils";
 import type {
   CreateSelfHostedGatewayPathParams,
   DeleteGatewayPathParams,
@@ -100,10 +102,27 @@ export function useListGateways(
   });
 }
 
-export function useGetGateway(params: GetGatewayPathParams) {
+/** A gateway is active once it has connected to the control plane. */
+export function isGatewayActive(gateway: GatewayResponse | undefined): boolean {
+  return (
+    gateway?.status === "ACTIVE" ||
+    (gateway as { isActive?: boolean } | undefined)?.isActive === true
+  );
+}
+
+/**
+ * Reads one gateway. With `pollUntilActive`, it refetches every POLL_INTERVAL until
+ * the gateway connects, then refreshes the gateway list so it shows the new status.
+ */
+export function useGetGateway(
+  params: GetGatewayPathParams,
+  options?: { pollUntilActive?: boolean },
+) {
   const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
-  return useApiQuery<GatewayResponse>({
+  const queryClient = useQueryClient();
+  const pollUntilActive = options?.pollUntilActive ?? false;
+  const query = useApiQuery<GatewayResponse>({
     queryKey: ["gateway", params],
     queryFn: async () => {
       const [doc, environments] = await Promise.all([
@@ -113,7 +132,22 @@ export function useGetGateway(params: GetGatewayPathParams) {
       return gatewayFromDocument(doc, environments);
     },
     enabled: gatewayPresent && !!params.orgName && !!params.gatewayId,
+    // A gateway that never loaded (not found, no access) is not waited for.
+    refetchInterval: (q) => {
+      if (!pollUntilActive || isGatewayActive(q.state.data)) return false;
+      if (q.state.status === "error" && q.state.data === undefined) return false;
+      return POLL_INTERVAL;
+    },
   });
+
+  const active = isGatewayActive(query.data);
+  useEffect(() => {
+    if (pollUntilActive && active) {
+      void queryClient.invalidateQueries({ queryKey: ["gateways"] });
+    }
+  }, [pollUntilActive, active, queryClient]);
+
+  return query;
 }
 
 export function useListIdentityProviders(

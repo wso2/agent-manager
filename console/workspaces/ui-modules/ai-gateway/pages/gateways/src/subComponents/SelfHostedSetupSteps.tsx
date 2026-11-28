@@ -15,11 +15,13 @@
  * under the License.
  */
 
-import { type ReactNode, useState } from "react";
-import { Alert, Box, Button, Stack, Typography } from "@wso2/oxygen-ui";
+import { type ReactNode, useEffect, useState } from "react";
+import { Alert, Box, Button, CircularProgress, Stack, Typography } from "@wso2/oxygen-ui";
 import { Check, Copy } from "@wso2/oxygen-ui-icons-react";
 import {
+  isGatewayActive,
   useCreateSelfHostedGatewayToken,
+  useGetGateway,
   useRevokeSelfHostedGatewayToken,
   useSelfHostedGatewayTokens,
 } from "@agent-management-platform/api-client";
@@ -32,6 +34,12 @@ import {
   dockerCommands,
   reconfigureToken,
 } from "./selfHostedSetup";
+import {
+  beginGatewayTokenRequest,
+  forgetRevokedGatewayToken,
+  keepRequestedGatewayToken,
+  useNewGatewayToken,
+} from "./newGatewayToken";
 
 const DEFAULT_GATEWAY_VERSION = "v2026.09.24";
 const DEFAULT_CONTROL_PLANE_URL = "http://localhost:9243";
@@ -121,19 +129,19 @@ const StepText = ({ children }: { children: ReactNode }) => (
 interface SelfHostedSetupStepsProps {
   orgName: string;
   gatewayId: string;
-  /**
-   * The token just minted for this gateway. It lives only in memory: the
-   * server never returns it again, so without one the steps offer Reconfigure.
-   */
-  initialToken?: string | null;
+  /** Called once the gateway connects, for a page that reads the gateway elsewhere. */
+  onConnected?: () => void;
 }
 
 export function SelfHostedSetupSteps({
   orgName,
   gatewayId,
-  initialToken = null,
+  onConnected,
 }: SelfHostedSetupStepsProps) {
-  const [token, setToken] = useState<string | null>(initialToken);
+  // The token minted for this gateway, if this session still holds it (see
+  // newGatewayToken). The server never returns it again, so without one the steps
+  // offer Reconfigure. Read from the store, so it follows a late arrival or a revoke.
+  const token = useNewGatewayToken(gatewayId);
   const [justReconfigured, setJustReconfigured] = useState(false);
   const [reconfiguring, setReconfiguring] = useState(false);
   const [reconfigureError, setReconfigureError] = useState<string | null>(null);
@@ -144,6 +152,24 @@ export function SelfHostedSetupSteps({
   const { refetch: refetchTokens } = useSelfHostedGatewayTokens(params, { enabled: false });
   const { mutateAsync: createToken } = useCreateSelfHostedGatewayToken();
   const { mutateAsync: revokeToken } = useRevokeSelfHostedGatewayToken();
+  // Polls until the gateway connects; shares its cache with the page around the steps,
+  // so that page sees the connection too.
+  const {
+    data: gateway,
+    error: statusError,
+    isFetching: checkingStatus,
+    refetch: recheckStatus,
+  } = useGetGateway(params, { pollUntilActive: true });
+  const connected = isGatewayActive(gateway);
+  // A failed check is reported even when an earlier one left gateway data: polling may
+  // go on (and a later success clears the error), but a failure that persists must not
+  // read as "still waiting". Polling stops when the gateway never loaded, hence the retry.
+  const statusFailed = Boolean(statusError) && !connected;
+  useEffect(() => {
+    if (connected) onConnected?.();
+    // Only the connection triggers it; a new callback identity must not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected]);
 
   const version = globalConfig.gatewayVersion || DEFAULT_GATEWAY_VERSION;
   const cpHost = cpHostFromUrl(globalConfig.gatewayControlPlaneUrl || DEFAULT_CONTROL_PLANE_URL);
@@ -151,17 +177,29 @@ export function SelfHostedSetupSteps({
   const handleReconfigure = async () => {
     setReconfiguring(true);
     setReconfigureError(null);
+    const ticket = beginGatewayTokenRequest(gatewayId);
     try {
-      const minted = await reconfigureToken(
+      await reconfigureToken(
         async () => {
           // A failed list must abort before anything is revoked or minted.
           const { data } = await refetchTokens({ throwOnError: true });
           return activeTokens(data?.list ?? []).map((t) => t.id);
         },
-        (tokenId) => revokeToken({ ...params, tokenId }),
-        async () => (await createToken(params)).token,
+        async (tokenId) => {
+          await revokeToken({ ...params, tokenId });
+          // If minting fails after this, the steps must not keep offering a revoked token.
+          forgetRevokedGatewayToken(gatewayId, tokenId);
+        },
+        async () => {
+          const { token: newToken, tokenId } = await createToken(params);
+          // Kept in the store, not in this component: if the user moved on to another
+          // of the gateway's pages, that page can still show the token that replaced
+          // the revoked ones. Dropped if a newer reconfigure started meanwhile, or if no
+          // page for the gateway is open any more.
+          keepRequestedGatewayToken(gatewayId, ticket, newToken, tokenId);
+          return newToken;
+        },
       );
-      setToken(minted);
       setJustReconfigured(true);
     } catch (e) {
       setReconfigureError(e instanceof Error ? e.message : "Failed to generate a new token.");
@@ -231,6 +269,35 @@ export function SelfHostedSetupSteps({
         </Step>
         <Step number={4} title="Start the gateway">
           <CommandField display={docker.start} copyLabel="start command" />
+        </Step>
+        <Step number={5} title="Wait for the gateway to connect">
+          {connected && <Alert severity="success">The gateway is connected and active.</Alert>}
+          {!connected && statusFailed && (
+            <Alert
+              severity="warning"
+              action={
+                <Button
+                  color="inherit"
+                  size="small"
+                  disabled={checkingStatus}
+                  onClick={() => void recheckStatus()}
+                >
+                  Try again
+                </Button>
+              }
+            >
+              Couldn&apos;t check whether the gateway has connected.
+            </Alert>
+          )}
+          {!connected && !statusFailed && (
+            <Stack direction="row" spacing={1.5} alignItems="center" role="status">
+              <CircularProgress size={16} />
+              <StepText>
+                Waiting for the gateway to connect to the control plane. This updates on its own
+                once the gateway is running.
+              </StepText>
+            </Stack>
+          )}
         </Step>
       </Stack>
     </Stack>

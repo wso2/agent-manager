@@ -20,12 +20,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { FeatureManagementProvider } from "@agent-management-platform/feature-management";
 import { SelfHostedSetupSteps } from "./SelfHostedSetupSteps";
+import type { ReactNode } from "react";
+import {
+  forgetNewGatewayToken,
+  keepNewGatewayToken,
+  useForgetNewGatewayTokenOnLeave,
+} from "./newGatewayToken";
 
 const hoisted = vi.hoisted(() => ({
   refetch: vi.fn(),
   createToken: vi.fn(),
   revokeToken: vi.fn(),
   copy: vi.fn(),
+  gateway: { status: "INACTIVE" } as Record<string, unknown>,
 }));
 
 // MUI renders are slow on a busy machine; leave headroom over the 5s default.
@@ -35,27 +42,47 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useSelfHostedGatewayTokens: () => ({ refetch: hoisted.refetch }),
   useCreateSelfHostedGatewayToken: () => ({ mutateAsync: hoisted.createToken }),
   useRevokeSelfHostedGatewayToken: () => ({ mutateAsync: hoisted.revokeToken }),
+  useGetGateway: () => ({
+    data: hoisted.gateway,
+    error: null,
+    isFetching: false,
+    refetch: vi.fn(),
+  }),
+  isGatewayActive: (gateway?: { status?: string }) => gateway?.status === "ACTIVE",
 }));
 
 vi.mock("@agent-management-platform/shared-component", () => ({
   copyToClipboard: hoisted.copy,
 }));
 
-const renderSteps = (initialToken: string | null = null, canManageTokens = true) =>
-  render(
+// The page around the steps holds the gateway's token, as the setup and view pages do.
+function GatewayPage({ children }: { children: ReactNode }) {
+  useForgetNewGatewayTokenOnLeave("gw-1");
+  return <>{children}</>;
+}
+
+// The token the add page left for this gateway, as the steps read it from the store.
+const renderSteps = (initialToken: string | null = null, canManageTokens = true) => {
+  if (initialToken) keepNewGatewayToken("gw-1", initialToken);
+  return render(
     <FeatureManagementProvider featureAccess={{ gateway_token_write: canManageTokens }}>
-      <SelfHostedSetupSteps orgName="acme" gatewayId="gw-1" initialToken={initialToken} />
+      <GatewayPage>
+        <SelfHostedSetupSteps orgName="acme" gatewayId="gw-1" />
+      </GatewayPage>
     </FeatureManagementProvider>,
   );
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
+  forgetNewGatewayToken("gw-1");
+  hoisted.gateway = { status: "INACTIVE" };
   hoisted.copy.mockResolvedValue(true);
   hoisted.revokeToken.mockResolvedValue({});
 });
 
 describe("SelfHostedSetupSteps", () => {
-  it("shows the four setup commands for the default version and control plane", () => {
+  it("shows the setup commands for the default version and control plane", () => {
     renderSteps("tok-secret");
     expect(screen.getByText("1. Download the gateway")).toBeInTheDocument();
     expect(screen.getByText("4. Start the gateway")).toBeInTheDocument();
@@ -93,7 +120,7 @@ describe("SelfHostedSetupSteps", () => {
         ],
       },
     });
-    hoisted.createToken.mockResolvedValue({ token: "fresh" });
+    hoisted.createToken.mockResolvedValue({ token: "fresh", tokenId: "new-1" });
     renderSteps();
 
     expect(screen.queryByRole("button", { name: "Copy configure command" })).not.toBeInTheDocument();

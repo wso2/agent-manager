@@ -16,18 +16,20 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import {
   FeatureManagementProvider,
   type FeatureFlags,
 } from "@agent-management-platform/feature-management";
 import { ViewGateway } from "./ViewGateway";
+import { keepNewGatewayToken, newGatewayToken } from "./newGatewayToken";
 
 const getGateway = vi.hoisted(() => vi.fn());
 
 vi.mock("@agent-management-platform/api-client", () => ({
   useGetGateway: getGateway,
+  isGatewayActive: (gw?: { status?: string }) => gw?.status === "ACTIVE",
 }));
 
 vi.mock("@agent-management-platform/views", async () => {
@@ -65,36 +67,51 @@ vi.mock("@agent-management-platform/shared-component", () => ({
 }));
 
 vi.mock("./GatewayIdentityProvidersCard", () => ({
-  GatewayIdentityProvidersCard: () => <div>identity providers card</div>,
+  GatewayIdentityProvidersCard: ({ configMode }: { configMode: string }) => (
+    <div>
+      {configMode === "manual" ? "self-hosted identity providers card" : "identity providers card"}
+    </div>
+  ),
 }));
 
 vi.mock("./SelfHostedGatewayTokensCard", () => ({
   SelfHostedGatewayTokensCard: () => <div>tokens card</div>,
 }));
 
-vi.mock("./SelfHostedSetupSteps", () => ({
-  SelfHostedSetupSteps: () => <div>setup steps</div>,
-}));
+// Like the real steps, the stand-in reads the token from the store.
+vi.mock("./SelfHostedSetupSteps", async () => {
+  const { useNewGatewayToken } = await import("./newGatewayToken");
+  return {
+    SelfHostedSetupSteps: ({ gatewayId }: { gatewayId: string }) => (
+      <div>
+        <span>setup steps</span>
+        <span>token={useNewGatewayToken(gatewayId) ?? "none"}</span>
+      </div>
+    ),
+  };
+});
 
 let featureFlags: Partial<FeatureFlags> = {};
 let canWrite = true;
 
 const Location = () => <div data-testid="location">{useLocation().pathname}</div>;
 
+type GatewayQuery = { data?: Record<string, unknown>; isLoading?: boolean; error?: unknown };
+
 const renderGateway = (
   hosting: "MANAGED" | "SELF_HOSTED",
-  query?: { data?: Record<string, unknown>; isLoading?: boolean; error?: unknown },
+  statusOrQuery: "ACTIVE" | "INACTIVE" | GatewayQuery = "ACTIVE",
 ) => {
   getGateway.mockReturnValue(
-    query
-      ? { isLoading: false, error: null, ...query }
+    typeof statusOrQuery === "object"
+      ? { isLoading: false, error: null, ...statusOrQuery }
       : {
           data: {
             uuid: "gw-1",
             name: "gw-1",
             displayName: "Gateway 1",
             hosting,
-            status: "ACTIVE",
+            status: statusOrQuery,
             environments: [],
           },
           isLoading: false,
@@ -126,13 +143,47 @@ afterEach(() => {
 });
 
 describe("ViewGateway with enableSelfHostedGateways off", () => {
-  it("shows a self-hosted gateway's setup steps and tokens", () => {
+  it("shows a self-hosted gateway's setup steps and tokens until it connects", () => {
     featureFlags = { enableSelfHostedGateways: false };
-    renderGateway("SELF_HOSTED");
+    renderGateway("SELF_HOSTED", "INACTIVE");
 
     expect(screen.getByText("setup steps")).toBeInTheDocument();
     expect(screen.getByText("tokens card")).toBeInTheDocument();
-    expect(screen.queryByText("identity providers card")).not.toBeInTheDocument();
+    // A self-hosted gateway registers identity providers too, by hand in its config.toml.
+    expect(screen.getByText("self-hosted identity providers card")).toBeInTheDocument();
+  });
+
+  it("shows the steps a token the add page left behind, and forgets it on leaving", async () => {
+    keepNewGatewayToken("gw-1", "secret");
+    renderGateway("SELF_HOSTED", "INACTIVE");
+
+    expect(screen.getByText("token=secret")).toBeInTheDocument();
+    cleanup();
+    await waitFor(() => expect(newGatewayToken("gw-1")).toBeNull());
+  });
+
+  it("shows the steps a token that arrives after the page opened", () => {
+    renderGateway("SELF_HOSTED", "INACTIVE");
+    expect(screen.getByText("token=none")).toBeInTheDocument();
+
+    act(() => keepNewGatewayToken("gw-1", "late"));
+
+    expect(screen.getByText("token=late")).toBeInTheDocument();
+  });
+
+  it("hides the setup steps of a connected self-hosted gateway, keeping its tokens", () => {
+    featureFlags = { enableSelfHostedGateways: false };
+    renderGateway("SELF_HOSTED", "ACTIVE");
+
+    expect(screen.queryByText("setup steps")).not.toBeInTheDocument();
+    expect(screen.getByText("tokens card")).toBeInTheDocument();
+  });
+
+  it("shows neither the virtual host nor the environments", () => {
+    renderGateway("MANAGED");
+
+    expect(screen.queryByText("Virtual Host")).not.toBeInTheDocument();
+    expect(screen.queryByText("Environments")).not.toBeInTheDocument();
   });
 
   it("shows a managed gateway's identity providers", () => {
@@ -162,7 +213,7 @@ describe("ViewGateway details", () => {
     ],
   };
 
-  it("shows the gateway's status, host and environments", () => {
+  it("shows the gateway's status", () => {
     renderGateway("MANAGED", { data: detailed });
 
     expect(screen.getByRole("heading", { name: "Edge Gateway" })).toBeInTheDocument();
@@ -170,9 +221,8 @@ describe("ViewGateway details", () => {
     expect(screen.getByText("Inactive")).toBeInTheDocument();
     expect(screen.getByText("Critical")).toBeInTheDocument();
     expect(screen.getByText("type AI")).toBeInTheDocument();
-    expect(screen.getByText("edge.example.com")).toBeInTheDocument();
-    expect(screen.getByText("Development")).toBeInTheDocument();
-    expect(screen.getByText("prod")).toBeInTheDocument();
+    // The virtual host and environments are no longer shown on this page.
+    expect(screen.queryByText("edge.example.com")).not.toBeInTheDocument();
   });
 
   it("opens the edit page of a self-hosted gateway", () => {

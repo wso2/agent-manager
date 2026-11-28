@@ -33,13 +33,24 @@ vi.mock("../../acp-core/hooks/telemetry", () => ({
 }));
 vi.mock("../apis/gateways", () => ({
   updateSelfHostedGateway: vi.fn(async () => ({})),
-  gatewayFromDocument: vi.fn(() => ({})),
+  // Only the status matters to these tests.
+  gatewayFromDocument: vi.fn((doc?: { status?: { state?: string } }) => ({
+    status: doc?.status?.state ?? "INACTIVE",
+  })),
+  gatewayEnvironment: vi.fn(),
   deleteGateway: vi.fn(async () => undefined),
   rotateGatewayToken: vi.fn(async () => ({})),
   revokeGatewayToken: vi.fn(async () => undefined),
+  getGateway: vi.fn(),
+}));
+vi.mock("../../agent-runtime/apis/deployments", () => ({
+  listEnvironments: vi.fn(async () => []),
 }));
 
+import { getGateway } from "../apis/gateways";
+import { POLL_INTERVAL } from "../../shared/utils";
 import {
+  useGetGateway,
   useCreateSelfHostedGatewayToken,
   useDeleteGateway,
   useRevokeSelfHostedGatewayToken,
@@ -96,4 +107,37 @@ describe("self-hosted gateway mutations", () => {
   it("token revoke invalidates only that gateway's tokens", async () => {
     expect(await invalidatedAfter(useRevokeSelfHostedGatewayToken, params)).toEqual(["tokens"]);
   });
+});
+
+describe("useGetGateway pollUntilActive", () => {
+  it.each([
+    [true, "INACTIVE", POLL_INTERVAL, false],
+    [true, "ACTIVE", false, true],
+    [false, "INACTIVE", false, false],
+  ] as const)(
+    "poll=%s status=%s refetches at %s and refreshes the list: %s",
+    async (poll, status, interval, refreshesList) => {
+      vi.mocked(getGateway).mockResolvedValueOnce({ status: { state: status } } as never);
+      const qc = new QueryClient();
+      qc.setQueryData(["gateways", {}], {});
+      const gwParams = { orgName: "o", gatewayId: "g" };
+      const Probe = () => {
+        useGetGateway(gwParams, { pollUntilActive: poll });
+        return null;
+      };
+      const root = createRoot(document.createElement("div"));
+      await act(async () =>
+        root.render(createElement(QueryClientProvider, { client: qc }, createElement(Probe))),
+      );
+      await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+
+      const query = qc.getQueryCache().find({ queryKey: ["gateway", gwParams] })!;
+      const refetchInterval = query.observers[0].options.refetchInterval;
+      expect(
+        typeof refetchInterval === "function" ? refetchInterval(query) : refetchInterval,
+      ).toBe(interval);
+      expect(qc.getQueryState(["gateways", {}])?.isInvalidated).toBe(refreshesList);
+      act(() => root.unmount());
+    },
+  );
 });

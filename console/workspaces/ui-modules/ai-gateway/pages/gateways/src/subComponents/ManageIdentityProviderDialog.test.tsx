@@ -19,7 +19,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { FeatureManagementProvider } from "@agent-management-platform/feature-management";
-import { ManageIdentityProviderDialog } from "./ManageIdentityProviderDialog";
+import {
+  ManageIdentityProviderDialog,
+  type IdentityProviderConfigMode,
+} from "./ManageIdentityProviderDialog";
 
 const hoisted = vi.hoisted(() => ({
   upsert: vi.fn(),
@@ -57,16 +60,17 @@ const LOCKED = { uuid: "gw-1", name: "Edge", environments: [DEV] };
 
 type Props = Partial<React.ComponentProps<typeof ManageIdentityProviderDialog>>;
 
-const renderDialog = (props: Props = {}, managedMode = false) => {
+const renderDialog = (props: Props = {}, configMode: IdentityProviderConfigMode = "manual") => {
   const onClose = vi.fn();
   render(
-    <FeatureManagementProvider featureFlags={{ enableIdentityProviderManagedMode: managedMode }}>
+    <FeatureManagementProvider>
       <ManageIdentityProviderDialog
         open
         onClose={onClose}
         orgId="acme"
         mode="upsert"
         lockedGateway={LOCKED as never}
+        configMode={configMode}
         {...props}
       />
     </FeatureManagementProvider>,
@@ -135,19 +139,19 @@ describe("ManageIdentityProviderDialog add", () => {
       screen.getByText(/Add this entry to the gateway's configs\/config.toml/),
     ).toBeInTheDocument();
     const toml = screen.getByText(/\[\[policy_configurations\.jwtauth_v1\.keymanagers\]\]/);
-    expect(toml).toHaveTextContent('name = " AcmeIdP "');
+    expect(toml).toHaveTextContent('name = "AcmeIdP"');
     expect(toml).toHaveTextContent('uri = "https://idp.acme/jwks"');
 
     fireEvent.click(within(toml.parentElement!).getAllByRole("button")[0]);
     await waitFor(() =>
       expect(writeText).toHaveBeenCalledWith(
-        expect.stringContaining('issuer = "https://idp.acme "'),
+        expect.stringContaining('issuer = "https://idp.acme"\n'),
       ),
     );
   });
 
   it("leaves the config to Agent Manager in managed mode", () => {
-    renderDialog({}, true);
+    renderDialog({}, "applied");
     expect(screen.getByText(/Agent Manager patches the gateway configuration/)).toBeInTheDocument();
     expect(screen.queryByText(/config\.toml/)).not.toBeInTheDocument();
   });

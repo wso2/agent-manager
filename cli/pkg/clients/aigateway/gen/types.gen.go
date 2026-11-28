@@ -467,6 +467,27 @@ func (e GatewayHosting) Valid() bool {
 	}
 }
 
+// Defines values for GatewayIdentityProviderMode.
+const (
+	APPLIED     GatewayIdentityProviderMode = "APPLIED"
+	MANUAL      GatewayIdentityProviderMode = "MANUAL"
+	UNSUPPORTED GatewayIdentityProviderMode = "UNSUPPORTED"
+)
+
+// Valid indicates whether the value is a known member of the GatewayIdentityProviderMode enum.
+func (e GatewayIdentityProviderMode) Valid() bool {
+	switch e {
+	case APPLIED:
+		return true
+	case MANUAL:
+		return true
+	case UNSUPPORTED:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GatewayRegistrationDocumentApiVersion.
 const (
 	GatewayRegistrationDocumentApiVersionAiControlPlaneChoreolabsComv1 GatewayRegistrationDocumentApiVersion = "ai-control-plane.choreolabs.com/v1"
@@ -1842,6 +1863,15 @@ type GatewayDocumentKind string
 
 // GatewayDocumentStatus Observed state. Server-populated and ignored on input.
 type GatewayDocumentStatus struct {
+	// IdentityProviderMode How a change to the gateway's custom identity providers reaches the gateway.
+	// - APPLIED: the service patches the gateway's runtime configuration. Reserved
+	//   for a service with a gateway config applier; no current service sends it.
+	// - MANUAL: the service only records the provider; the gateway's owner edits its
+	//   config.toml and restarts it (a self-hosted gateway).
+	// - UNSUPPORTED: nothing applies a custom provider to the gateway (a managed
+	//   gateway), so the service refuses to add one (409); one can still be removed.
+	IdentityProviderMode *GatewayIdentityProviderMode `json:"identityProviderMode,omitempty"`
+
 	// State Gateway operational status:
 	// - ACTIVE: the gateway is connected and ready
 	// - INACTIVE: the gateway is registered but not connected
@@ -1852,6 +1882,15 @@ type GatewayDocumentStatus struct {
 // - MANAGED: the platform provisions and runs it.
 // - SELF_HOSTED: the customer runs it and connects it to the platform.
 type GatewayHosting string
+
+// GatewayIdentityProviderMode How a change to the gateway's custom identity providers reaches the gateway.
+//   - APPLIED: the service patches the gateway's runtime configuration. Reserved
+//     for a service with a gateway config applier; no current service sends it.
+//   - MANUAL: the service only records the provider; the gateway's owner edits its
+//     config.toml and restarts it (a self-hosted gateway).
+//   - UNSUPPORTED: nothing applies a custom provider to the gateway (a managed
+//     gateway), so the service refuses to add one (409); one can still be removed.
+type GatewayIdentityProviderMode string
 
 // GatewayListResponse defines model for GatewayListResponse.
 type GatewayListResponse struct {
@@ -1967,6 +2006,10 @@ type GatewayTokenInfo struct {
 
 	// Id Unique token identifier (UUID)
 	Id string `json:"id"`
+
+	// Prefix The first characters of the token itself, so a token in use can be matched
+	// to its entry. Not enough to authenticate with.
+	Prefix string `json:"prefix"`
 
 	// RevokedAt Timestamp when the token was revoked (null if still active)
 	RevokedAt *time.Time `json:"revokedAt,omitempty"`

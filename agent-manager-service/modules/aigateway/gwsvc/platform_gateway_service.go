@@ -151,8 +151,11 @@ type GatewayResponse struct {
 	FunctionalityType string                 `json:"functionalityType"`
 	IsActive          bool                   `json:"isActive"`
 	Hosting           string                 `json:"hosting"`
-	CreatedAt         time.Time              `json:"createdAt"`
-	UpdatedAt         time.Time              `json:"updatedAt"`
+	// IdentityProviderMode is how a custom identity provider change reaches this
+	// gateway; see identityProviderMode.
+	IdentityProviderMode string    `json:"identityProviderMode"`
+	CreatedAt            time.Time `json:"createdAt"`
+	UpdatedAt            time.Time `json:"updatedAt"`
 }
 
 // gatewayHostingWire is the gateway's hosting as the API emits it: uppercase, like roles.
@@ -163,23 +166,43 @@ func gatewayHostingWire(gw *gwmodels.Gateway) string {
 	return string(gwspec.GATEWAYHOSTING_SELF_HOSTED)
 }
 
+// Identity provider modes, as the API emits them. This service never patches a
+// gateway's config, so it reports only these two; the API also defines APPLIED for a
+// service that does.
+const (
+	// IdentityProviderModeManual: the gateway's owner edits its config.toml (self-hosted).
+	IdentityProviderModeManual = "MANUAL"
+	// IdentityProviderModeUnsupported: nothing applies a custom identity provider to the
+	// gateway (managed), so adding one is refused; removing one is allowed.
+	IdentityProviderModeUnsupported = "UNSUPPORTED"
+)
+
+// identityProviderMode is how a custom identity provider change reaches a gateway.
+func identityProviderMode(gw *gwmodels.Gateway) string {
+	if gw.IsManaged() {
+		return IdentityProviderModeUnsupported
+	}
+	return IdentityProviderModeManual
+}
+
 // toGatewayResponse maps a stored gateway to its DTO; the one-time token is never part of it.
 func toGatewayResponse(gw *gwmodels.Gateway) *GatewayResponse {
 	return &GatewayResponse{
-		ID:                gw.UUID.String(),
-		OrganizationID:    gw.OUID,
-		Name:              gw.Name,
-		DisplayName:       gw.DisplayName,
-		Description:       gw.Description,
-		Properties:        gw.Properties,
-		Vhost:             gw.Vhost,
-		RuntimeURL:        gw.RuntimeURL,
-		IsCritical:        gw.IsCritical,
-		FunctionalityType: gw.GatewayFunctionalityType,
-		IsActive:          gw.IsActive,
-		Hosting:           gatewayHostingWire(gw),
-		CreatedAt:         gw.CreatedAt,
-		UpdatedAt:         gw.UpdatedAt,
+		IdentityProviderMode: identityProviderMode(gw),
+		ID:                   gw.UUID.String(),
+		OrganizationID:       gw.OUID,
+		Name:                 gw.Name,
+		DisplayName:          gw.DisplayName,
+		Description:          gw.Description,
+		Properties:           gw.Properties,
+		Vhost:                gw.Vhost,
+		RuntimeURL:           gw.RuntimeURL,
+		IsCritical:           gw.IsCritical,
+		FunctionalityType:    gw.GatewayFunctionalityType,
+		IsActive:             gw.IsActive,
+		Hosting:              gatewayHostingWire(gw),
+		CreatedAt:            gw.CreatedAt,
+		UpdatedAt:            gw.UpdatedAt,
 	}
 }
 
@@ -201,7 +224,10 @@ type TokenRotationResponse struct {
 
 // GatewayTokenInfo represents a token's metadata (no secret values exposed)
 type GatewayTokenInfo struct {
-	ID        string     `json:"id"`
+	ID string `json:"id"`
+	// Prefix is the token's first tokenPrefixShownLen characters, enough to match a
+	// token in use to its entry but not to authenticate with.
+	Prefix    string     `json:"prefix"`
 	Status    string     `json:"status"`
 	CreatedAt time.Time  `json:"createdAt"`
 	RevokedAt *time.Time `json:"revokedAt,omitempty"`
@@ -801,11 +827,12 @@ func (s *PlatformGatewayService) ListTokens(gatewayID, ouID string) (*GatewayTok
 		return nil, fmt.Errorf("failed to get tokens: %w", err)
 	}
 
-	// 3. Map to metadata DTOs (never expose hash/salt/prefix)
+	// 3. Map to metadata DTOs (never expose hash/salt or the full lookup prefix)
 	tokens := make([]GatewayTokenInfo, 0, len(activeTokens))
 	for _, t := range activeTokens {
 		tokens = append(tokens, GatewayTokenInfo{
 			ID:        t.UUID.String(),
+			Prefix:    shownTokenPrefix(t.TokenPrefix),
 			Status:    t.Status,
 			CreatedAt: t.CreatedAt,
 			RevokedAt: t.RevokedAt,
@@ -943,39 +970,28 @@ func (s *PlatformGatewayService) resolveGatewayUUID(gatewayID, ouID string) (str
 	return gw.UUID.String(), nil
 }
 
-// resolveManagedGatewayUUID is resolveGatewayUUID for operations a self-hosted gateway does
-// not support: a self-hosted gateway is reported as not found.
-func (s *PlatformGatewayService) resolveManagedGatewayUUID(gatewayID, ouID string) (string, error) {
-	gw, err := s.orgGateway(gatewayID, ouID)
-	if err != nil {
-		return "", err
-	}
-	if !gw.IsManaged() {
-		return "", gwerr.ErrGatewayNotFound
-	}
-	return gw.UUID.String(), nil
-}
-
 // UpsertIdentityProvider creates or updates an identity provider mirror row for a
 // gateway. System provenance is derived from the well-known provider names.
 //
-// The gateway's runtime configuration (its config.toml) is changed out of band by the
-// operator; this writes the mirror only.
+// Only the mirror is written: a self-hosted gateway's owner adds the key manager to its
+// config.toml (the console shows the entry). A custom provider is refused for a gateway
+// whose mode is UNSUPPORTED (managed): nothing would apply it, yet agent OAuth
+// validation would accept its issuer. System providers are recorded for any gateway.
 func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gatewayID, ouID, name, issuer, jwksURI, description string, skipTLS bool) (*gwmodels.GatewayIdentityProvider, error) {
 	if name == gwmodels.ReservedIdentityProviderName {
 		return nil, httpx.ErrInvalidInput
 	}
-	gwUUIDStr, err := s.resolveManagedGatewayUUID(gatewayID, ouID)
+	gw, err := s.orgGateway(gatewayID, ouID)
 	if err != nil {
 		return nil, err
 	}
-	gwUUID, err := uuid.Parse(gwUUIDStr)
+	gwUUID := gw.UUID
+	providerType, err := s.identityProviderType(gwUUID.String(), name)
 	if err != nil {
-		return nil, gwerr.ErrGatewayNotFound
+		return nil, err
 	}
-	providerType := gwmodels.IdentityProviderTypeCustom
-	if gwmodels.IsSystemIdentityProvider(name) {
-		providerType = gwmodels.IdentityProviderTypeSystem
+	if providerType == gwmodels.IdentityProviderTypeCustom && identityProviderMode(gw) == IdentityProviderModeUnsupported {
+		return nil, gwerr.ErrGatewayIdentityProviderUnsupported
 	}
 	now := time.Now()
 	provider := &gwmodels.GatewayIdentityProvider{
@@ -996,14 +1012,36 @@ func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gat
 	return provider, nil
 }
 
+// identityProviderType classifies a provider by what is recorded, not by its name
+// alone: a fixed well-known name (ThunderKeyManager) is system, and so is a name the
+// platform already recorded as system on this gateway (an env-Thunder provider).
+// Anything else is custom, including a new name that looks like an env-Thunder one,
+// so a caller can neither skip the managed-gateway refusal nor record a provider
+// that can't be removed by picking its name.
+func (s *PlatformGatewayService) identityProviderType(gatewayUUID, name string) (string, error) {
+	if gwmodels.IsWellKnownSystemIdentityProvider(name) {
+		return gwmodels.IdentityProviderTypeSystem, nil
+	}
+	existing, err := s.gatewayRepo.ListIdentityProvidersByGateway(gatewayUUID)
+	if err != nil {
+		return "", fmt.Errorf("failed to list identity providers: %w", err)
+	}
+	for _, p := range existing {
+		if p.Name == name && p.Type == gwmodels.IdentityProviderTypeSystem {
+			return gwmodels.IdentityProviderTypeSystem, nil
+		}
+	}
+	return gwmodels.IdentityProviderTypeCustom, nil
+}
+
 // DeleteIdentityProvider removes an identity provider mirror row for a gateway.
-// System providers cannot be deleted (enforced in the repository).
+// System providers cannot be deleted (enforced in the repository, by recorded type).
 func (s *PlatformGatewayService) DeleteIdentityProvider(ctx context.Context, gatewayID, ouID, name string) error {
-	gwUUIDStr, err := s.resolveManagedGatewayUUID(gatewayID, ouID)
+	gw, err := s.orgGateway(gatewayID, ouID)
 	if err != nil {
 		return err
 	}
-	return s.gatewayRepo.DeleteIdentityProvider(gwUUIDStr, name)
+	return s.gatewayRepo.DeleteIdentityProvider(gw.UUID.String(), name)
 }
 
 // ListIdentityProvidersByGateway lists the identity providers mirrored for a gateway.
@@ -1416,6 +1454,18 @@ func normalizeGatewayRole(functionalityType string) (string, error) {
 }
 
 // Token Generation and Hashing Utilities
+
+// tokenPrefixShownLen is how much of a token is listed: the first group of its UUID
+// prefix, enough to tell tokens apart without revealing the full lookup key.
+const tokenPrefixShownLen = 8
+
+// shownTokenPrefix returns the part of a token's prefix that may be listed.
+func shownTokenPrefix(prefix string) string {
+	if len(prefix) <= tokenPrefixShownLen {
+		return prefix
+	}
+	return prefix[:tokenPrefixShownLen]
+}
 
 // generateToken generates a cryptographically secure token with guaranteed uniqueness
 // Format: {UUID}-{32-random-bytes-base64}

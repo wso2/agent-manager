@@ -197,6 +197,5 @@ var Settings = []Setting{
 	{Key: "CONSOLE_FEATURE_FLAG_ENABLE_PROFILE_MANAGEMENT", Group: "Console", Default: "", Description: "Show profile management."},
 	{Key: "CONSOLE_FEATURE_FLAG_ENABLE_USER_MANAGEMENT", Group: "Console", Default: "", Description: "Show user management."},
 	{Key: "CONSOLE_FEATURE_FLAG_ENABLE_SELF_HOSTED_GATEWAYS", Group: "Console", Default: "", Description: "Show self-hosted gateways."},
-	{Key: "CONSOLE_FEATURE_FLAG_ENABLE_IDENTITY_PROVIDER_MANAGED_MODE", Group: "Console", Default: "", Description: "Identity-provider-managed mode."},
 	{Key: "CONSOLE_FEATURE_FLAG_EXTERNALLY_MANAGED_GATEWAY", Group: "Console", Default: "", Description: "Externally managed gateways."},
 }
