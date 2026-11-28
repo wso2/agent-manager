@@ -62,12 +62,12 @@ func serve(t *testing.T, pathOrg, tokenHandle, tokenOUID string) (status int, ha
 // on an /orgs/orgb/... route must still resolve to orgA — so it operates on its
 // own tenant and cannot reach orgB's data by changing the path segment.
 func TestRequireOrgMatch_TokenTrust_IgnoresPathOrg(t *testing.T) {
-	status, ran, resolved := serve(t, "orgb", "orga", "ou-a")
+	status, ran, resolved := serve(t, "orgb", "orga", "01900000-0000-7000-8000-0000000000a1")
 	if status != http.StatusOK || !ran {
 		t.Fatalf("token-trust: want 200 & handler run, got %d ran=%v", status, ran)
 	}
-	if resolved.OUID != "ou-a" || resolved.OuHandle != "orga" {
-		t.Fatalf("token-trust: resolved org must come from the token (ou-a/orga), got %q/%q",
+	if resolved.OUID != "01900000-0000-7000-8000-0000000000a1" || resolved.OuHandle != "orga" {
+		t.Fatalf("token-trust: resolved org must come from the token (01900000-0000-7000-8000-0000000000a1/orga), got %q/%q",
 			resolved.OUID, resolved.OuHandle)
 	}
 }
@@ -75,12 +75,12 @@ func TestRequireOrgMatch_TokenTrust_IgnoresPathOrg(t *testing.T) {
 // TestRequireOrgMatch_OwnOrg confirms the normal case: a token on its own org
 // route resolves to the token's org.
 func TestRequireOrgMatch_OwnOrg(t *testing.T) {
-	status, ran, resolved := serve(t, "orga", "orga", "ou-a")
+	status, ran, resolved := serve(t, "orga", "orga", "01900000-0000-7000-8000-0000000000a1")
 	if status != http.StatusOK || !ran {
 		t.Fatalf("own-org: want 200 & handler run, got %d ran=%v", status, ran)
 	}
-	if resolved.OUID != "ou-a" {
-		t.Fatalf("own-org: resolved OUID want ou-a, got %q", resolved.OUID)
+	if resolved.OUID != "01900000-0000-7000-8000-0000000000a1" {
+		t.Fatalf("own-org: resolved OUID want 01900000-0000-7000-8000-0000000000a1, got %q", resolved.OUID)
 	}
 }
 
@@ -93,5 +93,20 @@ func TestRequireOrgMatch_MissingOUIdentity(t *testing.T) {
 	}
 	if ran {
 		t.Fatal("missing ou identity: handler must NOT run")
+	}
+}
+
+// TestRequireOrgMatch_NonUUIDOUID rejects a token whose ouId is not a UUID: the
+// ouId is the organization's id wherever it is stored, so an identity provider
+// that sends anything else is misconfigured, and is told so at the door.
+func TestRequireOrgMatch_NonUUIDOUID(t *testing.T) {
+	for _, ouID := range []string{"default", "ou-a", "01900000-0000-7000-8000"} {
+		status, ran, _ := serve(t, "orga", "orga", ouID)
+		if status != http.StatusForbidden {
+			t.Fatalf("ouId %q: want 403, got %d", ouID, status)
+		}
+		if ran {
+			t.Fatalf("ouId %q: handler must NOT run", ouID)
+		}
 	}
 }

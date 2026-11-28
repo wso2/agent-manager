@@ -51,7 +51,7 @@ func orgResolutionProbe(t *testing.T, rr *RouteRegistrar, pattern, path string, 
 // An API-surface route without {orgName} still resolves its org from the token.
 func TestAPISurfaceResolvesOrgWithoutOrgNameInPattern(t *testing.T) {
 	rr := NewRouteRegistrar(http.NewServeMux(), stubResolver{}, nil)
-	claims := &jwtassertion.TokenClaims{Sub: "user-a", OuId: "ou-a", OuHandle: "orga"}
+	claims := &jwtassertion.TokenClaims{Sub: "user-a", OuId: "01900000-0000-7000-8000-0000000000a1", OuHandle: "orga"}
 
 	status, ran, resolved, ok := orgResolutionProbe(t, rr, "GET /api/v1/agents", "/api/v1/agents", claims)
 
@@ -61,7 +61,7 @@ func TestAPISurfaceResolvesOrgWithoutOrgNameInPattern(t *testing.T) {
 	if !ok {
 		t.Fatal("no org on the handler's context: RequireOrgMatch was not installed on a route without {orgName}")
 	}
-	if resolved.OUID != "ou-a" || resolved.OuHandle != "orga" {
+	if resolved.OUID != "01900000-0000-7000-8000-0000000000a1" || resolved.OuHandle != "orga" {
 		t.Fatalf("org must come from the token, got %q/%q", resolved.OUID, resolved.OuHandle)
 	}
 }

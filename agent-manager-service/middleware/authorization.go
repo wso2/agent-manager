@@ -20,6 +20,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/google/uuid"
+
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
@@ -54,7 +56,7 @@ func RecordAuthzDeny(r *http.Request, reason string, opts ...audit.Option) {
 }
 
 // RequireOrgMatch returns a middleware that:
-//  1. Validates the token carries ouId and ouHandle (required for both cloud and on-prem).
+//  1. Validates the token carries ouId (a UUID) and ouHandle (required for both cloud and on-prem).
 //  2. Injects ResolvedOrg (from the token) into the request context for handlers.
 //
 // Token-trust model: the token is the single source of truth for org identity.
@@ -86,6 +88,16 @@ func resolveOrgFromToken() func(http.HandlerFunc) http.HandlerFunc {
 				slog.Warn("RequireOrgMatch rejected", "reason", "missing ou identity in token", "sub", claims.Sub, "path", r.URL.Path)
 				RecordAuthzDeny(r, "missing-ou-identity")
 				httpx.WriteErrorResponse(w, http.StatusForbidden, "missing ou identity in token")
+				return
+			}
+			// The ouId is the organization's id wherever it is stored, so an
+			// identity provider that sends anything but a UUID is misconfigured.
+			// Refused here with a reason naming the claim, rather than as a
+			// missing organization deep in a repository.
+			if _, err := uuid.Parse(claims.OuId); err != nil {
+				slog.Warn("RequireOrgMatch rejected", "reason", "ouId in token is not a UUID", "sub", claims.Sub, "path", r.URL.Path)
+				RecordAuthzDeny(r, "invalid-ou-id")
+				httpx.WriteErrorResponse(w, http.StatusForbidden, "ouId in token must be a UUID")
 				return
 			}
 

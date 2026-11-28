@@ -45,7 +45,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
-const gatewayTestOU = "ou-1"
+const gatewayTestOU = "01900000-0000-7000-8000-0000000000a1"
 
 type auditCapture struct {
 	mu     sync.Mutex

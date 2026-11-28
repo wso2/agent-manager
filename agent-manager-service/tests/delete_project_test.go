@@ -139,7 +139,7 @@ func TestDeleteProject(t *testing.T) {
 	}{
 		{
 			name:           "return 404 on organization not found",
-			authMiddleware: jwtassertion.NewMockMiddlewareWithOUID(t, "nonexistent-org"),
+			authMiddleware: jwtassertion.NewMockMiddlewareWithOUID(t, apitestutils.NonexistentOrgOUID),
 			wantStatus:     404,
 			wantErrMsg:     "Organization not found",
 			url:            "/api/v1/projects/" + testDeleteProjectProjName,
