@@ -27,7 +27,6 @@ import {
   deleteShadowConnection,
   deleteShadowFinding,
   deleteShadowFindings,
-  downloadShadowInventoryTemplate,
   getShadowConnection,
   getShadowFinding,
   getShadowScan,
@@ -40,7 +39,6 @@ import {
   setShadowFindingHidden,
   testShadowConnection,
   updateShadowConnection,
-  uploadShadowInventory,
   uploadShadowScanResults,
 } from "../apis";
 import type {
@@ -52,8 +50,6 @@ import type {
   ShadowFindingDetail,
   ShadowFindingListQuery,
   ShadowFindingListResponse,
-  ShadowInventoryFormat,
-  ShadowInventoryUploadResponse,
   ShadowOnboardingRequest,
   ShadowProviderListResponse,
   ShadowFindingClearResponse,
@@ -186,9 +182,7 @@ export function useCreateShadowConnection(orgName: string | undefined) {
   const { getToken } = useAuthHooks();
   const invalidate = useInvalidateShadow();
   return useApiMutation<ShadowConnectionResponse, unknown, ShadowConnectionRequest>({
-    // "platform" keeps the telemetry operation name (create:platform); the notice says Source.
     action: { verb: "create", target: "platform" },
-    successMessage: () => "Source created successfully",
     mutationFn: (body) => createShadowConnection(orgName, body, getToken),
     onSuccess: () => invalidate(),
   });
@@ -201,9 +195,7 @@ export function useUpdateShadowConnection(
   const { getToken } = useAuthHooks();
   const invalidate = useInvalidateShadow();
   return useApiMutation<ShadowConnectionResponse, unknown, ShadowConnectionRequest>({
-    // "platform" keeps the telemetry operation name (update:platform); the notice says Source.
     action: { verb: "update", target: "platform" },
-    successMessage: () => "Source updated successfully",
     mutationFn: (body) => updateShadowConnection(orgName, connectionId ?? "", body, getToken),
     onSuccess: () => invalidate(),
   });
@@ -214,9 +206,7 @@ export function useDeleteShadowConnection(orgName: string | undefined) {
   const queryClient = useQueryClient();
   const invalidate = useInvalidateShadow();
   return useApiMutation<void, unknown, string>({
-    // "platform" keeps the telemetry operation name (delete:platform); the notice says Source.
     action: { verb: "delete", target: "platform" },
-    successMessage: () => "Source deleted successfully",
     mutationFn: (connectionId) => deleteShadowConnection(orgName, connectionId, getToken),
     onSuccess: (_data, connectionId) => {
       // Drop the row at once: the refetch below can take a moment, and a row
@@ -298,43 +288,6 @@ export function useUploadShadowScanResults(orgName: string | undefined) {
     // The scan, its agents and the summary change; a 409 means the scan
     // changed meanwhile: refresh it either way.
     onSettled: () => invalidate(),
-  });
-}
-
-/**
- * Uploads an inventory file to a Bring your own inventory connection. The
- * panel shows the result and the error itself.
- */
-export function useUploadShadowInventory(orgName: string | undefined) {
-  const { getToken } = useAuthHooks();
-  const queryClient = useQueryClient();
-  return useApiMutation<
-    ShadowInventoryUploadResponse,
-    unknown,
-    { connectionId: string; file: File }
-  >({
-    showSuccess: false,
-    showError: false,
-    // The variables hold the whole file: drop them from the cache at once.
-    gcTime: 0,
-    mutationFn: ({ connectionId, file }) =>
-      uploadShadowInventory(orgName, connectionId, file, getToken),
-    onSuccess: () =>
-      Promise.all(
-        ["connections", "scans", "findings", "summary"].map((k) =>
-          queryClient.invalidateQueries({ queryKey: ["shadow-agents", k, orgName] }),
-        ),
-      ),
-  });
-}
-
-/** Downloads the inventory template in a format; the error shows as a notice. */
-export function useDownloadShadowInventoryTemplate(orgName: string | undefined) {
-  const { getToken } = useAuthHooks();
-  return useApiMutation<void, unknown, ShadowInventoryFormat>({
-    showSuccess: false,
-    errorMessage: () => "The template could not be downloaded. Try again.",
-    mutationFn: (format) => downloadShadowInventoryTemplate(orgName, format, getToken),
   });
 }
 

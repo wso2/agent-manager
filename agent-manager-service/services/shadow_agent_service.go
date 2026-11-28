@@ -104,11 +104,6 @@ type ShadowAgentService interface {
 	// uploaded by a signed-in user, as PublishRunnerScan saves a publish.
 	UploadRunnerScanResults(ctx context.Context, ouID string, scanID uuid.UUID,
 		req *models.PublishShadowScanRequest) (*models.PublishShadowScanResponse, error)
-	// UploadInventory saves the agents of a Bring your own inventory file
-	// (JSON, CSV or Excel) for the connection, as a finished scan of it. The
-	// file is the complete inventory: the connection's agents not in it are
-	// marked as gone.
-	UploadInventory(ctx context.Context, ouID string, id uuid.UUID, fileName string, data []byte) (*ShadowInventoryUpload, error)
 	// CancelRunnerScan cancels a pending source code scan that will get no
 	// results, or a queued or running cloud scan.
 	CancelRunnerScan(ctx context.Context, ouID string, scanID uuid.UUID) (*models.ShadowScan, error)
@@ -243,10 +238,8 @@ func (s *shadowAgentService) CreateConnection(ctx context.Context, ouID string, 
 		SecretHints:     secretHints(secret),
 		CreatedBy:       audit.BuildEvent(ctx, audit.ActionShadowConnectionCreate).ActorID,
 	}
-	// A source host or an uploaded inventory stores no secret, so creating
-	// one changes none.
-	attempt, err := audit.Begin(ctx, audit.ActionShadowConnectionCreate,
-		connectionAuditOpts(ouID, c, spec.HoldsCredential())...)
+	// A source host stores no secret, so creating one changes none.
+	attempt, err := audit.Begin(ctx, audit.ActionShadowConnectionCreate, connectionAuditOpts(ouID, c, !spec.SourceHost)...)
 	if err != nil {
 		return nil, err
 	}
@@ -364,13 +357,9 @@ func (s *shadowAgentService) TestConnection(ctx context.Context, ouID string, id
 	if err != nil {
 		return nil, err
 	}
-	if spec, ok := sa.Provider(c.Provider); ok && !spec.CloudScanned() {
-		instead := "the scan command checks the token when it runs"
-		if spec.FileUpload {
-			instead = "its agents come from the inventory files you upload"
-		}
-		return nil, fmt.Errorf("%w: %s connections have no credential to test; %s",
-			utils.ErrInvalidInput, spec.DisplayName, instead)
+	if spec, ok := sa.Provider(c.Provider); ok && spec.SourceHost {
+		return nil, fmt.Errorf("%w: %s connections have no credential to test; the scan command checks the token when it runs",
+			utils.ErrInvalidInput, spec.DisplayName)
 	}
 	conn, err := s.runtimeConnection(c)
 	if err != nil {
@@ -419,11 +408,10 @@ func (s *shadowAgentService) encryptSecret(secret models.ShadowConnectionSecret)
 }
 
 // sealSecret encrypts a connection's secret for storage. A source host
-// (GitHub) stores none: its form has no secret field, and the source code
-// scan asks for the Git token on the customer's machine. Nor does Bring your
-// own inventory, whose agents come from uploaded files.
+// (GitHub) stores none: its form has no secret field, and the
+// source code scan asks for the Git token on the customer's machine.
 func (s *shadowAgentService) sealSecret(spec sa.ProviderSpec, secret models.ShadowConnectionSecret) ([]byte, error) {
-	if !spec.HoldsCredential() {
+	if spec.SourceHost {
 		return nil, nil
 	}
 	return s.encryptSecret(secret)
@@ -436,7 +424,7 @@ func (s *shadowAgentService) decryptSecret(encrypted []byte) (models.ShadowConne
 func decryptShadowSecret(encrypted, key []byte) (models.ShadowConnectionSecret, error) {
 	var secret models.ShadowConnectionSecret
 	if len(encrypted) == 0 {
-		// A source host or an uploaded inventory stores no secret.
+		// A source host stores no secret.
 		return secret, nil
 	}
 	plain, err := utils.DecryptBytes(encrypted, key)
@@ -637,6 +625,7 @@ func secretHints(secret models.ShadowConnectionSecret) map[string]string {
 		}
 	}
 	add("clientSecret", secret.ClientSecret)
+	add(sa.FieldAPIKey, secret.APIKey)
 	add("secretAccessKey", secret.SecretAccessKey)
 	add("sessionToken", secret.SessionToken)
 	if strings.TrimSpace(secret.ServiceAccountJSON) != "" {
@@ -749,6 +738,8 @@ func shadowSecretHas(secret models.ShadowConnectionSecret, key string) bool {
 		return false
 	case "clientSecret":
 		return strings.TrimSpace(secret.ClientSecret) != ""
+	case sa.FieldAPIKey:
+		return strings.TrimSpace(secret.APIKey) != ""
 	case "secretAccessKey":
 		return strings.TrimSpace(secret.SecretAccessKey) != ""
 	case "sessionToken":
@@ -926,6 +917,10 @@ func validateSourceHostSettings(spec sa.ProviderSpec, cfg *models.ShadowConnecti
 				return fmt.Errorf("%w: %q is not an AWS region code, such as us-east-1", utils.ErrInvalidInput, r)
 			}
 		}
+	case models.ShadowProviderCustom:
+		if err := sa.ValidateAgentsURL(cfg.AgentsURL); err != nil {
+			return fmt.Errorf("%w: %s", utils.ErrInvalidInput, err.Error())
+		}
 	case models.ShadowProviderGitHub:
 		if !githubOwnerPattern.MatchString(cfg.Organization) {
 			return fmt.Errorf("%w: Organization or user account must be a GitHub account name, such as my-org", utils.ErrInvalidInput)
@@ -1029,6 +1024,8 @@ func setShadowText(cfg *models.ShadowConnectionConfig, key, v string) {
 		cfg.AccessKeyID = v
 	case "organization":
 		cfg.Organization = v
+	case sa.FieldAgentsURL:
+		cfg.AgentsURL = v
 	}
 }
 
@@ -1051,6 +1048,8 @@ func setShadowSecret(secret *models.ShadowConnectionSecret, key, v string) {
 	switch key {
 	case "clientSecret":
 		secret.ClientSecret = v
+	case sa.FieldAPIKey:
+		secret.APIKey = v
 	case "secretAccessKey":
 		secret.SecretAccessKey = v
 	case "sessionToken":
@@ -1070,7 +1069,7 @@ func shadowSettingsOf(provider string, cfg models.ShadowConnectionConfig) map[st
 	}
 	text := map[string]string{
 		"tenantId": cfg.TenantID, "clientId": cfg.ClientID, "roleArn": cfg.RoleARN, "externalId": cfg.ExternalID,
-		"accessKeyId": cfg.AccessKeyID, "organization": cfg.Organization,
+		"accessKeyId": cfg.AccessKeyID, "organization": cfg.Organization, sa.FieldAgentsURL: cfg.AgentsURL,
 	}
 	lists := map[string][]string{
 		"subscriptionIds": cfg.SubscriptionIDs, "regions": cfg.Regions, "projectIds": cfg.ProjectIDs,
@@ -1129,16 +1128,13 @@ func (s *shadowAgentService) CreateScan(
 	if err != nil {
 		return nil, fmt.Errorf("failed to list connections: %w", err)
 	}
-	// A source host (GitHub) is never part of a cloud scan: its
-	// repositories are scanned by the scan command on the customer's
-	// machine. Nor is Bring your own inventory: its agents come from
-	// uploaded files.
+	// A source host (GitHub) is never part of a cloud scan:
+	// its repositories are scanned by the scan command on the customer's
+	// machine.
 	scannable := map[uuid.UUID]bool{}
-	fileUpload := map[uuid.UUID]bool{}
 	for i := range all {
 		spec, ok := sa.Provider(all[i].Provider)
-		scannable[all[i].ID] = !ok || spec.CloudScanned()
-		fileUpload[all[i].ID] = ok && spec.FileUpload
+		scannable[all[i].ID] = !ok || !spec.SourceHost
 	}
 	ids := []string{}
 	if len(connectionIDs) == 0 {
@@ -1153,10 +1149,6 @@ func (s *shadowAgentService) CreateScan(
 			ok, found := scannable[id]
 			if !found {
 				return nil, fmt.Errorf("%w: connection %s not found", utils.ErrInvalidInput, id)
-			}
-			if !ok && fileUpload[id] {
-				return nil, fmt.Errorf("%w: connection %s lists the agents of uploaded inventory files; upload a file instead",
-					utils.ErrInvalidInput, id)
 			}
 			if !ok {
 				return nil, fmt.Errorf("%w: connection %s is a source repository host; run its scan command instead", utils.ErrInvalidInput, id)

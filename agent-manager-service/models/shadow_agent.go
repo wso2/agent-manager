@@ -30,9 +30,9 @@ const (
 	ShadowProviderBedrock   = "bedrock"
 	ShadowProviderGoogle    = "google"
 	ShadowProviderFoundry   = "foundry"
-	// ShadowProviderCustom is the customer's own agent inventory (Bring your
-	// own inventory): files in the Agent Manager format the customer uploads.
-	// Its connections hold no credential and no cloud scan reads them.
+	// ShadowProviderCustom is the customer's own agent inventory: a REST API
+	// the customer implements to the published contract, called with an API
+	// key.
 	ShadowProviderCustom = "custom"
 	// Source repository hosts (Method 2). Their connections hold no
 	// credential: the source code scan runs on the customer's machine and asks
@@ -125,9 +125,6 @@ type ShadowConnection struct {
 	CreatedBy      string                    `gorm:"column:created_by;not null"`
 	CreatedAt      time.Time                 `gorm:"column:created_at;not null;default:NOW()"`
 	UpdatedAt      time.Time                 `gorm:"column:updated_at;not null;default:NOW()"`
-	// LastUploadAt is when a Bring your own inventory file was last saved
-	// for the connection; nil for other connections and before the first.
-	LastUploadAt *time.Time `gorm:"column:last_upload_at"`
 }
 
 func (ShadowConnection) TableName() string { return "shadow_connections" }
@@ -181,6 +178,8 @@ type ShadowConnectionConfig struct {
 	// GitHub: also read CI pipeline definitions.
 	ReadCIFiles bool `json:"readCiFiles,omitempty"`
 
+	// Custom platform: the URL of the customer's agent list (GET).
+	AgentsURL string `json:"agentsUrl,omitempty"`
 	// DisabledServices are the optional services (Bedrock, Google) the user
 	// unticked: the scan does not call them. Listing the disabled ones keeps
 	// every service on for connections saved before the option existed.
@@ -193,9 +192,13 @@ type ShadowConnectionConfig struct {
 type ShadowConnectionSecret struct {
 	// ScopedKeys maps an OpenAI project ID or an Anthropic workspace ID to a
 	// read-only key for it: each key lists its project's or workspace's agents.
-	// (An Admin API key stored by an earlier version, as "apiKey", is not
-	// decoded, so it is dropped when the platform is next saved.)
+	// (An Admin API key stored by an earlier version is not decoded, so it is
+	// dropped when the platform is next saved.)
 	ScopedKeys map[string]string `json:"scopedKeys,omitempty"`
+	// APIKey is the Custom platform's API key, sent as a bearer token. It is
+	// stored as customApiKey: "apiKey" held an OpenAI Admin API key in an
+	// earlier version, which must stay undecoded so it is dropped.
+	APIKey string `json:"customApiKey,omitempty"`
 	// ClientSecret is the Entra app's client secret (Foundry).
 	ClientSecret string `json:"clientSecret,omitempty"`
 	// SecretAccessKey and SessionToken complete the AWS access key.
@@ -252,10 +255,6 @@ type ShadowScanOptions struct {
 	// DirectUpload gave the scan command a scan token to publish its results
 	// with. Without it the results file is uploaded from the console.
 	DirectUpload bool `json:"directUpload,omitempty"`
-	// InventoryUpload marks a scan created by uploading a Bring your own
-	// inventory file. It is finished when created, and is never the latest
-	// scan of the org.
-	InventoryUpload bool `json:"inventoryUpload,omitempty"`
 }
 
 // ShadowScanConnectionResult is how one connection fared in a scan.

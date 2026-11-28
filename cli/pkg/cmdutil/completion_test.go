@@ -451,7 +451,7 @@ func TestCompleteBuilds_ServerErrorReturnsNil(t *testing.T) {
 func TestIsBuildable_InternalIsTrue(t *testing.T) {
 	agent := amsvc.AgentResponse{
 		Name:         "my-agent",
-		Provisioning: amsvc.Provisioning{Type: amsvc.Internal},
+		Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeInternal},
 	}
 	if !IsBuildable(agent) {
 		t.Error("IsBuildable = false for internal agent, want true")
@@ -502,9 +502,9 @@ func newMixedAgentServer(t *testing.T, expectedOrg, expectedProj string, agents 
 
 func TestCompleteBuildableAgents_FiltersExternalAgents(t *testing.T) {
 	agents := []amsvc.AgentResponse{
-		{Name: "internal-bot", DisplayName: "Internal", ProjectName: "proj", Provisioning: amsvc.Provisioning{Type: amsvc.Internal}, CreatedAt: time.Now().UTC()},
+		{Name: "internal-bot", DisplayName: "Internal", ProjectName: "proj", Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeInternal}, CreatedAt: time.Now().UTC()},
 		{Name: "external-bot", DisplayName: "External", ProjectName: "proj", Provisioning: amsvc.Provisioning{Type: "external"}, CreatedAt: time.Now().UTC()},
-		{Name: "another-internal", DisplayName: "Another", ProjectName: "proj", Provisioning: amsvc.Provisioning{Type: amsvc.Internal}, CreatedAt: time.Now().UTC()},
+		{Name: "another-internal", DisplayName: "Another", ProjectName: "proj", Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeInternal}, CreatedAt: time.Now().UTC()},
 	}
 	f, cleanup := newMixedAgentServer(t, "acme", "proj", agents)
 	defer cleanup()

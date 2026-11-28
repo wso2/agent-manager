@@ -114,30 +114,13 @@ type ProviderSpec struct {
 	// SetupSteps are the steps to make the platform listable, shown with
 	// what it lists (Bring your own inventory).
 	SetupSteps []string
+	// APIContract is the OpenAPI document of the API the customer
+	// implements (Bring your own inventory); the console offers it for download.
+	APIContract string
 	// SourceHost marks a source repository host (GitHub). Its
 	// connection holds no credential and no cloud scan reads it: the source
 	// code scan runs on the customer's machine.
 	SourceHost bool
-	// FileUpload marks a platform whose agents come from uploaded inventory
-	// files (Bring your own inventory). Its connection holds no credential
-	// and no cloud scan reads it.
-	FileUpload bool
-	// InventoryFields is the inventory file format of a FileUpload platform.
-	InventoryFields []InventoryField
-}
-
-// CloudScanned reports whether a cloud scan (Run scan, the scan worker)
-// reads the platform: not a source host, whose scan command runs on the
-// customer's machine, and not a platform whose agents come from uploaded
-// files.
-func (p ProviderSpec) CloudScanned() bool {
-	return !p.SourceHost && !p.FileUpload
-}
-
-// HoldsCredential reports whether the platform's connection stores a
-// credential: only the platforms a cloud scan reads do.
-func (p ProviderSpec) HoldsCredential() bool {
-	return p.CloudScanned()
 }
 
 // Endpoint keys.
@@ -526,29 +509,52 @@ func Providers() []ProviderSpec {
 
 var allProviderSpecs = append(append(append([]ProviderSpec{}, providerSpecs...), customPlatformSpec), sourceHostSpecs...)
 
-// customPlatformSpec is the customer's own agent inventory: a file in the
-// Agent Manager format (JSON, CSV or Excel) the customer uploads. It has no
-// endpoint, form field or credential.
+// customPlatformSpec is the customer's own agent inventory: a REST API built
+// to CustomPlatformOpenAPI. It has no official endpoint: the Agents URL is
+// a field.
 var customPlatformSpec = ProviderSpec{
-	Provider:        models.ShadowProviderCustom,
-	DisplayName:     "Bring your own inventory",
-	Description:     "Upload a file that lists your agents: JSON, CSV or Excel.",
-	FileUpload:      true,
-	InventoryFields: inventoryFields,
-	Fields:          []FieldSpec{},
-	Permissions:     []PermissionSpec{},
-	Docs:            []string{},
+	Provider:    models.ShadowProviderCustom,
+	DisplayName: "Bring your own inventory",
+	Description: "Your own API that lists your agents. Implement the Agent Manager contract, then add its URL and an API key.",
+	Fields: []FieldSpec{
+		{
+			Key: FieldAgentsURL, Label: "Agents URL", Kind: FieldText, Required: true,
+			Placeholder: "e.g. https://agents.example.com/v1/agents",
+			Help: "Your service's agent list. Agent Manager calls GET on this URL, adding only limit and cursor, " +
+				"so it must not have a query string.",
+		},
+		{
+			Key: FieldAPIKey, Label: "API key", Kind: FieldSecret, Required: true, Placeholder: "API key",
+			Help: "Sent as Authorization: Bearer <API key>, to the Agents URL only.",
+		},
+	},
+	Permissions: []PermissionSpec{
+		{
+			Title:   "API key",
+			Summary: "Agent Manager sends the key as a bearer token to your Agents URL, and calls nothing else.",
+			Items: []string{
+				"Create a key that can only read the agent list.",
+				"The key is stored encrypted and never shown again.",
+			},
+		},
+	},
+	Docs: []string{},
 	NotListed: []string{
-		"Any column or key that is not in the format: it is ignored and never stored.",
-		"Anything outside the uploaded file: Agent Manager calls nothing and stores no credential.",
+		"Any field your service returns that is not in the contract: it is ignored and never stored.",
+		"Anything else on your server: only GET on the Agents URL is called.",
 	},
 	SetupSteps: []string{
-		"Download a template (JSON, CSV or Excel). It has every column of the format and two example agents.",
-		"Fill in one row (CSV, Excel) or one object (JSON) per agent. Each agent needs an id and a name; " +
-			"the other columns are optional.",
-		"Add the source with the file. Its agents show up as unmanaged agents, like a scan's agents. Upload a " +
-			"new file from the Sources tab whenever your inventory changes.",
+		"Download the OpenAPI contract and implement its one call: GET on your Agents URL, returning your agents " +
+			"page by page. Each agent needs an id and a name; source, url, framework, model, owner and the other " +
+			"fields are optional.",
+		"Run the service where the Agent Manager server can reach it, preferably over https, and give it an API " +
+			"key that can only read the agent list.",
+		"Enter the Agents URL (for example https://agents.example.com/v1/agents) and the API key below, and add " +
+			"the platform.",
+		"Test the connection (Agent Manager reads one agent), then run a scan: the agents your service returns " +
+			"show up as unmanaged agents in the agent registry.",
 	},
+	APIContract: CustomPlatformOpenAPI,
 }
 
 // Field returns a provider's field spec.

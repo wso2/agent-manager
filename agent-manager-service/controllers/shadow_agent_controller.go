@@ -19,13 +19,8 @@ package controllers
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"net/http"
 	"strconv"
-	"strings"
-	"sync"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -60,10 +55,6 @@ type ShadowAgentController interface {
 	DeleteConnection(w http.ResponseWriter, r *http.Request)
 	TestConnection(w http.ResponseWriter, r *http.Request)
 	CreateRunnerScan(w http.ResponseWriter, r *http.Request)
-	// GetInventoryTemplate downloads a Bring your own inventory file
-	// template; UploadInventory saves an inventory file's agents.
-	GetInventoryTemplate(w http.ResponseWriter, r *http.Request)
-	UploadInventory(w http.ResponseWriter, r *http.Request)
 	// PublishScanResults is the scan publisher endpoint a source code scan
 	// command calls with its scan token.
 	PublishScanResults(w http.ResponseWriter, r *http.Request)
@@ -111,14 +102,9 @@ func (c *shadowAgentController) ListProviders(w http.ResponseWriter, _ *http.Req
 		if len(p.SetupSteps) > 0 {
 			ps.SetupSteps = append([]string{}, p.SetupSteps...)
 		}
-		if p.FileUpload {
-			upload := true
-			ps.FileUpload = &upload
-		}
-		for _, f := range p.InventoryFields {
-			ps.InventoryFields = append(ps.InventoryFields, spec.ShadowInventoryField{
-				Name: f.Name, Required: f.Required, Description: f.Description, Example: f.Example,
-			})
+		if p.APIContract != "" {
+			contract := p.APIContract
+			ps.ApiContract = &contract
 		}
 		if p.SourceHost {
 			src := true
@@ -350,176 +336,6 @@ func (c *shadowAgentController) CreateRunnerScan(w http.ResponseWriter, r *http.
 		resp.Token, resp.ExpiresAt = &res.Token, &res.ExpiresAt
 	}
 	utils.WriteSuccessResponse(w, http.StatusCreated, resp)
-}
-
-// maxShadowInventoryRequestBytes bounds an inventory file upload: the file
-// and the multipart framing around it.
-const maxShadowInventoryRequestBytes = sa.MaxInventoryFileBytes + 64<<10
-
-const msgShadowInventoryTooLarge = "The file is larger than 5 MB. Remove the columns that are not in the format, " +
-	"then upload it again."
-
-const msgShadowInventorySuperseded = "A newer file was uploaded to this source while this one was being saved. " +
-	"Upload it again if it is the one you want."
-
-// Deadlines of an inventory upload, longer than the server's defaults: a
-// 5 MB file can take a while to send on a slow link, and saving up to
-// sa.MaxInventoryAgents agents takes a while too.
-const (
-	shadowInventoryReadTimeout  = 2 * time.Minute
-	shadowInventoryWriteTimeout = 5 * time.Minute
-)
-
-// GetInventoryTemplate handles GET /orgs/{orgName}/shadow-agents/inventory/template:
-// a template file in the format the format query parameter names (json,
-// csv or xlsx), as an attachment.
-func (c *shadowAgentController) GetInventoryTemplate(w http.ResponseWriter, r *http.Request) {
-	format := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("format")))
-	if !sa.IsInventoryFormat(format) {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "format must be json, csv or xlsx")
-		return
-	}
-	body, err := sa.InventoryTemplate(format)
-	if err != nil {
-		logger.GetLogger(r.Context()).Error("Failed to write the inventory template", "format", format, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create the template")
-		return
-	}
-	w.Header().Set("Content-Type", sa.InventoryContentType(format))
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename=%q`, sa.InventoryTemplateFileName(format)))
-	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
-	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write(body); err != nil {
-		logger.GetLogger(r.Context()).Warn("Failed to send the inventory template", "error", err)
-	}
-}
-
-// UploadInventory handles POST /orgs/{orgName}/shadow-agents/connections/{connectionId}/inventory:
-// a Bring your own inventory file in the multipart part named file.
-func (c *shadowAgentController) UploadInventory(w http.ResponseWriter, r *http.Request) {
-	id, ok := shadowConnectionID(w, r)
-	if !ok {
-		return
-	}
-	extendShadowInventoryDeadlines(w, r)
-	name, data, ok := readShadowInventoryFile(w, r)
-	if !ok {
-		return
-	}
-	res, err := c.svc.UploadInventory(r.Context(), middleware.OUIDFromRequest(r), id, name, data)
-	var bad *sa.InventoryFileError
-	if errors.As(err, &bad) {
-		// A plain message the console shows as it is.
-		utils.WriteErrorResponse(w, http.StatusBadRequest, bad.Message)
-		return
-	}
-	if errors.Is(err, utils.ErrShadowScanSuperseded) {
-		utils.WriteErrorResponse(w, http.StatusConflict, msgShadowInventorySuperseded)
-		return
-	}
-	if err != nil {
-		writeShadowError(w, r, err, "Failed to save the inventory file")
-		return
-	}
-	resp := spec.ShadowInventoryUploadResponse{
-		Scan:           toShadowScanResponse(res.Scan, false),
-		AgentsRead:     int32(res.AgentsRead),  //nolint:gosec // bounded by sa.MaxInventoryAgents
-		AgentsSaved:    int32(res.AgentsSaved), //nolint:gosec // bounded by sa.MaxInventoryAgents
-		LeftOut:        int32(res.LeftOut),     //nolint:gosec // bounded by sa.MaxInventoryAgents
-		Problems:       make([]spec.ShadowInventoryProblem, 0, len(res.Problems)),
-		ProblemCount:   int32(res.ProblemCount), //nolint:gosec // bounded by the rows of a 5 MB file
-		IgnoredColumns: append([]string{}, res.IgnoredColumns...),
-	}
-	for _, p := range res.Problems {
-		resp.Problems = append(resp.Problems, spec.ShadowInventoryProblem{
-			Row: int32(p.Row), Message: p.Message, LeftOut: p.LeftOut, //nolint:gosec // a row number of a 5 MB file
-		})
-	}
-	utils.WriteSuccessResponse(w, http.StatusOK, resp)
-}
-
-// shadowInventoryDeadlinesUnsupported warns once that the response writer
-// cannot set deadlines.
-var shadowInventoryDeadlinesUnsupported sync.Once
-
-// extendShadowInventoryDeadlines gives an inventory upload longer than the
-// server's read and write timeouts. A writer that cannot set deadlines keeps
-// the server's, logged once, as it means a wrapper of the writer has no
-// Unwrap (test recorders cannot set deadlines either).
-func extendShadowInventoryDeadlines(w http.ResponseWriter, r *http.Request) {
-	rc := http.NewResponseController(w)
-	now := time.Now()
-	for _, d := range []struct {
-		name string
-		set  func(time.Time) error
-		at   time.Time
-	}{
-		{"read", rc.SetReadDeadline, now.Add(shadowInventoryReadTimeout)},
-		{"write", rc.SetWriteDeadline, now.Add(shadowInventoryWriteTimeout)},
-	} {
-		err := d.set(d.at)
-		switch {
-		case err == nil:
-		case errors.Is(err, http.ErrNotSupported):
-			shadowInventoryDeadlinesUnsupported.Do(func() {
-				logger.GetLogger(r.Context()).Warn("The response writer cannot set deadlines; inventory uploads "+
-					"keep the server's read and write timeouts", "writer", fmt.Sprintf("%T", w))
-			})
-		default:
-			logger.GetLogger(r.Context()).Warn("Failed to extend the inventory upload's deadline", "deadline", d.name,
-				"error", err)
-		}
-	}
-}
-
-// readShadowInventoryFile reads the part named file of a multipart request,
-// with its file name, and writes the error response when there is none or it
-// is too large. Other parts are skipped.
-func readShadowInventoryFile(w http.ResponseWriter, r *http.Request) (string, []byte, bool) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxShadowInventoryRequestBytes)
-	mr, err := r.MultipartReader()
-	if err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Choose a file to upload. It must be sent as multipart/form-data in a part named file.")
-		return "", nil, false
-	}
-	fail := func(err error) (string, []byte, bool) {
-		var tooLarge *http.MaxBytesError
-		if errors.As(err, &tooLarge) {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, msgShadowInventoryTooLarge)
-		} else {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "The upload could not be read; try again")
-		}
-		return "", nil, false
-	}
-	for {
-		part, err := mr.NextPart()
-		if errors.Is(err, io.EOF) {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Choose a file to upload. It must be sent in a part named file.")
-			return "", nil, false
-		}
-		if err != nil {
-			return fail(err)
-		}
-		if part.FormName() != "file" {
-			_, err := io.Copy(io.Discard, part)
-			_ = part.Close()
-			if err != nil {
-				return fail(err)
-			}
-			continue
-		}
-		data, err := io.ReadAll(io.LimitReader(part, sa.MaxInventoryFileBytes+1))
-		name := part.FileName()
-		_ = part.Close()
-		if err != nil {
-			return fail(err)
-		}
-		if len(data) > sa.MaxInventoryFileBytes {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, msgShadowInventoryTooLarge)
-			return "", nil, false
-		}
-		return name, data, true
-	}
 }
 
 // maxShadowPublishBodyBytes bounds a source code scan publish: up to 1000
@@ -881,7 +697,7 @@ func toShadowConnectionResponse(v *services.ShadowConnectionView) spec.ShadowCon
 	resp := spec.ShadowConnectionResponse{
 		Id: c.ID.String(), Name: c.Name, Provider: c.Provider,
 		Endpoints: c.Config.Endpoints, Settings: v.Settings, SecretHints: c.SecretHints,
-		EndpointWarnings: v.EndpointWarnings, LastTestedAt: c.LastTestedAt, LastUploadAt: c.LastUploadAt,
+		EndpointWarnings: v.EndpointWarnings, LastTestedAt: c.LastTestedAt,
 		CreatedBy: c.CreatedBy, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
 	}
 	if resp.Endpoints == nil {
@@ -916,7 +732,6 @@ func toShadowScanResponse(s *models.ShadowScan, withRepositories bool) spec.Shad
 		ConnectionIds: s.ConnectionIDs, Results: make([]spec.ShadowScanConnectionResult, 0, len(s.Results)),
 		FindingsCount: int32(s.FindingsCount), //nolint:gosec // bounded by row counts
 		RequestedBy:   s.RequestedBy, StartedAt: s.StartedAt, FinishedAt: s.FinishedAt, CreatedAt: s.CreatedAt,
-		InventoryUpload: s.Options.InventoryUpload,
 		Options: &spec.ShadowScanOptions{
 			AiReview: &s.Options.AIReview, LlmJudge: &s.Options.LLMJudge, DirectUpload: &s.Options.DirectUpload,
 		},

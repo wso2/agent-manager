@@ -42,7 +42,7 @@ func TestValidateBuildable_InternalPasses(t *testing.T) {
 		Name:         "my-agent",
 		DisplayName:  "My Agent",
 		ProjectName:  "proj",
-		Provisioning: amsvc.Provisioning{Type: amsvc.Internal},
+		Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeInternal},
 		CreatedAt:    time.Now().UTC(),
 	}
 	client := newGetAgentServer(t, agent, http.StatusOK)
@@ -87,7 +87,7 @@ func TestValidateRuntimeManaged_InternalPasses(t *testing.T) {
 		Name:         "my-agent",
 		DisplayName:  "My Agent",
 		ProjectName:  "proj",
-		Provisioning: amsvc.Provisioning{Type: amsvc.Internal},
+		Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeInternal},
 		CreatedAt:    time.Now().UTC(),
 	}
 	client := newGetAgentServer(t, agent, http.StatusOK)

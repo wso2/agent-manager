@@ -1,0 +1,234 @@
+openapi: 3.0.3
+info:
+  title: Agent inventory API for WSO2 Agent Manager (Bring your own inventory)
+  version: "1.0.0"
+  description: |
+    Implement this API to let WSO2 Agent Manager's Shadow Agent Discovery list
+    the agents that your own systems know about. Agent Manager shows each agent
+    it lists as an unmanaged agent in the agent registry.
+
+    How Agent Manager calls it:
+
+    - It calls only `GET` on the Agents URL you enter in the Bring your own
+      inventory form, exactly as entered, adding only the `limit` and `cursor` query
+      parameters below. The `/agents` path in this document is an example.
+      The Agents URL must not contain a query string or a fragment.
+    - It sends the API key you enter as `Authorization: Bearer <API key>`,
+      and `Accept: application/json`.
+    - It follows a redirect only to the same scheme, host and port.
+    - Each request times out after 60 seconds. On 429, 500, 502, 503 or 504 it
+      tries up to 4 times in all, waiting `Retry-After` (seconds or an HTTP
+      date; at most 60 seconds) when you send it.
+    - A response body larger than 32 MiB is refused.
+    - It reads at most 100 pages per scan. When `nextCursor` is still set
+      after 100 pages, the scan keeps the agents it read and reports the
+      listing as incomplete.
+    - The server must be reachable from Agent Manager's server, over https
+      (recommended) or http.
+
+    What Agent Manager keeps:
+
+    - Only the agent fields below; any other field in the response is ignored
+      and never stored. Do not return secrets, prompts, instructions or tool
+      definitions.
+    - An agent without `id` or `name` is left out, and an `id` that repeats
+      within one scan is listed once (its first occurrence).
+    - Text is cut to the lengths given below. `url` is kept without its query
+      string, fragment and user info.
+    - An agent that a later complete scan no longer returns is shown as no
+      longer listed.
+servers:
+  - url: https://agents.example.com/v1
+    description: >-
+      An example. Agent Manager calls the Agents URL you enter in the Bring your
+      own inventory form (here https://agents.example.com/v1/agents), not this server.
+paths:
+  /agents:
+    get:
+      operationId: listAgents
+      summary: List the agents
+      description: |
+        Returns one page of agents. Agent Manager starts without `cursor` and
+        then sends the `nextCursor` of each page until a page has no
+        `nextCursor`. Return the agents in a stable order so that paging does
+        not skip or repeat agents.
+      security:
+        - apiKey: []
+      parameters:
+        - name: limit
+          in: query
+          required: true
+          description: >-
+            The largest number of agents to return in this page. Agent Manager
+            sends 100 when it scans and 1 when it tests the connection. A page
+            may hold fewer agents.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: cursor
+          in: query
+          required: false
+          description: >-
+            The `nextCursor` of the previous page. Absent for the first page.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: One page of agents.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentPage"
+              example:
+                agents:
+                  - id: "inventory-42"
+                    name: "Invoice triage agent"
+                    description: "Sorts incoming invoices and flags the ones that need review."
+                    source: "LangGraph Platform"
+                    url: "https://agents.example.com/invoice-triage"
+                    framework: "LangGraph"
+                    model: "gpt-4.1"
+                    version: "1.4.0"
+                    status: "running"
+                    scope: "finance"
+                    owner:
+                      name: "Jane Doe"
+                      email: "jane.doe@example.com"
+                    createdAt: "2026-05-04T09:30:00Z"
+                    labels:
+                      team: "finance"
+                      env: "production"
+                  - id: "inventory-43"
+                    name: "Support assistant"
+                nextCursor: "eyJvZmZzZXQiOjEwMH0"
+        "401":
+          description: The API key is missing or not valid. Agent Manager reports a sign-in failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The API key may not list agents. Agent Manager reports a permission failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Too many requests. Agent Manager retries, after Retry-After when it is sent.
+          headers:
+            Retry-After:
+              description: Seconds to wait, or an HTTP date.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: Any other error. Agent Manager shows `message` with the scan result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  securitySchemes:
+    apiKey:
+      type: http
+      scheme: bearer
+      description: >-
+        The API key entered in the Bring your own inventory form, sent as
+        `Authorization: Bearer <API key>`. Give it read access to the agent list only.
+  schemas:
+    AgentPage:
+      type: object
+      required: [agents]
+      properties:
+        agents:
+          type: array
+          description: The agents of this page. An empty array is a valid page.
+          items:
+            $ref: "#/components/schemas/Agent"
+        nextCursor:
+          type: string
+          nullable: true
+          description: >-
+            An opaque value that gets the next page. Leave it out, or send null
+            or an empty string, on the last page. It must change from page to page.
+    Agent:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 256
+          description: >-
+            Your stable, unique ID of the agent. Agent Manager recognises the
+            agent by it from scan to scan. Agents with the same id from two
+            of your inventories are shown as one agent, found by both.
+        name:
+          type: string
+          minLength: 1
+          description: The agent's display name. Cut to 200 characters.
+        description:
+          type: string
+          description: A short description (not the agent's instructions). Cut to 256 characters.
+        source:
+          type: string
+          description: >-
+            Where the agent runs or where your system found it, e.g. "LangGraph
+            Platform", "Kubernetes prod-eu" or "Copilot Studio". Cut to 256 characters.
+        url:
+          type: string
+          format: uri
+          description: >-
+            The agent's endpoint or page, http or https. Kept without its query
+            string, fragment and user info; cut to 256 characters.
+        framework:
+          type: string
+          description: The agent framework, e.g. "LangGraph" or "CrewAI". Cut to 256 characters.
+        model:
+          type: string
+          description: The main model the agent uses. Cut to 256 characters.
+        version:
+          type: string
+          description: The agent's version. Cut to 256 characters.
+        status:
+          type: string
+          description: The agent's state in your system, e.g. "running" or "stopped". Cut to 256 characters.
+        scope:
+          type: string
+          description: >-
+            Where the agent belongs in your organization, e.g. a team, project or
+            environment. Cut to 256 characters.
+        owner:
+          $ref: "#/components/schemas/Owner"
+        createdAt:
+          type: string
+          format: date-time
+          description: When the agent was created, RFC 3339.
+        labels:
+          type: object
+          description: >-
+            Short key-value labels. At most 50 are kept; keys and values are cut
+            to 64 characters.
+          additionalProperties:
+            type: string
+    Owner:
+      type: object
+      description: Who owns or created the agent.
+      properties:
+        name:
+          type: string
+          description: Cut to 128 characters.
+        email:
+          type: string
+          description: Cut to 254 characters.
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+          description: >-
+            What went wrong. Agent Manager also reads `{"error": {"message": "..."}}`.

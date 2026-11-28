@@ -386,7 +386,6 @@ function summaryLine(scan: ShadowScanResponse, rows: ConnectorProgress[]): strin
   }
   if (scan.status === "pending") return "Waiting for the results of its scan command.";
   const agents = `${scan.findingsCount} ${scan.findingsCount === 1 ? "agent" : "agents"} found`;
-  if (scan.inventoryUpload) return `Inventory file uploaded · ${agents}.`;
   if (isCancelledScan(scan)) {
     return `${finishedCount(scan)} of ${connectors} finished before the scan was cancelled · ${agents}.`;
   }

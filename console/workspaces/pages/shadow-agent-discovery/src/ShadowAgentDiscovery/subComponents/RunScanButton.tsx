@@ -38,18 +38,12 @@ import {
   useShadowSummary,
   useStartShadowScan,
 } from "@agent-management-platform/api-client";
-import {
-  FILE_UPLOAD_SOURCES,
-  latestCloudScan,
-  providerLabel,
-  SOURCE_HOSTS,
-} from "../shadowUi";
+import { providerLabel, SOURCE_HOSTS } from "../shadowUi";
 
 /**
- * Scans the AI platform connectors: all of them, or the ones chosen in the dialog.
- * Source code repositories and Bring your own inventory are never part of it. Shown
- * with the AI platforms on the Sources tab, where one connector can also be scanned
- * from its row.
+ * Scans the AI platform and inventory connectors: all of them, or the ones chosen
+ * in the dialog. Source code repositories are never part of it. Shown with the AI
+ * platforms on the Sources tab, where one connector can also be scanned from its row.
  */
 export function RunScanButton({ orgName }: { orgName: string | undefined }) {
   const [open, setOpen] = useState(false);
@@ -58,16 +52,12 @@ export function RunScanButton({ orgName }: { orgName: string | undefined }) {
   const summary = useShadowSummary(orgName);
   const connections = useShadowConnections(orgName);
   const start = useStartShadowScan(orgName);
-  const active = isShadowScanActive(latestCloudScan(summary.data)?.status);
+  const active = isShadowScanActive(summary.data?.latestScan?.status);
   const all = connections.data?.connections ?? [];
   // Source repository hosts are not part of a scan: their repositories are
-  // scanned by the scan command on the customer's machine. Inventory sources
-  // get their agents from uploaded files.
-  const choosable = all.filter(
-    (c) => !SOURCE_HOSTS.includes(c.provider) && !FILE_UPLOAD_SOURCES.includes(c.provider),
-  );
-  const hasSourceHosts = all.some((c) => SOURCE_HOSTS.includes(c.provider));
-  const hasInventories = all.some((c) => FILE_UPLOAD_SOURCES.includes(c.provider));
+  // scanned by the scan command on the customer's machine.
+  const choosable = all.filter((c) => !SOURCE_HOSTS.includes(c.provider));
+  const hasSourceHosts = choosable.length < all.length;
   const none = choosable.length === 0;
   const canStart = scope === "all" || selected.length > 0;
 
@@ -100,9 +90,6 @@ export function RunScanButton({ orgName }: { orgName: string | undefined }) {
               {hasSourceHosts &&
                 " Source code repositories are not included: they are scanned by the command" +
                   " you run on your machine."}
-              {hasInventories &&
-                " Bring your own inventory is not included: its agents come from the files you" +
-                  " upload."}
             </Typography>
             <RadioGroup
               value={scope}
