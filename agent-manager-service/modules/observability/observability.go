@@ -27,6 +27,7 @@ import (
 	"io/fs"
 	"net/http"
 	"slices"
+	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/tracesv1"
@@ -41,6 +42,8 @@ const (
 	PermTracesRead = "traces-read"
 	// TracesRead is PermTracesRead's full name, as the host names it.
 	TracesRead = "observability:traces-read"
+	// ActionTracesIngest records agents sending traces.
+	ActionTracesIngest = "traces-ingest"
 )
 
 func init() {
@@ -79,6 +82,9 @@ func (module) Manifest() modkit.Manifest {
 			"AI Lead":             {PermTracesRead},
 			"Platform Engineer":   {PermTracesRead},
 		},
+		AuditActions: []modkit.AuditAction{
+			{Name: ActionTracesIngest, Description: "An agent sent traces with its agent key"},
+		},
 		UI: &modkit.UI{Pages: []modkit.Page{
 			{ID: "ai-observability/traces", Permission: PermTracesRead},
 		}},
@@ -86,18 +92,23 @@ func (module) Manifest() modkit.Manifest {
 	}
 }
 
-// settings are the keys openStores and ExternalSchema read.
+// settings are the keys openStores and ExternalSchema read, and initOnly.
 var settings = []modkit.Setting{
 	{Key: "clickhouse.url", Description: "ClickHouse HTTP URL traces are read from; unset, traces come from an empty in-memory store."},
 	{Key: "clickhouse.database", Default: clickhouse.DefaultDatabase, Description: "The database the span table is in. users.xml grants on otel; edit its grants for another name."},
 	{Key: "clickhouse.user", Description: "The reader login; required with url."},
-	{Key: "clickhouse.password", Description: "The reader login's password.", Secret: true},
+	{Key: "clickhouse.password", Description: "The reader login's password; amp init generates and keeps one when unset and the store URL is set.", Secret: true},
 	{Key: "clickhouse.cleaner-user", Description: "The login that deletes a deleted agent's spans; unset, they are kept until the TTL."},
-	{Key: "clickhouse.cleaner-password", Description: "The cleaner login's password.", Secret: true},
+	{Key: "clickhouse.cleaner-password", Description: "The cleaner login's password; amp init generates and keeps one when unset and the store URL is set.", Secret: true},
 	{Key: "clickhouse.migrator-user", Description: "The login that applies the schema; used only by `amp migrate`."},
-	{Key: "clickhouse.migrator-password", Description: "The migrator login's password.", Secret: true},
+	{Key: "clickhouse.migrator-password", Description: "The migrator login's password; amp init generates and keeps one when unset and the store URL is set.", Secret: true},
+	{Key: "clickhouse.ingest-password", Description: "amp init: the collector's login's (amp_ingest) password; generated and kept when unset and the store URL is set.", Secret: true},
 	{Key: "clickhouse.ttl-days", Default: "30", Description: "Days ClickHouse keeps spans; applied by `amp migrate`. A change applies only to spans written or merged after the next `amp migrate`."},
 }
+
+// initOnly are settings amp init reads for the module's other containers;
+// the module itself never does.
+var initOnly = []string{"clickhouse.ingest-password"}
 
 func (module) Migrations() fs.FS { return nil }
 func (module) UI() fs.FS         { return nil }
@@ -118,6 +129,12 @@ func (m module) Activate(_ context.Context, rt modkit.Runtime) error {
 	rt.Subscribe(modkit.EventAgentDeleted, cleanup{cleaner: cleaner, log: rt.Logger()}.agentDeleted)
 	g := guarded{traces: traces}
 	rt.Provide(tracesv1.ID, capability{core: rt.Core(), traces: g})
+	in, err := newIngest(rt)
+	if err != nil {
+		return err
+	}
+	// Agents export steadily, so one record per agent per hour.
+	rt.HandleAgent(http.MethodPost, IngestPath, in.serve, modkit.Audit(ActionTracesIngest), modkit.AuditCoalesce(time.Hour))
 	h := handlers{core: rt.Core(), traces: g, log: rt.Logger()}
 	rt.Handle(http.MethodGet, "/traces", PermTracesRead, h.listTraces)
 	rt.Handle(http.MethodGet, "/traces/export", PermTracesRead, h.exportTraces)

@@ -390,6 +390,9 @@ func StartModules(ctx context.Context, host *modhost.Host, database *gorm.DB, de
 	if signer, ok := deps.AgentTokenManagerService.(services.WorkloadTokenSigner); ok {
 		attach.Tokens = signer
 	}
+	if keys, ok := deps.AgentTokenManagerService.(services.AgentKeyVerifier); ok {
+		attach.AgentKeys = keys
+	}
 	host.Attach(attach)
 	if err := host.Boot(ctx); err != nil {
 		return func() {}, err

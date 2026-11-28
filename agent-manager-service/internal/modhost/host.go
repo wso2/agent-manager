@@ -124,6 +124,8 @@ type view struct {
 	// public and internal hold each active module's routes.
 	public   map[string]*http.ServeMux
 	internal map[string]*http.ServeMux
+	// agent holds each active module's agent-key routes (HandleAgent).
+	agent map[string]*http.ServeMux
 	// hooks are by resource and phase, in activation order.
 	hooks map[string]map[modkit.Phase][]hookEntry
 	subs  map[string][]subEntry
@@ -134,14 +136,15 @@ type view struct {
 	internalAt *http.ServeMux
 	// tools are the active modules' MCP tools, in activation order.
 	tools []toolEntry
-	// routes are each active module's public routes, as registered.
+	// routes are each active module's public and agent-key routes, as
+	// registered.
 	routes map[string][]Route
 }
 
 func newView() *view {
 	return &view{
 		caps: map[string]any{}, capBy: map[string]string{}, perms: rbac.NewRegistry(),
-		public: map[string]*http.ServeMux{}, internal: map[string]*http.ServeMux{},
+		public: map[string]*http.ServeMux{}, internal: map[string]*http.ServeMux{}, agent: map[string]*http.ServeMux{},
 		hooks: map[string]map[modkit.Phase][]hookEntry{}, subs: map[string][]subEntry{},
 		workers: map[string][]workerEntry{}, routes: map[string][]Route{},
 	}
@@ -476,6 +479,19 @@ func (h *Host) activate(ctx context.Context, name string, v *view) error {
 	return nil
 }
 
+// checkAgentRoutes refuses an agent-key route on a method and path a user
+// route also takes: a route accepts one kind of caller.
+func checkAgentRoutes(user, agent []Route) error {
+	for _, a := range agent {
+		for _, u := range user {
+			if a.Method == u.Method && a.Path == u.Path {
+				return fmt.Errorf("%s %s is registered with both Handle and HandleAgent", a.Method, a.Path)
+			}
+		}
+	}
+	return nil
+}
+
 // commit adds what a module registered during a successful Activate to the
 // snapshot: its permissions, routes, hooks and subscriptions. Nothing is
 // added unless all of it is accepted.
@@ -490,11 +506,20 @@ func (h *Host) commit(rt *runtime, v *view) error {
 	if err := checkEndpoints(rt.mf, rt.internal); err != nil {
 		return err
 	}
+	if err := checkAgentRoutes(rt.routes, rt.agent); err != nil {
+		return err
+	}
 	d := h.deps()
-	var pub, internal *http.ServeMux
+	var pub, agent, internal *http.ServeMux
 	if d.Mount != nil && len(rt.routes) > 0 {
 		var err error
 		if pub, err = mountPublic(d.Mount, rt.routes); err != nil {
+			return err
+		}
+	}
+	if d.Mount != nil && len(rt.agent) > 0 {
+		var err error
+		if agent, err = h.mountAgent(d.Mount, name, rt.agent); err != nil {
 			return err
 		}
 	}
@@ -525,11 +550,14 @@ func (h *Host) commit(rt *runtime, v *view) error {
 		v.at, v.internalAt = append(v.at, rt.at...), at
 	}
 	v.tools = append(v.tools, rt.tools...)
-	if len(rt.routes) > 0 {
-		v.routes[name] = rt.routes
+	if routes := append(slices.Clone(rt.routes), rt.agent...); len(routes) > 0 {
+		v.routes[name] = routes
 	}
 	if pub != nil {
 		v.public[name] = pub
+	}
+	if agent != nil {
+		v.agent[name] = agent
 	}
 	if internal != nil {
 		v.internal[name] = internal

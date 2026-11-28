@@ -30,6 +30,7 @@
 package rbac
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -129,7 +130,7 @@ func TestAdvertisedScopesMatchCatalog(t *testing.T) {
 
 	var compose struct {
 		Services map[string]struct {
-			Environment map[string]string `yaml:"environment"`
+			Environment composeEnv `yaml:"environment"`
 		} `yaml:"services"`
 	}
 	if err := yaml.Unmarshal(raw, &compose); err != nil {
@@ -152,6 +153,37 @@ func TestAdvertisedScopesMatchCatalog(t *testing.T) {
 	diffScopeSets(t, "OAUTH_SCOPES_SUPPORTED", catalogScopes(t), withoutModuleOwned(chartSide))
 }
 
+// composeEnv is a service's environment in either form Compose takes: a map,
+// or a list of KEY=VALUE, where a bare KEY has no value.
+type composeEnv map[string]string
+
+func (e *composeEnv) UnmarshalYAML(n *yaml.Node) error {
+	out := composeEnv{}
+	switch n.Kind {
+	case yaml.MappingNode:
+		var m map[string]string
+		if err := n.Decode(&m); err != nil {
+			return err
+		}
+		for k, v := range m {
+			out[k] = v
+		}
+	case yaml.SequenceNode:
+		var items []string
+		if err := n.Decode(&items); err != nil {
+			return err
+		}
+		for _, item := range items {
+			k, v, _ := strings.Cut(item, "=")
+			out[k] = v
+		}
+	default:
+		return fmt.Errorf("environment: want a map or a list, got %s", n.Tag)
+	}
+	*e = out
+	return nil
+}
+
 // distributionModules are the modules the full distribution's configuration
 // advertises scopes for; their manifests, not this package, declare them.
 var distributionModules = []string{"ai-gateway"}
@@ -166,4 +198,24 @@ func withoutModuleOwned(chartSide map[Permission]bool) map[Permission]bool {
 		}
 	}
 	return out
+}
+
+func TestComposeEnvReadsBothForms(t *testing.T) {
+	for name, doc := range map[string]string{
+		"map":  "environment:\n  A: x=y\n  B:\n",
+		"list": "environment:\n  - A=x=y\n  - B\n",
+	} {
+		var svc struct {
+			Environment composeEnv `yaml:"environment"`
+		}
+		if err := yaml.Unmarshal([]byte(doc), &svc); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if got := svc.Environment["A"]; got != "x=y" {
+			t.Errorf("%s: A = %q, want %q", name, got, "x=y")
+		}
+		if v, ok := svc.Environment["B"]; !ok || v != "" {
+			t.Errorf("%s: B = %q (present %v), want empty and present", name, v, ok)
+		}
+	}
 }

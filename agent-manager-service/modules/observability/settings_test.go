@@ -32,7 +32,7 @@ type funcRuntime struct {
 func (r funcRuntime) Config(key string) string { return r.get(key) }
 
 // TestEverySettingIsDocumented:the manifest's Settings are exactly the keys
-// the module reads, so the configuration reference stays complete.
+// the module reads and initOnly, so the configuration reference stays complete.
 func TestEverySettingIsDocumented(t *testing.T) {
 	read := map[string]bool{}
 	get := func(key string) string {
@@ -50,6 +50,10 @@ func TestEverySettingIsDocumented(t *testing.T) {
 	for _, apply := range []bool{true, false} {
 		_, err := (module{}).ExternalSchema(get, apply)
 		assert.NoError(t, err)
+	}
+
+	for _, k := range initOnly {
+		read[k] = true
 	}
 
 	documented := map[string]bool{}

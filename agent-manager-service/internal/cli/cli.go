@@ -527,20 +527,18 @@ func dash(s string) string {
 	return s
 }
 
-// secretCmd lists the generated secrets in the secrets directory, or prints
-// one of them.
+// secretCmd lists the generated secrets in the secrets directory, and those
+// kept in a directory of their own where it is set, or prints one of them.
 func secretCmd(args []string, w io.Writer) error {
-	dir := config.SecretsDir()
-	entries, err := os.ReadDir(dir)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+	dirs, err := secretFiles()
+	if err != nil {
 		return err
 	}
-	var names []string
-	for _, e := range entries {
-		if e.Type().IsRegular() {
-			names = append(names, e.Name())
-		}
+	names := make([]string, 0, len(dirs))
+	for n := range dirs {
+		names = append(names, n)
 	}
+	slices.Sort(names)
 	switch {
 	case len(args) == 1 && args[0] == "list":
 		for _, n := range names {
@@ -550,8 +548,9 @@ func secretCmd(args []string, w io.Writer) error {
 		}
 		return nil
 	case len(args) == 2 && args[0] == "show":
-		if !slices.Contains(names, args[1]) {
-			return fmt.Errorf("no generated secret %q in %s (have: %s)", args[1], dir, strings.Join(names, ", "))
+		dir, ok := dirs[args[1]]
+		if !ok {
+			return fmt.Errorf("no generated secret %q in %s (have: %s)", args[1], config.SecretsDir(), strings.Join(names, ", "))
 		}
 		data, err := os.ReadFile(filepath.Join(dir, args[1]))
 		if err != nil {
@@ -561,4 +560,41 @@ func secretCmd(args []string, w io.Writer) error {
 		return err
 	}
 	return errUsage
+}
+
+// secretFiles maps each generated secret's file name to its directory: every
+// file in the secrets directory, and each secret with a Dir that is set here.
+func secretFiles() (map[string]string, error) {
+	files := map[string]string{}
+	dir := config.SecretsDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
+	for _, e := range entries {
+		if e.Type().IsRegular() {
+			files[e.Name()] = dir
+		}
+	}
+	for _, s := range ampinit.Secrets {
+		if s.Dir == "" {
+			continue
+		}
+		own := strings.TrimSpace(config.Value(s.Dir))
+		if own == "" {
+			continue
+		}
+		name := config.GeneratedSecrets[s.Setting]
+		info, err := os.Stat(filepath.Join(own, name))
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", s.Setting, err)
+		}
+		if info.Mode().IsRegular() {
+			files[name] = own
+		}
+	}
+	return files, nil
 }

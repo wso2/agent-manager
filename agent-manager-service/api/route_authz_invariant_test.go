@@ -116,7 +116,8 @@ var unguardedRouteAllowlist = map[routeKey]string{
 	{"MakeInternalHTTPHandlerWithModules", "HandleFunc", "/health"}:       "internal-listener liveness probe.",
 	{"MakeInternalHTTPHandlerWithModules", "Handle", "/api/internal/v1/"}: "mount point for the separately exposed internal API sub-router.",
 	{"MakeHTTPHandlerWithModules", "Handle", "/m/"}: "mount point for module routes; the module host registers each one through " +
-		"RouteRegistrar.HandleModuleRoute, which applies the permission check.",
+		"RouteRegistrar.HandleModuleRoute, which applies the permission check, or, for an agent-key route (HandleAgent), " +
+		"through HandleModuleAgentRoute behind the host's agent key check, which the core verifies with its own signing keys.",
 	{"MakeInternalHTTPHandlerWithModules", "Handle", "/m/"}: "mount point for module workload routes and webhooks; the module host " +
 		"requires a workload token issued for that module and carrying the route's scope on its workload routes " +
 		"(/m/<module>/internal/...), while a webhook (/m/<module>/webhooks/..., Runtime.HandleWebhook) authenticates " +

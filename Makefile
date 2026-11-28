@@ -1,4 +1,4 @@
-.PHONY: help tools setup setup-colima up-core down-core reset-core smoke smoke-core setup-console-local setup-console-local-force up down logs reset dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate thunder-restart thunder-reset teardown db-connect service-logs service-shell console-logs console stop-console gen-instrumentation-contract check-contract-drift e2e-test security-test security-test-static security-test-live
+.PHONY: help tools setup setup-colima up-core down-core reset-core up-observability smoke smoke-core smoke-observability dev-up-observability setup-console-local setup-console-local-force up down logs reset dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate thunder-restart thunder-reset teardown db-connect service-logs service-shell console-logs console stop-console gen-instrumentation-contract check-contract-drift e2e-test security-test security-test-static security-test-live
 
 # Default target
 help:
@@ -20,11 +20,14 @@ help:
 	@echo "  make reset                   - Stop the stack and delete all its data"
 	@echo "  make up-core                 - The same with the amp-core binary (no AI Gateway)"
 	@echo "  make down-core / reset-core  - Stop / delete the amp-core stack"
+	@echo "  make up-observability        - The full stack with ClickHouse and the OTel collector (traces)"
 	@echo "  make smoke / smoke-core      - Smoke-test the running amp / amp-core stack"
+	@echo "  make smoke-observability     - Smoke-test traces on a stack from up-observability"
 	@echo "  DB=postgres                  - With up/dev-up/reset (and -core): use PostgreSQL instead of SQLite"
 	@echo ""
 	@echo "💻 Daily Development (API hot-reloads under air, console via vite):"
 	@echo "  make dev-up                  - Start the stack and the console dev server"
+	@echo "  make dev-up-observability    - The same with ClickHouse and the OTel collector (traces)"
 	@echo "  make dev-down                - Stop the stack and the console"
 	@echo "  make dev-restart             - Restart the stack and the console"
 	@echo "  make dev-rebuild             - Rebuild images and restart"
@@ -81,9 +84,24 @@ DEV_COMPOSE := $(COMPOSE) -f $(STACK_DIR)/docker-compose.dev.yml
 # Compose project so its data never mixes with the full stack's. It uses the
 # same ports, so run one of the two at a time.
 CORE_COMPOSE := $(COMPOSE) -f $(STACK_DIR)/docker-compose.core.yml -p amp-lite-core
+# The observability profile: ClickHouse and the OTel collector, with amp-api
+# pointed at them for this run (docs/amp-lite/observability.md).
+OBS_ENV     := AMP_OBSERVABILITY_STORE_URL=http://clickhouse:8123
+OBS_PROFILE := --profile observability $(if $(filter postgres,$(DB)),--profile postgres)
+OBS_COMPOSE := $(OBS_ENV) $(COMPOSE) $(OBS_PROFILE)
+DEV_OBS_COMPOSE := $(OBS_ENV) $(DEV_COMPOSE) $(OBS_PROFILE)
+# Installs the observability module once; one an operator disabled stays
+# disabled, and a failed module list stops make. $(1) is the compose command,
+# $(2) the amp CLI in amp-api.
+define install-observability
+	@modules=$$($(1) exec -T amp-api $(2) module list) || { \
+		echo "❌ Listing amp-api's modules failed; the observability module was not installed" >&2; exit 1; }; \
+	if printf '%s\n' "$$modules" | grep -Eq '^observability +[^ ]+ +available'; then \
+		$(1) exec -T amp-api $(2) module install observability; fi
+endef
 # The stop targets name every profile, so they also stop PostgreSQL from a
-# DB=postgres run.
-ALL_PROFILES := --profile postgres
+# DB=postgres run and ClickHouse from up-observability.
+ALL_PROFILES := --profile postgres --profile observability --profile observability-external
 
 # Complete setup
 setup: tools
@@ -120,12 +138,22 @@ down-core:
 reset-core:
 	@$(CORE_COMPOSE) $(ALL_PROFILES) down -v
 
+up-observability:
+	@echo "🚀 Building images and starting AMP with ClickHouse and the OTel collector..."
+	@$(OBS_COMPOSE) up -d --build --wait --remove-orphans
+	$(call install-observability,$(OBS_COMPOSE),/go/bin/amp)
+	@echo "✅ AMP is running with observability"
+	@echo "   Console: http://localhost:9000 (sign in as admin; password: $(COMPOSE) exec amp-api amp secret show admin-password)"
+
 # Smoke checks against a running stack (scripts/smoke.sh).
 smoke:
 	@$(STACK_DIR)/scripts/smoke.sh amp
 
 smoke-core:
 	@$(STACK_DIR)/scripts/smoke.sh amp-core
+
+smoke-observability:
+	@$(STACK_DIR)/scripts/smoke-observability.sh
 
 # Setup individual components
 setup-colima:
@@ -161,6 +189,17 @@ dev-up:
 	@$(DEV_COMPOSE) up -d --build --wait --remove-orphans
 	@$(MAKE) console BACKGROUND=true
 	@echo "✅ Platform is running!"
+	@echo "   Console: http://localhost:3000 (sign in as admin; password: $(DEV_COMPOSE) exec amp-api cat /var/lib/agent-manager/secrets/admin-password)"
+	@echo "   API:     http://localhost:9000"
+
+# The dev stack with the observability profile; amp-api's CLI is the binary
+# air builds, run as the service user.
+dev-up-observability:
+	@echo "🚀 Starting Agent Manager (dev) with ClickHouse and the OTel collector..."
+	@$(DEV_OBS_COMPOSE) up -d --build --wait --remove-orphans
+	$(call install-observability,$(DEV_OBS_COMPOSE),su-exec 1000:1000 ./tmp/agent-manager-service)
+	@$(MAKE) console BACKGROUND=true
+	@echo "✅ Platform is running with observability!"
 	@echo "   Console: http://localhost:3000 (sign in as admin; password: $(DEV_COMPOSE) exec amp-api cat /var/lib/agent-manager/secrets/admin-password)"
 	@echo "   API:     http://localhost:9000"
 

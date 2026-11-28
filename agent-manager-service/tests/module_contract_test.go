@@ -193,9 +193,28 @@ func TestModuleContract(t *testing.T) {
 		return agentDoc(name, b)
 	}
 
+	// agentKey signs an agent key for agent a-1 of the world's org, with
+	// over replacing claims.
+	agentKey := func(over jwt.MapClaims) string {
+		c := jwt.MapClaims{
+			"iss": config.GetConfig().JWTSigning.Issuer, "sub": "bot", "jti": uuid.NewString(),
+			"org_id": w.org, "organization": w.handle, "project_uid": "p-1", "project": project,
+			"component_uid": "a-1", "agent": "bot", "environment_uid": "e-1", "exp": time.Now().Add(time.Hour).Unix(),
+		}
+		for k, v := range over {
+			c[k] = v
+		}
+		return signLikeTheCore(t, c)
+	}
+	ingest := func(header ...string) (int, []byte) {
+		return w.call(t, w.full, http.MethodPost, "/m/testmod"+testmod.AgentIngestPath, map[string]string{"span": "1"}, header...)
+	}
+
 	t.Run("routes of an uninstalled module are not found", func(t *testing.T) {
 		code, _ := w.call(t, w.full, http.MethodGet, "/m/testmod/whoami", nil)
 		assert.Equal(t, http.StatusNotFound, code)
+		code, _ = ingest(modkit.AgentKeyHeader, agentKey(nil))
+		assert.Equal(t, http.StatusNotFound, code, "nor are its agent-key routes")
 	})
 
 	t.Run("an extension block for an inactive module is rejected", func(t *testing.T) {
@@ -509,6 +528,55 @@ func TestModuleContract(t *testing.T) {
 		assert.JSONEq(t, `{"echo":"echo:hi"}`, string(body))
 	})
 
+	t.Run("agent keys open the module's agent-key routes", func(t *testing.T) {
+		type seen struct {
+			OrgID     string `json:"orgId"`
+			Key       modkit.AgentKey
+			KeyHeader string
+			Body      string
+		}
+		code, body := ingest(modkit.AgentKeyHeader, agentKey(nil))
+		require.Equal(t, http.StatusOK, code, string(body))
+		var got seen
+		require.NoError(t, json.Unmarshal(body, &got))
+		assert.Equal(t, w.org, got.OrgID)
+		assert.Equal(t, "a-1", got.Key.AgentID)
+		assert.Equal(t, "bot", got.Key.AgentName)
+		assert.Equal(t, project, got.Key.ProjectName)
+		assert.Equal(t, "e-1", got.Key.EnvironmentID)
+		assert.Empty(t, got.KeyHeader, "the handler never sees the key")
+		assert.JSONEq(t, `{"span":"1"}`, got.Body)
+
+		other := uuid.NewString()
+		code, body = ingest(modkit.AgentKeyHeader, agentKey(jwt.MapClaims{"org_id": other}), "X-Org-Id", w.org)
+		require.Equal(t, http.StatusOK, code, string(body))
+		require.NoError(t, json.Unmarshal(body, &got))
+		assert.Equal(t, other, got.OrgID, "the org is the key's, whatever the caller sent")
+
+		login := signLikeTheCore(t, jwt.MapClaims{
+			"iss": "amp-test-login", "sub": "tester", "ouId": w.org, "ouHandle": w.handle,
+			"exp": time.Now().Add(time.Minute).Unix(),
+		})
+		valid := strings.Split(agentKey(nil), ".")
+		forged := strings.Split(agentKey(jwt.MapClaims{"org_id": other}), ".")
+		refused := map[string][]string{
+			"no key":                     nil,
+			"a user token as the key":    {modkit.AgentKeyHeader, login},
+			"a user token as a bearer":   {"Authorization", "Bearer " + login},
+			"an expired key":             {modkit.AgentKeyHeader, agentKey(jwt.MapClaims{"exp": time.Now().Add(-time.Minute).Unix()})},
+			"a key from another issuer":  {modkit.AgentKeyHeader, agentKey(jwt.MapClaims{"iss": "someone-else"})},
+			"a key with a forged org":    {modkit.AgentKeyHeader, valid[0] + "." + forged[1] + "." + valid[2]},
+			"a key with no agent claims": {modkit.AgentKeyHeader, agentKey(jwt.MapClaims{"component_uid": ""})},
+		}
+		for name, header := range refused {
+			code, body := ingest(header...)
+			assert.Equal(t, http.StatusUnauthorized, code, "%s: %s", name, body)
+		}
+
+		code, _ = w.call(t, w.full, http.MethodGet, "/m/testmod/whoami", nil, modkit.AgentKeyHeader, agentKey(nil))
+		assert.Equal(t, http.StatusNotFound, code, "a key opens agent-key routes only")
+	})
+
 	t.Run("workload tokens open the module's internal routes", func(t *testing.T) {
 		code, body := w.call(t, w.full, http.MethodPost, "/m/testmod/workloads", nil)
 		require.Equal(t, http.StatusCreated, code, string(body))
@@ -605,6 +673,8 @@ func TestModuleContract(t *testing.T) {
 		require.NoError(t, w.host.Disable(ctx, testmod.Name))
 		code, _ = w.call(t, w.full, http.MethodGet, "/m/testmod/whoami", nil)
 		assert.Equal(t, http.StatusNotFound, code)
+		code, _ = ingest(modkit.AgentKeyHeader, agentKey(nil))
+		assert.Equal(t, http.StatusNotFound, code, "an inactive module's agent-key routes are not found")
 		code, body = w.call(t, w.full, http.MethodPost, agentsPath, agentBody("late", map[string]any{"testmod": map[string]any{"tag": "x"}}))
 		assert.Equal(t, http.StatusBadRequest, code, string(body))
 

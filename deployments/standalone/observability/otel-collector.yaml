@@ -1,0 +1,81 @@
+# OpenTelemetry collector for the observability profile. The observability
+# module forwards agents' spans here over OTLP/HTTP with identity headers it
+# sets from the verified agent key; the collector writes them to ClickHouse.
+#
+# The spans' org, project, agent and environment come only from those
+# headers: every agent-manager/* resource attribute the agent sent is deleted
+# first, and a span with no x-org-id is dropped. The receiver listens on the
+# collector's only network, the internal observability network.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+        include_metadata: true
+        # Caps a request after gzip is undone; the module caps it as sent
+        # (MODULE_OBSERVABILITY_INGEST_MAX_BODY_BYTES, 10 MiB).
+        max_request_body_size: 20971520
+
+processors:
+  resource/drop-identity:
+    attributes:
+      - pattern: ^agent-manager/.*
+        action: delete
+  # The header names the module sets, and the attributes the span table
+  # materializes (org_id, project_id, agent_id) and the module filters on.
+  resource/identity:
+    attributes:
+      - key: agent-manager/org-id
+        from_context: metadata.x-org-id
+        action: upsert
+      - key: agent-manager/project-uid
+        from_context: metadata.x-user-project
+        action: upsert
+      - key: agent-manager/agent-uid
+        from_context: metadata.x-user-component
+        action: upsert
+      - key: agent-manager/environment-uid
+        from_context: metadata.x-user-environment
+        action: upsert
+      - key: agent-manager/organization
+        from_context: metadata.x-user-organization-name
+        action: upsert
+      - key: agent-manager/project
+        from_context: metadata.x-user-project-name
+        action: upsert
+      - key: agent-manager/agent
+        from_context: metadata.x-user-agent-name
+        action: upsert
+  filter/no-org:
+    error_mode: ignore
+    traces:
+      span:
+        - resource.attributes["agent-manager/org-id"] == nil
+        - resource.attributes["agent-manager/org-id"] == ""
+  batch: {}
+
+exporters:
+  clickhouse:
+    endpoint: ${env:AMP_CLICKHOUSE_ENDPOINT:-tcp://clickhouse:9000}
+    database: otel
+    username: amp_ingest
+    password: ${file:/run/secrets/observability/write-password}
+    # amp migrate owns the table; the insert-only login could not create it.
+    create_schema: false
+    traces_table_name: otel_traces
+    timeout: 10s
+    sending_queue:
+      queue_size: 1000
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      # Identity first, before batch drops the request headers.
+      processors: [resource/drop-identity, resource/identity, filter/no-org, batch]
+      exporters: [clickhouse]

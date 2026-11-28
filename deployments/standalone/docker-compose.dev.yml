@@ -37,3 +37,9 @@ services:
     build:
       context: ../../agent-manager-service
       args: { CONSOLE: none }
+
+  # The observability migrate step runs the amp CLI, which amp-api above
+  # doesn't have, so it uses amp-init's image.
+  observability-migrate:
+    image: amp-init:dev
+    pull_policy: never

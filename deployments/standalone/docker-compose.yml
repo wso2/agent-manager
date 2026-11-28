@@ -24,9 +24,24 @@ x-thunder: &thunder
   entrypoint: ["/bin/sh", "/amp/thunder/entrypoint.sh"]
   networks: [amp]
 
+x-otel-collector: &otel-collector
+  image: ${OTEL_COLLECTOR_IMAGE:-otel/opentelemetry-collector-contrib:0.163.2}
+  command: ["--config=/etc/otelcol-contrib/amp.yaml"]
+  volumes:
+    - ./observability/otel-collector.yaml:/etc/otelcol-contrib/amp.yaml:ro
+    # The write password only.
+    - observability-collector-secrets:/run/secrets/observability:ro
+  depends_on:
+    amp-init:
+      condition: service_completed_successfully
+    observability-migrate:
+      condition: service_completed_successfully
+  restart: unless-stopped
+
 services:
   # --- Generated configuration --------------------------------------------------
-  # Generates the secrets nothing sets, and writes ThunderID's configuration
+  # Generates the secrets nothing sets (the observability store's too, with a
+  # store URL), and writes ThunderID's configuration
   # and bootstrap resources and the AI Gateway's config.toml, keys and
   # registration token, from amp.yaml. Reruns regenerate the configuration and
   # keep generated secrets, keys and tokens.
@@ -38,24 +53,31 @@ services:
     entrypoint: ["/go/bin/amp"]
     command: ["init", "thunder", "/out/thunder", "ai-gateway", "/out/gateway", "fileauth", "/out/fileauth"]
     environment:
-      AMP_CONFIG: /etc/amp/amp.yaml
-      AMP_DATA_DIR: /var/lib/agent-manager
+      - AMP_CONFIG=/etc/amp/amp.yaml
+      - AMP_DATA_DIR=/var/lib/agent-manager
       # The admin and PostgreSQL passwords, for the containers that read them.
-      AMP_SHARED_SECRETS_DIR: /out/shared-secrets
+      - AMP_SHARED_SECRETS_DIR=/out/shared-secrets
       # What only Compose knows: ports and service names.
-      THUNDER_PORT: ${THUNDER_PORT:-8080}
+      - THUNDER_PORT=${THUNDER_PORT:-8080}
       # The console amp-api serves (server.public_url) may always sign in; the
       # dev console (`make console`, Vite on CONSOLE_PORT) may too.
-      CONSOLE_REDIRECT_URIS: http://localhost:${CONSOLE_PORT:-3000}/login
-      THUNDER_CORS_ORIGINS: http://localhost:${CONSOLE_PORT:-3000}
-      MODULE_AI_GATEWAY_CONTROLPLANE_HOST: amp-api:9243
-      MODULE_AI_GATEWAY_AMP_JWKS_URL: http://amp-api:8080/auth/external/jwks.json
-      MODULE_AI_GATEWAY_THUNDER_ISSUER: http://${THUNDER_HOST:-thunder.amp.localhost}:${THUNDER_PORT:-8080}
-      MODULE_AI_GATEWAY_THUNDER_JWKS_URL: http://thunder:${THUNDER_PORT:-8080}/oauth2/jwks
-      MODULE_AI_GATEWAY_HOST: ${GATEWAY_HOST:-default-default.gateway.localhost}
-      MODULE_AI_GATEWAY_FILE_OWNER: "10001:10001"
-      THUNDER_FILE_OWNER: "10001:10001"
-      AMP_FILE_OWNER: "1000:1000"
+      - CONSOLE_REDIRECT_URIS=http://localhost:${CONSOLE_PORT:-3000}/login
+      - THUNDER_CORS_ORIGINS=http://localhost:${CONSOLE_PORT:-3000}
+      - MODULE_AI_GATEWAY_CONTROLPLANE_HOST=amp-api:9243
+      - MODULE_AI_GATEWAY_AMP_JWKS_URL=http://amp-api:8080/auth/external/jwks.json
+      - MODULE_AI_GATEWAY_THUNDER_ISSUER=http://${THUNDER_HOST:-thunder.amp.localhost}:${THUNDER_PORT:-8080}
+      - MODULE_AI_GATEWAY_THUNDER_JWKS_URL=http://thunder:${THUNDER_PORT:-8080}/oauth2/jwks
+      - MODULE_AI_GATEWAY_HOST=${GATEWAY_HOST:-default-default.gateway.localhost}
+      - MODULE_AI_GATEWAY_FILE_OWNER=10001:10001
+      - THUNDER_FILE_OWNER=10001:10001
+      - AMP_FILE_OWNER=1000:1000
+      # With a store URL (.env or amp.yaml), the observability store's
+      # passwords: all four for ClickHouse, and each other reader's own.
+      - MODULE_OBSERVABILITY_CLICKHOUSE_URL${AMP_OBSERVABILITY_STORE_URL:+=${AMP_OBSERVABILITY_STORE_URL:-}}
+      - AMP_CLICKHOUSE_SECRETS_DIR=/out/clickhouse
+      - AMP_CLICKHOUSE_API_SECRETS_DIR=/out/clickhouse-api
+      - AMP_CLICKHOUSE_MIGRATE_SECRETS_DIR=/out/clickhouse-migrate
+      - AMP_CLICKHOUSE_COLLECTOR_SECRETS_DIR=/out/clickhouse-collector
     volumes:
       - ./amp.yaml:/etc/amp/amp.yaml:ro
       - amp-secrets:/var/lib/agent-manager/secrets
@@ -63,6 +85,10 @@ services:
       - thunder-config:/out/thunder
       - gateway-config:/out/gateway
       - fileauth-config:/out/fileauth
+      - observability-secrets:/out/clickhouse
+      - amp-observability-secrets:/out/clickhouse-api
+      - observability-migrate-secrets:/out/clickhouse-migrate
+      - observability-collector-secrets:/out/clickhouse-collector
     networks: [amp]
 
   # --- Identity ---------------------------------------------------------------
@@ -142,37 +168,48 @@ services:
       - "${AMP_API_PORT:-9000}:8080"
       - "${AMP_INTERNAL_PORT:-9243}:9243"
     environment:
-      AMP_CONFIG: /etc/amp/amp.yaml
-      AMP_DATA_DIR: /var/lib/agent-manager
-      DB_SSL_MODE: disable
+      - AMP_CONFIG=/etc/amp/amp.yaml
+      - AMP_DATA_DIR=/var/lib/agent-manager
+      - DB_SSL_MODE=disable
       # The console is same-origin; this lets the dev console (Vite) call in.
-      CORS_ALLOWED_ORIGIN: http://localhost:${CONSOLE_PORT:-3000}
+      - CORS_ALLOWED_ORIGIN=http://localhost:${CONSOLE_PORT:-3000}
       # ThunderID is dialled by its service name; its public URL (amp.yaml)
       # stays the token issuer.
-      THUNDER_RESOLVE_TO_HOST: thunder:${THUNDER_PORT:-8080}
-      FILE_AUTH_USERS_PATH: /amp/fileauth/users.yaml
+      - THUNDER_RESOLVE_TO_HOST=thunder:${THUNDER_PORT:-8080}
+      - FILE_AUTH_USERS_PATH=/amp/fileauth/users.yaml
       # Lite answers 501 for internal agents, the only writers of agent
       # credentials, so no secret manager provider is wired here.
-      SECRET_MANAGER_PROVIDER: unsupported
-      MODULE_AI_GATEWAY_A2A_CARD_FETCH_DIAL_ADDR: gateway-runtime:19080
+      - SECRET_MANAGER_PROVIDER=unsupported
+      - MODULE_AI_GATEWAY_A2A_CARD_FETCH_DIAL_ADDR=gateway-runtime:19080
       # The bundled gateway, registered at startup with the token amp-init wrote.
-      MODULE_AI_GATEWAY_DEFAULT_GATEWAY_NAME: default
-      MODULE_AI_GATEWAY_DEFAULT_GATEWAY_VHOST: http://${GATEWAY_HOST:-default-default.gateway.localhost}:${GATEWAY_PORT:-19080}
-      MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN_FILE: /amp/gw/registration-token
+      - MODULE_AI_GATEWAY_DEFAULT_GATEWAY_NAME=default
+      - MODULE_AI_GATEWAY_DEFAULT_GATEWAY_VHOST=http://${GATEWAY_HOST:-default-default.gateway.localhost}:${GATEWAY_PORT:-19080}
+      - MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN_FILE=/amp/gw/registration-token
       # The console's settings (CONSOLE_<NAME> fills $NAME in its config.js).
       # The API base URL, ThunderID URL, sign-in redirects, AUTH_MODE and the
       # sign-in scopes default from amp.yaml.
-      CONSOLE_GATEWAY_CONTROL_PLANE_URL: https://localhost:${AMP_INTERNAL_PORT:-9243}
-      CONSOLE_GATEWAY_VERSION: v2026.09.24
-      CONSOLE_FEATURE_FLAG_ENABLE_PROFILE_MANAGEMENT: "true"
-      CONSOLE_FEATURE_FLAG_ENABLE_USER_MANAGEMENT: "true"
-      CONSOLE_FEATURE_FLAG_ENABLE_SELF_HOSTED_GATEWAYS: "true"
+      - CONSOLE_GATEWAY_CONTROL_PLANE_URL=https://localhost:${AMP_INTERNAL_PORT:-9243}
+      - CONSOLE_GATEWAY_VERSION=v2026.09.24
+      - CONSOLE_FEATURE_FLAG_ENABLE_PROFILE_MANAGEMENT=true
+      - CONSOLE_FEATURE_FLAG_ENABLE_USER_MANAGEMENT=true
+      - CONSOLE_FEATURE_FLAG_ENABLE_SELF_HOSTED_GATEWAYS=true
+      # The observability module's trace store, set with an observability
+      # profile; unset, the module keeps traces in memory. Its read and delete
+      # passwords are amp-init's copies. See docs/amp-lite/observability.md.
+      # Left out when .env has no store URL, so amp.yaml's clickhouse.url applies.
+      - MODULE_OBSERVABILITY_CLICKHOUSE_URL${AMP_OBSERVABILITY_STORE_URL:+=${AMP_OBSERVABILITY_STORE_URL:-}}
+      - MODULE_OBSERVABILITY_CLICKHOUSE_USER=amp_reader
+      - MODULE_OBSERVABILITY_CLICKHOUSE_PASSWORD_FILE=/amp/observability/read-password
+      - MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_USER=amp_cleaner
+      - MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_PASSWORD_FILE=/amp/observability/delete-password
     volumes:
       - ./amp.yaml:/etc/amp/amp.yaml:ro
       - amp-data:/var/lib/agent-manager
       - amp-secrets:/var/lib/agent-manager/secrets
       - gateway-config:/amp/gw:ro
       - fileauth-config:/amp/fileauth:ro
+      # The read and delete passwords only.
+      - amp-observability-secrets:/amp/observability:ro
     depends_on:
       thunder:
         condition: service_healthy
@@ -183,8 +220,129 @@ services:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz >/dev/null"]
       interval: 3s
       retries: 60
-    networks: [amp]
+    # observability reaches ClickHouse and the collector; it has no other
+    # members without the profile.
+    networks: [amp, observability]
     restart: unless-stopped
+
+  # --- Observability (optional) ---------------------------------------------------
+  # Traces need a store and the OpenTelemetry collector. One of two profiles:
+  #   observability           runs ClickHouse here, with no published ports.
+  #   observability-external  uses your ClickHouse at AMP_OBSERVABILITY_STORE_URL.
+  # Both run the collector on the internal observability network and a step
+  # that applies the trace schema with `amp migrate` once amp-api is up, before
+  # the collector starts. ClickHouse creates no tables itself. amp-init writes
+  # the four passwords, one file per job (read, write, delete, setup), set in
+  # amp.yaml or generated, into a folder per reader; each container mounts only
+  # its own. A failure here stops only these containers, never amp-api.
+  clickhouse:
+    image: ${CLICKHOUSE_IMAGE:-clickhouse/clickhouse-server:25.8.33.6}
+    profiles: [observability]
+    # users.xml reads the passwords from the environment, so this exports each
+    # file into its variable; a missing or empty one stops ClickHouse.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        for p in read:READER write:INGEST delete:CLEANER setup:MIGRATOR; do
+          f=/run/secrets/observability/$${p%%:*}-password
+          v=$$(cat "$$f" 2>/dev/null)
+          [ -n "$$v" ] || { echo "$$f is missing or empty: amp-init writes it when AMP_OBSERVABILITY_STORE_URL is set in .env. See docs/amp-lite/observability.md." >&2; exit 1; }
+          export "AMP_CLICKHOUSE_$${p#*:}_PASSWORD=$$v"
+        done
+        exec /entrypoint.sh
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    volumes:
+      - observability-secrets:/run/secrets/observability:ro
+      - clickhouse-data:/var/lib/clickhouse
+      # The module's four logins (agent-manager-service/modules/observability/store/clickhouse/users.xml).
+      - ./observability/clickhouse-users.xml:/etc/clickhouse-server/users.d/amp.xml:ro
+    depends_on:
+      amp-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8123/ping >/dev/null"]
+      interval: 3s
+      retries: 60
+    networks: [observability]
+    restart: unless-stopped
+
+  # Applies the trace schema with the setup login, which amp-api never holds.
+  # It waits for amp-api, whose first start creates the encryption key on an
+  # empty database. Rerun it (`docker compose run --rm observability-migrate`) after an upgrade.
+  observability-migrate:
+    image: ${AMP_API_IMAGE:-amp-api:lite}
+    profiles: [observability, observability-external]
+    # Names a missing store URL or a refused setup login in plain words; a
+    # refused login most often means your ClickHouse has no logins yet.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        if [ ! -s /run/secrets/observability/setup-password ]; then
+          echo "The setup password is missing: amp-init writes it when AMP_OBSERVABILITY_STORE_URL is set in .env. See docs/amp-lite/observability.md." >&2
+          exit 1
+        fi
+        out=$$(/go/bin/amp migrate 2>&1)
+        rc=$$?
+        # amp migrate skips a store with no URL (from .env or amp.yaml) and still succeeds.
+        if printf '%s' "$$out" | grep -q 'observability: skipped its external schema'; then
+          echo "No ClickHouse URL is set: set AMP_OBSERVABILITY_STORE_URL in .env or clickhouse.url in amp.yaml. See docs/amp-lite/observability.md." >&2
+          exit 1
+        fi
+        if [ "$$rc" -ne 0 ] && printf '%s' "$$out" | grep -q 'Code: 516'; then
+          echo "ClickHouse refused the amp_migrator login. With your own ClickHouse, create the observability logins first: see docs/amp-lite/observability.md." >&2
+          exit 1
+        fi
+        printf '%s\n' "$$out"
+        exit "$$rc"
+    # amp-api's settings and database, plus the setup login.
+    environment:
+      - AMP_CONFIG=/etc/amp/amp.yaml
+      - AMP_DATA_DIR=/var/lib/agent-manager
+      - DB_SSL_MODE=disable
+      - MODULE_OBSERVABILITY_CLICKHOUSE_URL${AMP_OBSERVABILITY_STORE_URL:+=${AMP_OBSERVABILITY_STORE_URL:-}}
+      - MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_USER=amp_migrator
+      - MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_PASSWORD_FILE=/run/secrets/observability/setup-password
+      # Left out when .env has no TTL, so amp.yaml's clickhouse.ttl-days applies.
+      - MODULE_OBSERVABILITY_CLICKHOUSE_TTL_DAYS${AMP_OBSERVABILITY_TTL_DAYS:+=${AMP_OBSERVABILITY_TTL_DAYS:-}}
+    volumes:
+      - ./amp.yaml:/etc/amp/amp.yaml:ro
+      - amp-data:/var/lib/agent-manager
+      - amp-secrets:/var/lib/agent-manager/secrets
+      # The setup password only.
+      - observability-migrate-secrets:/run/secrets/observability:ro
+    depends_on:
+      amp-init:
+        condition: service_completed_successfully
+      amp-api:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+        required: false
+    # amp for PostgreSQL and your ClickHouse, observability for the bundled one.
+    networks: [amp, observability]
+
+  # Receives OTLP/HTTP only from the observability network, replaces the
+  # spans' agent-manager/* resource attributes with the identity headers the
+  # observability module sets, and writes to ClickHouse with the write login.
+  otel-collector:
+    <<: *otel-collector
+    profiles: [observability]
+    networks: [observability]
+
+  # The same, writing to your ClickHouse: its own network out reaches it, and
+  # nothing else joins that network.
+  otel-collector-external:
+    <<: *otel-collector
+    profiles: [observability-external]
+    environment:
+      AMP_CLICKHOUSE_ENDPOINT: ${AMP_OBSERVABILITY_STORE_URL:-}
+    networks:
+      observability:
+        aliases: [otel-collector]
+      observability-egress:
 
   # --- AI Gateway -----------------------------------------------------------------
   # Uses config.toml from amp-init and connects to amp-api with the registration
@@ -243,6 +401,15 @@ volumes:
   gateway-config:
   gateway-data:
   fileauth-config:
+  clickhouse-data:
+  observability-secrets:
+  amp-observability-secrets:
+  observability-migrate-secrets:
+  observability-collector-secrets:
 
 networks:
   amp:
+  # amp-api, ClickHouse and the collector only. Internal: no route out.
+  observability:
+    internal: true
+  observability-egress:

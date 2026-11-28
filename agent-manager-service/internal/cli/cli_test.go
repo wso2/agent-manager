@@ -24,6 +24,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/wso2/agent-manager/agent-manager-service/ampinit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
@@ -192,4 +193,27 @@ func TestSecretShowUnknown(t *testing.T) {
 	err := secretCmd([]string{"show", "../etc/passwd"}, &b)
 	assert.ErrorContains(t, err, "admin-password")
 	assert.Empty(t, b.String())
+}
+
+// The observability store's passwords show only where their directory is set,
+// as in amp-init, never in a server that lacks it.
+func TestSecretListIncludesOwnDirOnlyWhereSet(t *testing.T) {
+	secretsFixture(t)
+	store := t.TempDir()
+	assert.NoError(t, os.WriteFile(filepath.Join(store, "setup-password"), []byte("setup-value"), 0o600))
+	assert.NoError(t, os.WriteFile(filepath.Join(store, "unrelated"), []byte("x"), 0o600))
+
+	t.Setenv(ampinit.ClickHouseSecretsDir, "")
+	var b bytes.Buffer
+	assert.NoError(t, secretCmd([]string{"list"}, &b))
+	assert.Equal(t, "admin-password\nencryption-key\n", b.String())
+	assert.Error(t, secretCmd([]string{"show", "setup-password"}, &b))
+
+	t.Setenv(ampinit.ClickHouseSecretsDir, store)
+	b.Reset()
+	assert.NoError(t, secretCmd([]string{"list"}, &b))
+	assert.Equal(t, "admin-password\nencryption-key\nsetup-password\n", b.String())
+	b.Reset()
+	assert.NoError(t, secretCmd([]string{"show", "setup-password"}, &b))
+	assert.Equal(t, "setup-value\n", b.String())
 }

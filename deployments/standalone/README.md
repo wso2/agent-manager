@@ -9,6 +9,7 @@ Runs AMP Lite with no Kubernetes, Helm or ingress controller. Every service publ
 | `amp-api` (internal) | Gateway control plane (WebSocket, self-signed TLS) | https://localhost:9243 |
 | `gateway-runtime` | AI Gateway (agent traffic) | http://default-default.gateway.localhost:19080 |
 | `postgres` (optional profile) | PostgreSQL instead of SQLite | internal only |
+| `clickhouse`, `otel-collector` (optional `observability` profile) | Trace store and the OpenTelemetry collector | internal only, on a private network |
 
 Startup, in order:
 
@@ -17,7 +18,7 @@ Startup, in order:
 3. `amp-api` (`amp serve --migrate`) migrates the core's and every module's tables, starts the module host, and, with file sign-in, gives the trial organization (`DEFAULT_ORG_*`) its `default` environment if needed. The `ai-gateway` module, which `amp` installs at first boot, then registers the default gateway (`MODULE_AI_GATEWAY_DEFAULT_GATEWAY_*`) with the token from step 1 ([how the default gateway registers itself](../../docs/amp-lite/ai-gateway.md#how-the-default-gateway-registers-itself)).
 4. `gateway-controller` connects to `amp-api` with that token and receives its APIs.
 
-The stack runs no trace store: there is no OpenSearch, OpenTelemetry collector or trace query service, and the gateway serves no `/otel` trace-ingest API. Traces will return as an optional module.
+Without the `observability` profile the stack runs no trace store, and the gateway serves no `/otel` trace-ingest API. With it, ClickHouse and the OpenTelemetry collector run for the `observability` module, and agents send traces to the module at `<amp>/m/observability/otel` with their agent key (see [Observability](#observability-traces)).
 
 ## Run
 
@@ -111,11 +112,23 @@ docker compose -p amp-lite-core -f docker-compose.yml -f docker-compose.build.ym
 
 ### Smoke test
 
-`make smoke` (or `make smoke-core`) runs `scripts/smoke.sh amp|amp-core` against the running stack: sign-in, the core API, which routes the distribution serves, the console and the UI manifest. It reads ports from the environment or `.env`, the admin password from `AMP_ADMIN_PASSWORD` or the running `amp-api`, and needs `auth.mode: file`.
+`make smoke` (or `make smoke-core`) runs `scripts/smoke.sh amp|amp-core` against the running stack: sign-in, the core API, which routes the distribution serves, the console and the UI manifest. It reads ports from the environment or `.env`, the admin password from `AMP_ADMIN_PASSWORD` or the running `amp-api`, and needs `auth.mode: file`. `make smoke-observability` runs `scripts/smoke-observability.sh` against a stack from `make up-observability`.
 
 ### PostgreSQL
 
 SQLite is the default database. To use PostgreSQL, run `make up DB=postgres`, or set `COMPOSE_PROFILES=postgres` in `.env` and add `-f docker-compose.postgres.yml` (or set the `db:` block in `amp.yaml`); its password is generated with the other secrets, and `amp-api` migrates it on start. Switching does not copy data between the two.
+
+### Observability (traces)
+
+The `observability` profile adds ClickHouse and the OpenTelemetry collector on an internal network that only `amp-api` joins, with no published ports. A one-shot `observability-migrate` step runs `amp migrate` with ClickHouse's migrator login, once `amp-api` is up, so the trace schema is in place before the collector starts and before the module is installed; ClickHouse creates no tables itself, and `amp-api` holds only the reading and cleaning logins. `amp-init` generates the four passwords, or writes the ones `amp.yaml` sets, into a folder per container that reads them; `observability-external` uses your own ClickHouse instead, with the same passwords (see [docs/amp-lite/observability.md](../../docs/amp-lite/observability.md)).
+
+```bash
+make up-observability       # also installs the observability module
+make dev-up-observability   # the same on the dev stack (hot reload)
+make smoke-observability    # either one
+```
+
+Set `COMPOSE_PROFILES=observability` and `AMP_OBSERVABILITY_STORE_URL` in `.env` (the commented lines in `.env.example`): `make up-observability` sets them for its own run only, and later commands (a restart, `make up`, rotating a password) need them to keep `amp-api` on ClickHouse. Without make, start the stack, then run `docker compose exec amp-api amp module install observability`. To use your own ClickHouse instead, or add observability to an existing install, see [docs/amp-lite/observability.md](../../docs/amp-lite/observability.md).
 
 On macOS with Colima, keep this folder inside your home folder: Colima shares only that with its VM, and the bind mounts come up empty anywhere else.
 
@@ -127,7 +140,7 @@ Browsers resolve `*.localhost` to 127.0.0.1, so the public URLs above work from 
 
 ```bash
 docker compose down        # keep data
-docker compose --profile postgres down -v   # delete all data, including ThunderID users and the database
+docker compose --profile postgres --profile observability --profile observability-external down -v   # delete all data, including ThunderID users, the database and traces
 ```
 
 ## Files
@@ -136,3 +149,6 @@ docker compose --profile postgres down -v   # delete all data, including Thunder
 - `docker-compose.postgres.yml` — points Agent Manager at the bundled PostgreSQL.
 - `thunder/entrypoint.sh` — installs the configuration `amp-init` generated into the ThunderID image and runs its setup or server. The templates live in `agent-manager-service/ampinit`.
 - `gateway/model_prices.json` — LLM pricing data for the gateway's cost policies.
+- `observability/clickhouse-users.xml` — ClickHouse's logins for the observability profile, a copy of `agent-manager-service/modules/observability/store/clickhouse/users.xml` (CI checks the two match).
+- `observability/clickhouse-users.sql` — the same logins as SQL, for your own ClickHouse (CI checks each login's hosts and grants match).
+- `observability/otel-collector.yaml` — the collector's configuration: identity from the module's headers, spans to ClickHouse.
