@@ -3557,6 +3557,7 @@ func convertComponentFromTyped(comp *gen.Component) (*models.AgentResponse, erro
 		}
 	}
 
+	agent.HasBuildWorkflow = comp.Spec.Workflow != nil && comp.Spec.Workflow.Name != ""
 	if comp.Spec.Workflow != nil {
 		agent.Provisioning.Repository = extractRepositoryFromTyped(comp.Spec.Workflow)
 		if comp.Spec.Workflow.Parameters != nil {
