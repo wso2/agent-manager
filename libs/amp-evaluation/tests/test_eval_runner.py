@@ -262,6 +262,28 @@ class TestMonitorFetchAndSamplePipeline:
         assert result.traces_evaluated == len(sample_traces)
         assert sorted(evaluated_ids) == sorted(t.trace_id for t in sample_traces)
 
+    def test_unreadable_traces_are_recorded_on_the_result(self, otel_traces):
+        @evaluator(name="always_one")
+        def always_one(trace: Trace) -> EvalResult:
+            return EvalResult(score=1.0)
+
+        fetcher = _FakeFetcher(otel_traces)
+        fetcher.failed_trace_ids = {"gone-1", "gone-2"}
+        result = Monitor(evaluators=[always_one], trace_fetcher=fetcher).run(start_time="s", end_time="e")
+
+        assert result.metadata["unreadable_trace_count"] == 2
+        assert result.traces_evaluated == len(otel_traces)
+
+    def test_missing_trace_source_is_returned_not_raised(self):
+        @evaluator(name="always_one")
+        def always_one(trace: Trace) -> EvalResult:
+            return EvalResult(score=1.0)
+
+        result = Monitor(evaluators=[always_one]).run(start_time="s", end_time="e")
+
+        assert result.errors
+        assert "unreadable_trace_count" not in result.metadata
+
 
 # ============================================================================
 # REGRESSION TESTS: Bugs found during code review

@@ -199,7 +199,9 @@ paths:
 
         A trace that can't be read, while selecting with a filter or while fetching its spans, is
         retried once, then left out and listed in `failedTraceIds`. The export fails only when it
-        could read none of the traces it selected.
+        could read none of the traces it selected, unless every one of them lacks a root span: that
+        is a property of the traces, so the export answers with an empty `traces` list instead.
+        Without a filter, `lastStartTime` says where the next page begins.
       operationId: exportTraces
       security:
         - bearerAuth: []
@@ -921,6 +923,13 @@ components:
           description: |
             Traces left out because they couldn't be read. A trace that failed while a filter was
             selecting traces may or may not have matched. Absent when every trace was read.
+        lastStartTime:
+          type: string
+          format: date-time
+          description: |
+            Start time of the last trace an unfiltered export selected, whether or not it could be
+            read. To page forward through a window, request the next page from this time and drop
+            trace IDs already seen. Absent for a filtered or empty export.
 
     # ── schemas ─────────────────────────────────────────────────────────────
 

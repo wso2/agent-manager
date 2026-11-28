@@ -129,3 +129,50 @@ func TestDeliver_SignsAndClassifiesResponses(t *testing.T) {
 	assert.False(t, errors.As(res.Err, &urlErr))
 	assert.NotContains(t, res.Err.Error(), srv.URL, "the URL is not echoed into the delivery log")
 }
+
+func TestDeliver_RedirectsMustKeepTheBody(t *testing.T) {
+	secret := SecretPrefix + base64.StdEncoding.EncodeToString([]byte("test-signing-key-for-unit-tests!"))
+	body := []byte(`{"id":"evt_1"}`)
+	msg := eventdestinations.Message{ID: "evt_1", Type: events.TypePrefix + "agent.deployed", Body: body}
+
+	for _, tc := range []struct {
+		code      int
+		delivered bool
+	}{
+		{http.StatusMovedPermanently, false},
+		{http.StatusFound, false},
+		{http.StatusSeeOther, false},
+		{http.StatusTemporaryRedirect, true},
+		{http.StatusPermanentRedirect, true},
+	} {
+		t.Run(strconv.Itoa(tc.code), func(t *testing.T) {
+			var finalMethod string
+			var finalBody []byte
+			mux := http.NewServeMux()
+			mux.HandleFunc("/hook", func(w http.ResponseWriter, r *http.Request) {
+				http.Redirect(w, r, "/hook/", tc.code)
+			})
+			mux.HandleFunc("/hook/", func(w http.ResponseWriter, r *http.Request) {
+				finalMethod = r.Method
+				finalBody, _ = io.ReadAll(r.Body)
+				w.WriteHeader(http.StatusOK)
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			dest := eventdestinations.Destination{Config: json.RawMessage(`{"url":"` + srv.URL + `/hook"}`), Secret: secret}
+			res := New(true).Deliver(context.Background(), dest, msg)
+
+			if tc.delivered {
+				require.NoError(t, res.Err)
+				assert.Equal(t, http.MethodPost, finalMethod)
+				assert.Equal(t, body, finalBody)
+				return
+			}
+			require.Error(t, res.Err, "a redirect that drops the body is not a delivery")
+			require.ErrorIs(t, res.Err, errRedirectChangesMethod)
+			assert.False(t, res.Retryable, "the endpoint will redirect the same way again")
+			assert.Empty(t, finalMethod, "the redirected GET is never sent")
+		})
+	}
+}

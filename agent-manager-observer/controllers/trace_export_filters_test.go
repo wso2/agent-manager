@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-observer/observer"
 	"github.com/wso2/agent-manager/agent-manager-observer/opensearch"
 )
 
@@ -543,6 +544,40 @@ func TestExportTraces_NoRootSpanListed(t *testing.T) {
 	}
 	if got := spanFetches(fake, "trace-0007"); got != 1 {
 		t.Errorf("span fetches for trace-0007 = %d, want 1", got)
+	}
+}
+
+// A page of traces that all lack a root span is answered, not failed, and says
+// where the next page begins so a caller can step past them.
+func TestExportTraces_EveryTraceHasNoRootSpan(t *testing.T) {
+	fake := langGraphFake(60, noRootAttrs)
+	for id, spans := range fake.spansByTrace {
+		fake.spansByTrace[id] = spans[:len(spans)-1] // the root is last
+	}
+
+	resp := mustExport(t, NewTracingController(fake), exportParams(20, TraceFilters{}))
+
+	if len(resp.Traces) != 0 {
+		t.Fatalf("exported %v, want none", exportedIDs(resp))
+	}
+	if len(resp.FailedTraceIDs) != 20 {
+		t.Fatalf("failedTraceIds = %v, want all 20 selected traces", resp.FailedTraceIDs)
+	}
+	last := resp.FailedTraceIDs[len(resp.FailedTraceIDs)-1]
+	idx := slices.IndexFunc(fake.traces, func(tr observer.TraceInfo) bool { return tr.TraceID == last })
+	if idx < 0 {
+		t.Fatalf("trace %s not in the fake", last)
+	}
+	if want := fake.traces[idx].StartTime.UTC().Format(time.RFC3339Nano); resp.LastStartTime != want {
+		t.Errorf("lastStartTime = %q, want %q (the last selected trace)", resp.LastStartTime, want)
+	}
+}
+
+// A filtered export has no continuation point.
+func TestExportTraces_FilteredHasNoLastStartTime(t *testing.T) {
+	resp := mustExport(t, NewTracingController(langGraphFake(30, noRootAttrs)), exportParams(20, TraceFilters{Status: TraceStatusError}))
+	if resp.LastStartTime != "" {
+		t.Errorf("lastStartTime = %q, want empty for a filtered export", resp.LastStartTime)
 	}
 }
 
