@@ -3390,7 +3390,7 @@ func (s *agentManagerService) deleteAgent(ctx context.Context, ouID string, proj
 	ownsBuildImages := false
 	agentComp, compErr := s.ocClient.GetComponent(ctx, ouID, projectName, agentName)
 	if compErr != nil {
-		s.logger.Warn("Failed to determine agent type before deletion, assuming internal",
+		s.logger.Warn("Failed to determine agent type before deletion; treating it as internal, without build image cleanup",
 			"agentName", agentName, "error", compErr)
 	} else {
 		isExternalAgent = isExternalProvisioned(agentComp)

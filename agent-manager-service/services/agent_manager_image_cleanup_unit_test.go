@@ -102,7 +102,8 @@ func TestDeleteAgentCleansUpBuildImages(t *testing.T) {
 	require.Equal(t, imageCleanupCall{ouID: "org-a", projectName: "project-a", componentName: "agent-a"}, call)
 }
 
-func TestDeleteAgentCleansUpBuildImagesWhenTheComponentIsAlreadyGone(t *testing.T) {
+// The component was read (so its ownership is known) but was gone by the time it was deleted.
+func TestDeleteAgentCleansUpBuildImagesWhenTheComponentDisappearsBeforeTheDelete(t *testing.T) {
 	cleaner := newRecordingImageCleaner(nil)
 	manager := deletionManager(imageOwningAgentOC(func(context.Context) error { return utils.ErrNotFound }), nil)
 	manager.SetComponentImageCleaner(cleaner)
