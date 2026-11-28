@@ -34,13 +34,7 @@ import { returnToState, StateNotice } from "@agent-management-platform/views";
 import { useShadowSummary } from "@agent-management-platform/api-client";
 import { formatRelativeTime } from "@agent-management-platform/shared-component";
 import { ProviderLogo } from "../providerLogos";
-import {
-  CUSTOM_PLATFORM,
-  formatCount,
-  latestCloudScan,
-  providerLabel,
-  ScanStatusChip,
-} from "../shadowUi";
+import { formatCount, providerLabel, ScanStatusChip } from "../shadowUi";
 import { isCancelledScan } from "./ScanProgress";
 import { RunScanButton } from "./RunScanButton";
 import { scanFindingsPath } from "./ScansTab";
@@ -197,19 +191,16 @@ export function OverviewPanel({
   const summary = useShadowSummary(orgName);
   const s = summary.data;
   const connected = (s?.connections ?? 0) > 0;
-  const latest = latestCloudScan(s);
+  const latest = s?.latestScan;
+  // The steps stay until a scan finishes with results; a failed scan keeps them.
+  const scanned = latest?.status === "succeeded" || latest?.status === "partial";
   const total = s?.totalFindings ?? 0;
-  // The steps stay until a scan finishes with results, or agents arrive another way
-  // (an uploaded inventory file is not a scan); a failed scan keeps them.
-  const scanned = latest?.status === "succeeded" || latest?.status === "partial" || total > 0;
   const onboarded = s?.onboarded ?? 0;
   const unmanaged = Math.max(0, total - onboarded);
   const steps: Step[] = [
     {
       title: "Add a source",
-      description:
-        "Add a connector for an AI platform or a source code repository host, or upload a file " +
-        "that lists your agents.",
+      description: "Add a connector for an AI platform or a source code repository host.",
       done: connected,
       // With no connector, the empty state above already has Add source.
       action: canManage && connected ? (
@@ -230,9 +221,7 @@ export function OverviewPanel({
     },
     {
       title: "Run a scan",
-      description:
-        "Scan your AI platform connectors. Source code repositories are scanned by a command " +
-        "you run, and inventory files are read when you upload them.",
+      description: "Scan your AI platform connectors. Source code repositories are scanned by a command you run.",
       done: scanned,
       action: canManage && connected ? <RunScanButton orgName={orgName} /> : undefined,
     },
@@ -335,12 +324,7 @@ export function OverviewPanel({
           ) : (
             <Stack direction="row" spacing={2} alignItems="center">
               <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
-                {total === 0
-                  ? "No scan yet."
-                  : (s?.byProvider[CUSTOM_PLATFORM] ?? 0) > 0
-                    ? "No platform scan yet. The agents below include those from uploaded " +
-                      "inventory files."
-                    : "No recent scan. The agents found earlier are below."}
+                No scan yet.
               </Typography>
             </Stack>
           )}

@@ -109,7 +109,7 @@ func runGet(ctx context.Context, o *GetOptions) error {
 		return render.Error(o.IO, o.Scope, err)
 	}
 
-	agentResp, err := client.GetAgentWithResponse(ctx, o.Org, o.Proj, o.AgentName, nil)
+	agentResp, err := client.GetAgentWithResponse(ctx, o.Org, o.Proj, o.AgentName)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
@@ -119,7 +119,7 @@ func runGet(ctx context.Context, o *GetOptions) error {
 	}
 	agent := agentResp.JSON200
 	// An external agent is A2A wherever it registers a card URL; an internal one only when built as a2a-agent.
-	external := agent.Provisioning.Type == amsvc.External
+	external := agent.Provisioning.Type == amsvc.ProvisioningTypeExternal
 	if !external && (agent.AgentType.SubType == nil || *agent.AgentType.SubType != a2aSubType) {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Validation, "agent %q is not an A2A agent", o.AgentName))
 	}

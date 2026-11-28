@@ -463,8 +463,8 @@ func TestBuild_NoConfigWhenUnset(t *testing.T) {
 func TestBuildProvisioning_External(t *testing.T) {
 	opts := &CreateOptions{Provisioning: "external"}
 	p := buildProvisioning(opts)
-	if p.Type != amsvc.External {
-		t.Errorf("Type = %q, want %q", p.Type, amsvc.External)
+	if p.Type != amsvc.ProvisioningTypeExternal {
+		t.Errorf("Type = %q, want %q", p.Type, amsvc.ProvisioningTypeExternal)
 	}
 	if p.Repository != nil {
 		t.Errorf("Repository = %v, want nil", p.Repository)
@@ -494,7 +494,7 @@ func TestBuild_External(t *testing.T) {
 	if req.AgentType.SubType != nil {
 		t.Errorf("AgentType.SubType should be nil for external, got %v", *req.AgentType.SubType)
 	}
-	if req.Provisioning.Type != amsvc.External {
+	if req.Provisioning.Type != amsvc.ProvisioningTypeExternal {
 		t.Errorf("Provisioning.Type = %q, want external", req.Provisioning.Type)
 	}
 	if req.Provisioning.Repository != nil {

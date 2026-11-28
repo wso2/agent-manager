@@ -135,109 +135,19 @@ func (e AgentKindResponseKind) Valid() bool {
 
 // Defines values for AgentKindVersionResponseAgentSubType.
 const (
-	AgentKindVersionResponseAgentSubTypeA2aAgent  AgentKindVersionResponseAgentSubType = "a2a-agent"
-	AgentKindVersionResponseAgentSubTypeChatApi   AgentKindVersionResponseAgentSubType = "chat-api"
-	AgentKindVersionResponseAgentSubTypeCustomApi AgentKindVersionResponseAgentSubType = "custom-api"
+	A2aAgent  AgentKindVersionResponseAgentSubType = "a2a-agent"
+	ChatApi   AgentKindVersionResponseAgentSubType = "chat-api"
+	CustomApi AgentKindVersionResponseAgentSubType = "custom-api"
 )
 
 // Valid indicates whether the value is a known member of the AgentKindVersionResponseAgentSubType enum.
 func (e AgentKindVersionResponseAgentSubType) Valid() bool {
 	switch e {
-	case AgentKindVersionResponseAgentSubTypeA2aAgent:
+	case A2aAgent:
 		return true
-	case AgentKindVersionResponseAgentSubTypeChatApi:
+	case ChatApi:
 		return true
-	case AgentKindVersionResponseAgentSubTypeCustomApi:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AgentRegistryEnvironmentDeploymentStatus.
-const (
-	AgentRegistryEnvironmentDeploymentStatusActive      AgentRegistryEnvironmentDeploymentStatus = "active"
-	AgentRegistryEnvironmentDeploymentStatusFailed      AgentRegistryEnvironmentDeploymentStatus = "failed"
-	AgentRegistryEnvironmentDeploymentStatusInProgress  AgentRegistryEnvironmentDeploymentStatus = "in-progress"
-	AgentRegistryEnvironmentDeploymentStatusNotDeployed AgentRegistryEnvironmentDeploymentStatus = "not-deployed"
-	AgentRegistryEnvironmentDeploymentStatusSuspended   AgentRegistryEnvironmentDeploymentStatus = "suspended"
-)
-
-// Valid indicates whether the value is a known member of the AgentRegistryEnvironmentDeploymentStatus enum.
-func (e AgentRegistryEnvironmentDeploymentStatus) Valid() bool {
-	switch e {
-	case AgentRegistryEnvironmentDeploymentStatusActive:
-		return true
-	case AgentRegistryEnvironmentDeploymentStatusFailed:
-		return true
-	case AgentRegistryEnvironmentDeploymentStatusInProgress:
-		return true
-	case AgentRegistryEnvironmentDeploymentStatusNotDeployed:
-		return true
-	case AgentRegistryEnvironmentDeploymentStatusSuspended:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AgentRegistryGovernanceAgentIdStatus.
-const (
-	AgentRegistryGovernanceAgentIdStatusCompleted  AgentRegistryGovernanceAgentIdStatus = "completed"
-	AgentRegistryGovernanceAgentIdStatusFailed     AgentRegistryGovernanceAgentIdStatus = "failed"
-	AgentRegistryGovernanceAgentIdStatusInProgress AgentRegistryGovernanceAgentIdStatus = "in_progress"
-	AgentRegistryGovernanceAgentIdStatusPending    AgentRegistryGovernanceAgentIdStatus = "pending"
-)
-
-// Valid indicates whether the value is a known member of the AgentRegistryGovernanceAgentIdStatus enum.
-func (e AgentRegistryGovernanceAgentIdStatus) Valid() bool {
-	switch e {
-	case AgentRegistryGovernanceAgentIdStatusCompleted:
-		return true
-	case AgentRegistryGovernanceAgentIdStatusFailed:
-		return true
-	case AgentRegistryGovernanceAgentIdStatusInProgress:
-		return true
-	case AgentRegistryGovernanceAgentIdStatusPending:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AgentRegistryRecordHosting.
-const (
-	AgentRegistryRecordHostingExternal AgentRegistryRecordHosting = "external"
-	AgentRegistryRecordHostingPlatform AgentRegistryRecordHosting = "platform"
-)
-
-// Valid indicates whether the value is a known member of the AgentRegistryRecordHosting enum.
-func (e AgentRegistryRecordHosting) Valid() bool {
-	switch e {
-	case AgentRegistryRecordHostingExternal:
-		return true
-	case AgentRegistryRecordHostingPlatform:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AgentRegistryRecordInterface.
-const (
-	AgentRegistryRecordInterfaceA2aAgent  AgentRegistryRecordInterface = "a2a-agent"
-	AgentRegistryRecordInterfaceChatApi   AgentRegistryRecordInterface = "chat-api"
-	AgentRegistryRecordInterfaceCustomApi AgentRegistryRecordInterface = "custom-api"
-)
-
-// Valid indicates whether the value is a known member of the AgentRegistryRecordInterface enum.
-func (e AgentRegistryRecordInterface) Valid() bool {
-	switch e {
-	case AgentRegistryRecordInterfaceA2aAgent:
-		return true
-	case AgentRegistryRecordInterfaceChatApi:
-		return true
-	case AgentRegistryRecordInterfaceCustomApi:
+	case CustomApi:
 		return true
 	default:
 		return false
@@ -1530,16 +1440,16 @@ func (e MonitorScoreThresholdOperator) Valid() bool {
 
 // Defines values for ProvisioningType.
 const (
-	External ProvisioningType = "external"
-	Internal ProvisioningType = "internal"
+	ProvisioningTypeExternal ProvisioningType = "external"
+	ProvisioningTypeInternal ProvisioningType = "internal"
 )
 
 // Valid indicates whether the value is a known member of the ProvisioningType enum.
 func (e ProvisioningType) Valid() bool {
 	switch e {
-	case External:
+	case ProvisioningTypeExternal:
 		return true
-	case Internal:
+	case ProvisioningTypeInternal:
 		return true
 	default:
 		return false
@@ -1810,27 +1720,6 @@ func (e ShadowScanResponseStatus) Valid() bool {
 	}
 }
 
-// Defines values for ShadowScanResultsResponseStatus.
-const (
-	ShadowScanResultsResponseStatusFailed    ShadowScanResultsResponseStatus = "failed"
-	ShadowScanResultsResponseStatusPartial   ShadowScanResultsResponseStatus = "partial"
-	ShadowScanResultsResponseStatusSucceeded ShadowScanResultsResponseStatus = "succeeded"
-)
-
-// Valid indicates whether the value is a known member of the ShadowScanResultsResponseStatus enum.
-func (e ShadowScanResultsResponseStatus) Valid() bool {
-	switch e {
-	case ShadowScanResultsResponseStatusFailed:
-		return true
-	case ShadowScanResultsResponseStatusPartial:
-		return true
-	case ShadowScanResultsResponseStatusSucceeded:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for UpdateDeploymentStateRequestState.
 const (
 	UpdateDeploymentStateRequestStateActive   UpdateDeploymentStateRequestState = "Active"
@@ -1879,21 +1768,6 @@ func (e UpstreamAuthType) Valid() bool {
 	case ApiKey:
 		return true
 	case None:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ListOrgAgentsParamsView.
-const (
-	ListOrgAgentsParamsViewRegistry ListOrgAgentsParamsView = "registry"
-)
-
-// Valid indicates whether the value is a known member of the ListOrgAgentsParamsView enum.
-func (e ListOrgAgentsParamsView) Valid() bool {
-	switch e {
-	case ListOrgAgentsParamsViewRegistry:
 		return true
 	default:
 		return false
@@ -2023,21 +1897,6 @@ func (e GetLLMProviderDeploymentsParamsStatus) Valid() bool {
 	}
 }
 
-// Defines values for GetAgentParamsView.
-const (
-	GetAgentParamsViewRegistry GetAgentParamsView = "registry"
-)
-
-// Valid indicates whether the value is a known member of the GetAgentParamsView enum.
-func (e GetAgentParamsView) Valid() bool {
-	switch e {
-	case GetAgentParamsViewRegistry:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for ListAgentEventDeliveriesParamsStatus.
 const (
 	ListAgentEventDeliveriesParamsStatusDelivered ListAgentEventDeliveriesParamsStatus = "delivered"
@@ -2121,22 +1980,22 @@ func (e GetAgentTraceScoresParamsSortOrder) Valid() bool {
 
 // Defines values for ListProjectEventDeliveriesParamsStatus.
 const (
-	ListProjectEventDeliveriesParamsStatusDelivered ListProjectEventDeliveriesParamsStatus = "delivered"
-	ListProjectEventDeliveriesParamsStatusFailed    ListProjectEventDeliveriesParamsStatus = "failed"
-	ListProjectEventDeliveriesParamsStatusPending   ListProjectEventDeliveriesParamsStatus = "pending"
-	ListProjectEventDeliveriesParamsStatusSkipped   ListProjectEventDeliveriesParamsStatus = "skipped"
+	Delivered ListProjectEventDeliveriesParamsStatus = "delivered"
+	Failed    ListProjectEventDeliveriesParamsStatus = "failed"
+	Pending   ListProjectEventDeliveriesParamsStatus = "pending"
+	Skipped   ListProjectEventDeliveriesParamsStatus = "skipped"
 )
 
 // Valid indicates whether the value is a known member of the ListProjectEventDeliveriesParamsStatus enum.
 func (e ListProjectEventDeliveriesParamsStatus) Valid() bool {
 	switch e {
-	case ListProjectEventDeliveriesParamsStatusDelivered:
+	case Delivered:
 		return true
-	case ListProjectEventDeliveriesParamsStatusFailed:
+	case Failed:
 		return true
-	case ListProjectEventDeliveriesParamsStatusPending:
+	case Pending:
 		return true
-	case ListProjectEventDeliveriesParamsStatusSkipped:
+	case Skipped:
 		return true
 	default:
 		return false
@@ -2182,27 +2041,6 @@ const (
 func (e UpsertProjectMCPProxyParamsIfNoneMatch) Valid() bool {
 	switch e {
 	case Asterisk:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GetShadowInventoryTemplateParamsFormat.
-const (
-	Csv  GetShadowInventoryTemplateParamsFormat = "csv"
-	Json GetShadowInventoryTemplateParamsFormat = "json"
-	Xlsx GetShadowInventoryTemplateParamsFormat = "xlsx"
-)
-
-// Valid indicates whether the value is a known member of the GetShadowInventoryTemplateParamsFormat enum.
-func (e GetShadowInventoryTemplateParamsFormat) Valid() bool {
-	switch e {
-	case Csv:
-		return true
-	case Json:
-		return true
-	case Xlsx:
 		return true
 	default:
 		return false
@@ -2687,123 +2525,6 @@ type AgentRegenerateSecretResponse struct {
 	WorkloadRefreshWarning *string `json:"workloadRefreshWarning,omitempty"`
 }
 
-// AgentRegistryA2ASkill defines model for AgentRegistryA2ASkill.
-type AgentRegistryA2ASkill struct {
-	Description *string   `json:"description,omitempty"`
-	Id          string    `json:"id"`
-	Name        string    `json:"name"`
-	Tags        *[]string `json:"tags,omitempty"`
-}
-
-// AgentRegistryCreatedBy The user who created the agent, from the requester recorded on its AgentID. Omitted when it could not be resolved.
-type AgentRegistryCreatedBy struct {
-	DisplayName string `json:"displayName"`
-	Id          string `json:"id"`
-}
-
-// AgentRegistryEnvironment The agent in one environment.
-type AgentRegistryEnvironment struct {
-	DeploymentStatus AgentRegistryEnvironmentDeploymentStatus `json:"deploymentStatus"`
-	DisplayName      string                                   `json:"displayName"`
-
-	// Governance The agent's governance in one environment, read from existing config. Returned on the single-agent view (GET agent with `view=registry`) only.
-	Governance   *AgentRegistryGovernance `json:"governance,omitempty"`
-	IsProduction bool                     `json:"isProduction"`
-
-	// LastDeployedAt Absent when the agent was never deployed here.
-	LastDeployedAt *time.Time                 `json:"lastDeployedAt,omitempty"`
-	LlmProviders   []AgentRegistryResourceRef `json:"llmProviders"`
-	McpServers     []AgentRegistryResourceRef `json:"mcpServers"`
-	Name           string                     `json:"name"`
-}
-
-// AgentRegistryEnvironmentDeploymentStatus defines model for AgentRegistryEnvironment.DeploymentStatus.
-type AgentRegistryEnvironmentDeploymentStatus string
-
-// AgentRegistryGovernance The agent's governance in one environment, read from existing config. Returned on the single-agent view (GET agent with `view=registry`) only.
-type AgentRegistryGovernance struct {
-	// A2aSkills The skills on the agent's stored A2A card here; absent when there is no card.
-	A2aSkills *[]AgentRegistryA2ASkill `json:"a2aSkills,omitempty"`
-
-	// AgentIdStatus The agent's AgentID here; absent when none was requested.
-	AgentIdStatus *AgentRegistryGovernanceAgentIdStatus `json:"agentIdStatus,omitempty"`
-
-	// InboundSecurity Who may call the agent here, from the security on its endpoint.
-	InboundSecurity *AgentRegistryInboundSecurity `json:"inboundSecurity,omitempty"`
-
-	// LlmConfigurations The agent's LLM configurations here, each with its provider and guardrails.
-	LlmConfigurations []AgentRegistryLLMConfiguration `json:"llmConfigurations"`
-	Monitors          []AgentRegistryMonitor          `json:"monitors"`
-}
-
-// AgentRegistryGovernanceAgentIdStatus The agent's AgentID here; absent when none was requested.
-type AgentRegistryGovernanceAgentIdStatus string
-
-// AgentRegistryInboundSecurity Who may call the agent here, from the security on its endpoint.
-type AgentRegistryInboundSecurity struct {
-	ApiKey bool `json:"apiKey"`
-	Oauth  bool `json:"oauth"`
-}
-
-// AgentRegistryLLMConfiguration One of the agent's LLM configurations in one environment.
-type AgentRegistryLLMConfiguration struct {
-	// Guardrails Names of the guardrail policies that apply: those on this configuration and those on its provider.
-	Guardrails []string `json:"guardrails"`
-
-	// Name The configuration's name, as the agent's Configure page lists it.
-	Name string `json:"name"`
-
-	// Provider An LLM provider or MCP server the agent can reach.
-	Provider AgentRegistryResourceRef `json:"provider"`
-}
-
-// AgentRegistryMonitor defines model for AgentRegistryMonitor.
-type AgentRegistryMonitor struct {
-	DisplayName string `json:"displayName"`
-	Name        string `json:"name"`
-	Status      string `json:"status"`
-}
-
-// AgentRegistryRecord The agent's org-level registry record, returned only with `view=registry`. Read from existing data: the agent's component, its AgentID record and its configurations.
-type AgentRegistryRecord struct {
-	CreatedAt time.Time `json:"createdAt"`
-
-	// CreatedBy The user who created the agent, from the requester recorded on its AgentID. Omitted when it could not be resolved.
-	CreatedBy   *AgentRegistryCreatedBy `json:"createdBy,omitempty"`
-	Description *string                 `json:"description,omitempty"`
-
-	// Environments The environments of the agent's project pipeline, in pipeline order.
-	Environments []AgentRegistryEnvironment `json:"environments"`
-
-	// Hosting Built and deployed by the platform, or registered from outside.
-	Hosting AgentRegistryRecordHosting `json:"hosting"`
-
-	// Interface How callers talk to the agent; absent when not recorded.
-	Interface *AgentRegistryRecordInterface `json:"interface,omitempty"`
-
-	// KindName The Agent Kind it was created from; absent for source-built agents.
-	KindName    *string `json:"kindName,omitempty"`
-	KindVersion *string `json:"kindVersion,omitempty"`
-
-	// Labels User-defined key/value labels. Keys are 1-63 characters of [a-zA-Z0-9._-] starting and ending alphanumeric (not enforceable here as an OpenAPI 3.0 property-name pattern — validated server-side); values follow the same rules but may be empty. At most 10 labels per resource.
-	Labels Labels `json:"labels"`
-}
-
-// AgentRegistryRecordHosting Built and deployed by the platform, or registered from outside.
-type AgentRegistryRecordHosting string
-
-// AgentRegistryRecordInterface How callers talk to the agent; absent when not recorded.
-type AgentRegistryRecordInterface string
-
-// AgentRegistryResourceRef An LLM provider or MCP server the agent can reach.
-type AgentRegistryResourceRef struct {
-	DisplayName string `json:"displayName"`
-	Id          string `json:"id"`
-
-	// Tools MCP servers on the single-agent view only: every tool discovered on the server.
-	Tools *[]string `json:"tools,omitempty"`
-}
-
 // AgentResourceConfigsResponse defines model for AgentResourceConfigsResponse.
 type AgentResourceConfigsResponse struct {
 	AutoScaling *AutoScalingConfig `json:"autoScaling,omitempty"`
@@ -2846,9 +2567,6 @@ type AgentResponse struct {
 	ProjectName  string       `json:"projectName"`
 	Provisioning Provisioning `json:"provisioning"`
 
-	// Registry The agent's org-level registry record, returned only with `view=registry`. Read from existing data: the agent's component, its AgentID record and its configurations.
-	Registry *AgentRegistryRecord `json:"registry,omitempty"`
-
 	// Status Current status of the agent
 	Status *string `json:"status,omitempty"`
 	Uuid   string  `json:"uuid"`
@@ -2874,9 +2592,6 @@ type AgentSummary struct {
 	Name               string `json:"name"`
 	ProjectDisplayName string `json:"projectDisplayName"`
 	ProjectName        string `json:"projectName"`
-
-	// Registry The agent's org-level registry record, returned only with `view=registry`. Read from existing data: the agent's component, its AgentID record and its configurations.
-	Registry *AgentRegistryRecord `json:"registry,omitempty"`
 }
 
 // AgentSummaryListResponse defines model for AgentSummaryListResponse.
@@ -6964,11 +6679,8 @@ type ShadowConnectionResponse struct {
 	Id               openapi_types.UUID    `json:"id"`
 	LastTest         *ShadowConnectionTest `json:"lastTest,omitempty"`
 	LastTestedAt     *time.Time            `json:"lastTestedAt,omitempty"`
-
-	// LastUploadAt For a Bring your own inventory connection, when a file was last uploaded and saved. Absent for other connections and before the first upload.
-	LastUploadAt *time.Time `json:"lastUploadAt,omitempty"`
-	Name         string     `json:"name"`
-	Provider     string     `json:"provider"`
+	Name             string                `json:"name"`
+	Provider         string                `json:"provider"`
 
 	// SecretHints A redacted hint per stored secret field (e.g. "sk-a…wxyz"); values are never returned.
 	SecretHints map[string]string `json:"secretHints"`
@@ -7063,7 +6775,7 @@ type ShadowFindingDetail struct {
 	// FoundBy Every connection that found this agent.
 	FoundBy []ShadowFindingSource `json:"foundBy"`
 
-	// Hidden The onboarded agent was removed from the unmanaged agents list. The list leaves it out; it can still be opened by its ID.
+	// Hidden The onboarded agent was removed from the Unregistered Agents list. The list leaves it out; it can still be opened by its ID.
 	Hidden bool               `json:"hidden"`
 	Id     openapi_types.UUID `json:"id"`
 
@@ -7113,7 +6825,7 @@ type ShadowFindingDetailKind string
 
 // ShadowFindingHiddenRequest defines model for ShadowFindingHiddenRequest.
 type ShadowFindingHiddenRequest struct {
-	// Hidden true removes the onboarded agent from the unmanaged agents list; false puts it back.
+	// Hidden true removes the onboarded agent from the Unregistered Agents list; false puts it back.
 	Hidden bool `json:"hidden"`
 }
 
@@ -7165,7 +6877,7 @@ type ShadowFindingSummary struct {
 	// FoundBy Every connection that found this agent.
 	FoundBy []ShadowFindingSource `json:"foundBy"`
 
-	// Hidden The onboarded agent was removed from the unmanaged agents list. The list leaves it out; it can still be opened by its ID.
+	// Hidden The onboarded agent was removed from the Unregistered Agents list. The list leaves it out; it can still be opened by its ID.
 	Hidden bool               `json:"hidden"`
 	Id     openapi_types.UUID `json:"id"`
 
@@ -7203,50 +6915,6 @@ type ShadowFindingSummary struct {
 
 // ShadowFindingSummaryKind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists; code_agent is an agent found in a repository's source code by the source code scan.
 type ShadowFindingSummaryKind string
-
-// ShadowInventoryField defines model for ShadowInventoryField.
-type ShadowInventoryField struct {
-	Description string `json:"description"`
-
-	// Example An example value as it is written in a CSV or Excel cell.
-	Example string `json:"example"`
-
-	// Name The exact column name (CSV and Excel) and JSON key.
-	Name     string `json:"name"`
-	Required bool   `json:"required"`
-}
-
-// ShadowInventoryProblem defines model for ShadowInventoryProblem.
-type ShadowInventoryProblem struct {
-	// LeftOut True when the problem left the agent out; false when the agent was saved without the value the message names.
-	LeftOut bool   `json:"leftOut"`
-	Message string `json:"message"`
-
-	// Row For CSV and Excel, the spreadsheet row number (the header is row 1, the first agent row 2); for JSON, the 1-based position in the agents array.
-	Row int32 `json:"row"`
-}
-
-// ShadowInventoryUploadResponse defines model for ShadowInventoryUploadResponse.
-type ShadowInventoryUploadResponse struct {
-	// AgentsRead The agent rows or objects in the file.
-	AgentsRead int32 `json:"agentsRead"`
-
-	// AgentsSaved The distinct agents saved.
-	AgentsSaved int32 `json:"agentsSaved"`
-
-	// IgnoredColumns Columns or keys that are not in the format, sorted (at most 100). They are ignored and never stored.
-	IgnoredColumns []string `json:"ignoredColumns"`
-
-	// LeftOut The rows or objects left out, because they were invalid or repeated an id.
-	LeftOut int32 `json:"leftOut"`
-
-	// ProblemCount Every problem found in the file, including those beyond the first 50.
-	ProblemCount int32 `json:"problemCount"`
-
-	// Problems The first 50 problems found in the file, in file order.
-	Problems []ShadowInventoryProblem `json:"problems"`
-	Scan     ShadowScanResponse       `json:"scan"`
-}
 
 // ShadowOnboardingRequest defines model for ShadowOnboardingRequest.
 type ShadowOnboardingRequest struct {
@@ -7294,6 +6962,9 @@ type ShadowProviderListResponse struct {
 
 // ShadowProviderSpec defines model for ShadowProviderSpec.
 type ShadowProviderSpec struct {
+	// ApiContract The OpenAPI document (YAML) of the agent inventory API the customer implements for Bring your own inventory; the console offers it for download.
+	ApiContract *string `json:"apiContract,omitempty"`
+
 	// Capabilities What a scan lists, and the fields or options each capability needs.
 	Capabilities []ShadowCapabilitySpec `json:"capabilities"`
 
@@ -7304,12 +6975,6 @@ type ShadowProviderSpec struct {
 	Docs             []string                `json:"docs"`
 	Endpoints        []ShadowEndpointSpec    `json:"endpoints"`
 	Fields           []ShadowFieldSpec       `json:"fields"`
-
-	// FileUpload The platform's agents come from uploaded inventory files (Bring your own inventory): its connection holds no credential, and no cloud scan or Run scan reads it.
-	FileUpload *bool `json:"fileUpload,omitempty"`
-
-	// InventoryFields The inventory file format of a fileUpload platform, in column order: each field's exact column name (CSV and Excel) and JSON key.
-	InventoryFields *[]ShadowInventoryField `json:"inventoryFields,omitempty"`
 
 	// NotListed What a scan of the platform never reads or lists.
 	NotListed   *[]string                  `json:"notListed,omitempty"`
@@ -7331,9 +6996,6 @@ type ShadowRunnerScanRequest struct {
 	// AiReview Matches the rules cannot prove go to the customer's LLM for review.
 	AiReview bool `json:"aiReview"`
 
-	// DirectUpload Issue a scan token so the scan command can publish its results itself. Without it no token is issued, and the results file is uploaded from the console.
-	DirectUpload *bool `json:"directUpload,omitempty"`
-
 	// LlmJudge A second model must confirm the reviewer. Only with aiReview.
 	LlmJudge bool `json:"llmJudge"`
 }
@@ -7344,15 +7006,15 @@ type ShadowRunnerScanResponse struct {
 	// AmpUrl The Agent Manager address the scan command publishes to.
 	AmpUrl string `json:"ampUrl"`
 
-	// ExpiresAt When the scan token expires. Only with directUpload.
-	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+	// ExpiresAt When the scan token expires.
+	ExpiresAt time.Time `json:"expiresAt"`
 
 	// Image The scan command's container image.
 	Image  string             `json:"image"`
 	ScanId openapi_types.UUID `json:"scanId"`
 
-	// Token The scan token the command publishes its results with. Only with directUpload.
-	Token *string `json:"token,omitempty"`
+	// Token The scan token the command publishes its results with.
+	Token string `json:"token"`
 }
 
 // ShadowScanCallResult defines model for ShadowScanCallResult.
@@ -7381,25 +7043,12 @@ type ShadowScanConnectionResult struct {
 	// FailedRepositories The repositories a source code scan command could not scan. Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
 	FailedRepositories *[]ShadowScanFailedRepository `json:"failedRepositories,omitempty"`
 	FindingsCount      int                           `json:"findingsCount"`
-
-	// FinishedAt When this connection ended. Cloud scans only; a connection cancelled while it ran has none.
-	FinishedAt *time.Time `json:"finishedAt,omitempty"`
-	Message    *string    `json:"message,omitempty"`
-
-	// Outcome The connection's outcome. While the scan runs: queued (not started
-	// yet; connectionName and provider are empty) or running (calls lists
-	// the calls made so far). When the connection ends: ok, partial,
-	// failed, auth_failed or skipped.
-	Outcome string `json:"outcome"`
-
-	// Provider Empty while the connection is queued.
-	Provider string `json:"provider"`
+	Message            *string                       `json:"message,omitempty"`
+	Outcome            string                        `json:"outcome"`
+	Provider           string                        `json:"provider"`
 
 	// ScannedRepositories The repositories a source code scan command scanned (GitHub repository names). Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
 	ScannedRepositories *[]string `json:"scannedRepositories,omitempty"`
-
-	// StartedAt When the scan worker started this connection. Cloud scans only.
-	StartedAt *time.Time `json:"startedAt,omitempty"`
 }
 
 // ShadowScanFailedRepository defines model for ShadowScanFailedRepository.
@@ -7418,9 +7067,6 @@ type ShadowScanListResponse struct {
 type ShadowScanOptions struct {
 	// AiReview Matches the rules cannot prove go to the customer's LLM for review.
 	AiReview *bool `json:"aiReview,omitempty"`
-
-	// DirectUpload The scan command was given a scan token to publish its results with.
-	DirectUpload *bool `json:"directUpload,omitempty"`
 
 	// LlmJudge A second model must confirm the reviewer. Only with aiReview.
 	LlmJudge *bool `json:"llmJudge,omitempty"`
@@ -7442,78 +7088,18 @@ type ShadowScanResponse struct {
 	FinishedAt    *time.Time         `json:"finishedAt,omitempty"`
 	Id            openapi_types.UUID `json:"id"`
 
-	// InventoryUpload True for a scan created by uploading a Bring your own inventory file. Such scans are finished when created and are never the summary's latestScan.
-	InventoryUpload bool `json:"inventoryUpload"`
-
 	// Options The choices made in Generate command for a source code scan. Cloud scans have none.
 	Options     *ShadowScanOptions           `json:"options,omitempty"`
 	RequestedBy string                       `json:"requestedBy"`
 	Results     []ShadowScanConnectionResult `json:"results"`
 	StartedAt   *time.Time                   `json:"startedAt,omitempty"`
 
-	// Status pending: a source code scan waiting for its results, until they are published or uploaded or the scan is cancelled; queued and running: a cloud scan in progress.
+	// Status pending: a source code scan waiting for its scan command to publish results (it fails after 1 hour without them); queued and running: a cloud scan in progress.
 	Status ShadowScanResponseStatus `json:"status"`
 }
 
-// ShadowScanResponseStatus pending: a source code scan waiting for its results, until they are published or uploaded or the scan is cancelled; queued and running: a cloud scan in progress.
+// ShadowScanResponseStatus pending: a source code scan waiting for its scan command to publish results (it fails after 1 hour without them); queued and running: a cloud scan in progress.
 type ShadowScanResponseStatus string
-
-// ShadowScanResultsAgent defines model for ShadowScanResultsAgent.
-type ShadowScanResultsAgent struct {
-	// Attributes Allow-listed attributes; reviewedBy (rules, ai_review or ai_review_judge) is required.
-	Attributes map[string]interface{}      `json:"attributes"`
-	Evidence   []ShadowScanResultsEvidence `json:"evidence"`
-
-	// ExternalId The command's stable ID of the agent.
-	ExternalId string `json:"externalId"`
-	Name       string `json:"name"`
-
-	// Repository The repository the agent is in.
-	Repository string `json:"repository"`
-}
-
-// ShadowScanResultsEvidence defines model for ShadowScanResultsEvidence.
-type ShadowScanResultsEvidence struct {
-	// Code An evidence code of the platform's provider, such as github.d1_agent_dependency.
-	Code     string                 `json:"code"`
-	Observed map[string]interface{} `json:"observed"`
-
-	// Source The file the evidence was found in.
-	Source string `json:"source"`
-}
-
-// ShadowScanResultsFailedRepository defines model for ShadowScanResultsFailedRepository.
-type ShadowScanResultsFailedRepository struct {
-	Name   string `json:"name"`
-	Reason string `json:"reason"`
-}
-
-// ShadowScanResultsRequest The results of a source code scan: the results object of the results
-// file the scan command saves, exactly as the command publishes it.
-type ShadowScanResultsRequest struct {
-	// Agents The confirmed code agents.
-	Agents []ShadowScanResultsAgent `json:"agents"`
-
-	// Complete The command listed every repository the platform's settings name.
-	Complete bool `json:"complete"`
-
-	// FailedRepositories The repositories the command could not scan.
-	FailedRepositories []ShadowScanResultsFailedRepository `json:"failedRepositories"`
-
-	// ScannedRepositories The repositories scanned to the end.
-	ScannedRepositories []string `json:"scannedRepositories"`
-}
-
-// ShadowScanResultsResponse defines model for ShadowScanResultsResponse.
-type ShadowScanResultsResponse struct {
-	// FindingsCount Agents saved.
-	FindingsCount int                             `json:"findingsCount"`
-	ScanId        openapi_types.UUID              `json:"scanId"`
-	Status        ShadowScanResultsResponseStatus `json:"status"`
-}
-
-// ShadowScanResultsResponseStatus defines model for ShadowScanResultsResponse.Status.
-type ShadowScanResultsResponseStatus string
 
 // ShadowSignalDefinition One kind of evidence that a platform lists an agent.
 type ShadowSignalDefinition struct {
@@ -8197,15 +7783,6 @@ type ListAgentKindsParams struct {
 	Label *[]string `form:"label,omitempty" json:"label,omitempty"`
 }
 
-// ListOrgAgentsParams defines parameters for ListOrgAgents.
-type ListOrgAgentsParams struct {
-	// View `registry` adds each agent's registry record. Leave it out for the lightweight list.
-	View *ListOrgAgentsParamsView `form:"view,omitempty" json:"view,omitempty"`
-}
-
-// ListOrgAgentsParamsView defines parameters for ListOrgAgents.
-type ListOrgAgentsParamsView string
-
 // ListCatalogResourcesParams defines parameters for ListCatalogResources.
 type ListCatalogResourcesParams struct {
 	// Kind Filter by resource type
@@ -8470,15 +8047,6 @@ type ListAgentsParams struct {
 	// Label Filter by label as key:value. Repeat the parameter to require multiple labels (AND semantics).
 	Label *[]string `form:"label,omitempty" json:"label,omitempty"`
 }
-
-// GetAgentParams defines parameters for GetAgent.
-type GetAgentParams struct {
-	// View `registry` adds the agent's registry record, with its governance in each environment, for the org-level agent overview. Leave it out for the agent details alone.
-	View *GetAgentParamsView `form:"view,omitempty" json:"view,omitempty"`
-}
-
-// GetAgentParamsView defines parameters for GetAgent.
-type GetAgentParamsView string
 
 // GetAgentBuildsParams defines parameters for GetAgentBuilds.
 type GetAgentBuildsParams struct {
@@ -8848,12 +8416,6 @@ type ListSelfHostedGatewaysParams struct {
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
-// UploadShadowInventoryMultipartBody defines parameters for UploadShadowInventory.
-type UploadShadowInventoryMultipartBody struct {
-	// File The inventory file, with its file name
-	File openapi_types.File `json:"file"`
-}
-
 // ListShadowFindingsParams defines parameters for ListShadowFindings.
 type ListShadowFindingsParams struct {
 	// Provider Filter by platform
@@ -8873,15 +8435,6 @@ type ListShadowFindingsParams struct {
 	Limit  *int    `form:"limit,omitempty" json:"limit,omitempty"`
 	Offset *int    `form:"offset,omitempty" json:"offset,omitempty"`
 }
-
-// GetShadowInventoryTemplateParams defines parameters for GetShadowInventoryTemplate.
-type GetShadowInventoryTemplateParams struct {
-	// Format The file format
-	Format GetShadowInventoryTemplateParamsFormat `form:"format" json:"format"`
-}
-
-// GetShadowInventoryTemplateParamsFormat defines parameters for GetShadowInventoryTemplate.
-type GetShadowInventoryTemplateParamsFormat string
 
 // ListShadowScansParams defines parameters for ListShadowScans.
 type ListShadowScansParams struct {
@@ -9197,9 +8750,6 @@ type CreateShadowConnectionJSONRequestBody = ShadowConnectionRequest
 // UpdateShadowConnectionJSONRequestBody defines body for UpdateShadowConnection for application/json ContentType.
 type UpdateShadowConnectionJSONRequestBody = ShadowConnectionRequest
 
-// UploadShadowInventoryMultipartRequestBody defines body for UploadShadowInventory for multipart/form-data ContentType.
-type UploadShadowInventoryMultipartRequestBody UploadShadowInventoryMultipartBody
-
 // CreateShadowRunnerScanJSONRequestBody defines body for CreateShadowRunnerScan for application/json ContentType.
 type CreateShadowRunnerScanJSONRequestBody = ShadowRunnerScanRequest
 
@@ -9211,9 +8761,6 @@ type OnboardShadowFindingJSONRequestBody = ShadowOnboardingRequest
 
 // CreateShadowScanJSONRequestBody defines body for CreateShadowScan for application/json ContentType.
 type CreateShadowScanJSONRequestBody = ShadowScanRequest
-
-// UploadShadowScanResultsJSONRequestBody defines body for UploadShadowScanResults for application/json ContentType.
-type UploadShadowScanResultsJSONRequestBody = ShadowScanResultsRequest
 
 // GetNameByDisplayNameJSONRequestBody defines body for GetNameByDisplayName for application/json ContentType.
 type GetNameByDisplayNameJSONRequestBody = ResourceNameRequest

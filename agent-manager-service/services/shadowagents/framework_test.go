@@ -99,18 +99,11 @@ func TestCatalogIsConsistent(t *testing.T) {
 	}
 	for _, p := range Providers() {
 		assert.True(t, providers[p.Provider], p.Provider)
-		// Bring your own inventory calls nothing and holds no credential: it
-		// has no endpoint and no permission.
-		if p.FileUpload {
-			assert.Empty(t, p.Endpoints, p.Provider)
-			assert.Empty(t, p.Fields, p.Provider)
-			assert.Empty(t, p.Permissions, p.Provider)
-			assert.NotEmpty(t, p.InventoryFields, p.Provider)
-			assert.False(t, p.CloudScanned(), p.Provider)
-		} else {
+		// A Custom platform has no official endpoint: its Agents URL is a field.
+		if p.Provider != models.ShadowProviderCustom {
 			assert.NotEmpty(t, p.Endpoints, p.Provider)
-			assert.NotEmpty(t, p.Permissions, p.Provider)
 		}
+		assert.NotEmpty(t, p.Permissions, p.Provider)
 		fields := map[string]FieldSpec{}
 		for _, f := range p.Fields {
 			assert.NotContains(t, fields, f.Key, "%s: duplicate field %s", p.Provider, f.Key)

@@ -32,9 +32,6 @@ func registerShadowAgentRoutes(rr *middleware.RouteRegistrar, controller control
 	base := "/orgs/{orgName}/shadow-agents"
 	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/providers"), rbac.ShadowAgentRead, controller.ListProviders)
 	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/summary"), rbac.ShadowAgentRead, controller.GetSummary)
-	// A Bring your own inventory file template: the same permission as the
-	// provider catalog that describes the format.
-	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/inventory/template"), rbac.ShadowAgentRead, controller.GetInventoryTemplate)
 
 	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/connections"), rbac.ShadowAgentRead, controller.ListConnections)
 	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/connections"), rbac.ShadowAgentManage, controller.CreateConnection)
@@ -43,9 +40,6 @@ func registerShadowAgentRoutes(rr *middleware.RouteRegistrar, controller control
 	rr.HandleFuncWithValidationAndAuthz(route("DELETE", base+"/connections/{connectionId}"), rbac.ShadowAgentManage, controller.DeleteConnection)
 	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/connections/{connectionId}/test"), rbac.ShadowAgentManage, controller.TestConnection)
 	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/connections/{connectionId}/runner-scans"), rbac.ShadowAgentManage, controller.CreateRunnerScan)
-	// A Bring your own inventory file, uploaded by a signed-in user: the same
-	// permission as uploading a source code scan's results file.
-	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/connections/{connectionId}/inventory"), rbac.ShadowAgentManage, controller.UploadInventory)
 
 	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/scans"), rbac.ShadowAgentRead, controller.ListScans)
 	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/scans"), rbac.ShadowAgentManage, controller.CreateScan)

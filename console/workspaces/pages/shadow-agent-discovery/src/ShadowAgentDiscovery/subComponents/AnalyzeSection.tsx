@@ -27,7 +27,14 @@ import {
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
-import { CheckCircle, CircleSlash, ListChecks, XCircle } from "@wso2/oxygen-ui-icons-react";
+import {
+  CheckCircle,
+  CircleSlash,
+  Download,
+  ListChecks,
+  XCircle,
+} from "@wso2/oxygen-ui-icons-react";
+import { downloadContract } from "./ConnectionEditor";
 import type { CapabilityStatus } from "../capabilities";
 
 function CapabilityRow({ status }: { status: CapabilityStatus }) {
@@ -87,12 +94,18 @@ export function AnalyzeSection({
   providerName,
   statuses,
   notListed = [],
+  setupSteps = [],
+  apiContract,
   sourceHost = false,
 }: {
   providerName: string;
   statuses: CapabilityStatus[];
   /** What a scan of the platform never reads or lists. */
   notListed?: string[];
+  /** The steps to make the platform listable (Custom platform), shown first. */
+  setupSteps?: string[];
+  /** The OpenAPI contract to implement (Custom platform), offered for download. */
+  apiContract?: string;
   /** GitHub: what the scan command looks for in the repositories. */
   sourceHost?: boolean;
 }) {
@@ -122,7 +135,38 @@ export function AnalyzeSection({
           <DialogTitle>What Agent Manager lists</DialogTitle>
           <DialogContent>
             <Stack spacing={2.5}>
-              <Typography variant="body2" color="text.secondary">
+              {setupSteps.length > 0 && (
+                <Box>
+                  <Typography variant="subtitle2">How to set it up</Typography>
+                  <Stack component="ol" spacing={1} sx={{ m: 0, mt: 1, pl: 2.5 }}>
+                    {setupSteps.map((step) => (
+                      <Typography key={step} component="li" variant="body2" color="text.secondary">
+                        {step}
+                      </Typography>
+                    ))}
+                  </Stack>
+                  {apiContract && (
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<Download size={16} />}
+                      onClick={() => downloadContract(apiContract)}
+                      sx={{ mt: 1.5 }}
+                    >
+                      Download contract
+                    </Button>
+                  )}
+                </Box>
+              )}
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={
+                  setupSteps.length > 0
+                    ? { borderTop: 1, borderColor: "divider", pt: 2 }
+                    : undefined
+                }
+              >
                 A scan makes only these read-only calls to {providerName}.
               </Typography>
               <Stack spacing={1.75}>

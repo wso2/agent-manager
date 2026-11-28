@@ -35,10 +35,8 @@ type ShadowProviderSpec struct {
 	NotListed []string `json:"notListed,omitempty"`
 	// The steps to make the platform listable (Bring your own inventory), shown with what it lists.
 	SetupSteps []string `json:"setupSteps,omitempty"`
-	// The platform's agents come from uploaded inventory files (Bring your own inventory): its connection holds no credential, and no cloud scan or Run scan reads it.
-	FileUpload *bool `json:"fileUpload,omitempty"`
-	// The inventory file format of a fileUpload platform, in column order: each field's exact column name (CSV and Excel) and JSON key.
-	InventoryFields []ShadowInventoryField `json:"inventoryFields,omitempty"`
+	// The OpenAPI document (YAML) of the agent inventory API the customer implements for Bring your own inventory; the console offers it for download.
+	ApiContract *string `json:"apiContract,omitempty"`
 }
 
 // NewShadowProviderSpec instantiates a new ShadowProviderSpec object
@@ -386,68 +384,36 @@ func (o *ShadowProviderSpec) SetSetupSteps(v []string) {
 	o.SetupSteps = v
 }
 
-// GetFileUpload returns the FileUpload field value if set, zero value otherwise.
-func (o *ShadowProviderSpec) GetFileUpload() bool {
-	if o == nil || IsNil(o.FileUpload) {
-		var ret bool
+// GetApiContract returns the ApiContract field value if set, zero value otherwise.
+func (o *ShadowProviderSpec) GetApiContract() string {
+	if o == nil || IsNil(o.ApiContract) {
+		var ret string
 		return ret
 	}
-	return *o.FileUpload
+	return *o.ApiContract
 }
 
-// GetFileUploadOk returns a tuple with the FileUpload field value if set, nil otherwise
+// GetApiContractOk returns a tuple with the ApiContract field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *ShadowProviderSpec) GetFileUploadOk() (*bool, bool) {
-	if o == nil || IsNil(o.FileUpload) {
+func (o *ShadowProviderSpec) GetApiContractOk() (*string, bool) {
+	if o == nil || IsNil(o.ApiContract) {
 		return nil, false
 	}
-	return o.FileUpload, true
+	return o.ApiContract, true
 }
 
-// HasFileUpload returns a boolean if a field has been set.
-func (o *ShadowProviderSpec) HasFileUpload() bool {
-	if o != nil && !IsNil(o.FileUpload) {
+// HasApiContract returns a boolean if a field has been set.
+func (o *ShadowProviderSpec) HasApiContract() bool {
+	if o != nil && !IsNil(o.ApiContract) {
 		return true
 	}
 
 	return false
 }
 
-// SetFileUpload gets a reference to the given bool and assigns it to the FileUpload field.
-func (o *ShadowProviderSpec) SetFileUpload(v bool) {
-	o.FileUpload = &v
-}
-
-// GetInventoryFields returns the InventoryFields field value if set, zero value otherwise.
-func (o *ShadowProviderSpec) GetInventoryFields() []ShadowInventoryField {
-	if o == nil || IsNil(o.InventoryFields) {
-		var ret []ShadowInventoryField
-		return ret
-	}
-	return o.InventoryFields
-}
-
-// GetInventoryFieldsOk returns a tuple with the InventoryFields field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *ShadowProviderSpec) GetInventoryFieldsOk() ([]ShadowInventoryField, bool) {
-	if o == nil || IsNil(o.InventoryFields) {
-		return nil, false
-	}
-	return o.InventoryFields, true
-}
-
-// HasInventoryFields returns a boolean if a field has been set.
-func (o *ShadowProviderSpec) HasInventoryFields() bool {
-	if o != nil && !IsNil(o.InventoryFields) {
-		return true
-	}
-
-	return false
-}
-
-// SetInventoryFields gets a reference to the given []ShadowInventoryField and assigns it to the InventoryFields field.
-func (o *ShadowProviderSpec) SetInventoryFields(v []ShadowInventoryField) {
-	o.InventoryFields = v
+// SetApiContract gets a reference to the given string and assigns it to the ApiContract field.
+func (o *ShadowProviderSpec) SetApiContract(v string) {
+	o.ApiContract = &v
 }
 
 func (o ShadowProviderSpec) MarshalJSON() ([]byte, error) {
@@ -480,11 +446,8 @@ func (o ShadowProviderSpec) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.SetupSteps) {
 		toSerialize["setupSteps"] = o.SetupSteps
 	}
-	if !IsNil(o.FileUpload) {
-		toSerialize["fileUpload"] = o.FileUpload
-	}
-	if !IsNil(o.InventoryFields) {
-		toSerialize["inventoryFields"] = o.InventoryFields
+	if !IsNil(o.ApiContract) {
+		toSerialize["apiContract"] = o.ApiContract
 	}
 	return toSerialize, nil
 }

@@ -36,7 +36,6 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import {
-  FileUp,
   Pencil,
   PlugZap,
   Plus,
@@ -68,8 +67,7 @@ import type {
   ShadowScanResponse,
 } from "@agent-management-platform/types";
 import {
-  FILE_UPLOAD_SOURCES,
-  latestCloudScan,
+  CUSTOM_PLATFORM,
   OutcomeChip,
   providerLabel,
   SOURCE_HOSTS,
@@ -79,7 +77,6 @@ import {
 import { scopedKeyCount } from "../capabilities";
 import { ProviderLogo } from "../providerLogos";
 import { GenerateCommandDialog } from "./GenerateCommandDialog";
-import { InventoryUploadDialog } from "./InventoryUploadDialog";
 import { RunScanButton } from "./RunScanButton";
 import { scanFindingsPath } from "./ScansTab";
 import { isCancelledScan, progressLine } from "./ScanProgress";
@@ -228,15 +225,13 @@ interface ConnectionsTabProps {
 }
 
 /**
- * The sources, in three sections: the AI platforms Agent Manager scans (how
- * their last test went, and a Scan action to scan one on its own), the source
- * code repositories a scan command scans on the customer's machine, and the
- * Bring your own inventory sources whose agents come from uploaded files.
+ * The platforms, in two sections: the AI platforms Agent Manager scans (how
+ * their last test went, and a Scan action to scan one on its own), and the
+ * source code repositories a scan command scans on the customer's machine.
  */
 export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: ConnectionsTabProps) {
   const [search, setSearch] = useState("");
   const [commandFor, setCommandFor] = useState<ShadowConnectionResponse | null>(null);
-  const [uploadFor, setUploadFor] = useState<ShadowConnectionResponse | null>(null);
   const [testResult, setTestResult] = useState<{
     name: string;
     result: ShadowConnectionTest;
@@ -246,7 +241,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
   const test = useTestShadowConnection(orgName);
   const scan = useStartShadowScan(orgName);
   const summary = useShadowSummary(orgName);
-  const latestScan = latestCloudScan(summary.data);
+  const latestScan = summary.data?.latestScan;
   const scanActive = isShadowScanActive(latestScan?.status);
   // A scan started or seen running on this tab: the notice follows it until it ends,
   // then says how it went. Until the summary catches up, it is the scan just started.
@@ -296,11 +291,12 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
   ) : undefined;
 
   const aiPlatforms = filtered.filter(
-    (c) => !SOURCE_HOSTS.includes(c.provider) && !FILE_UPLOAD_SOURCES.includes(c.provider),
+    (c) => !SOURCE_HOSTS.includes(c.provider) && c.provider !== CUSTOM_PLATFORM,
   );
-  const inventories = filtered.filter((c) => FILE_UPLOAD_SOURCES.includes(c.provider));
+  const customPlatforms = filtered.filter((c) => c.provider === CUSTOM_PLATFORM);
   const sourceHosts = filtered.filter((c) => SOURCE_HOSTS.includes(c.provider));
-  // Run scan sits with the connectors a scan calls: the AI platforms only.
+  // Run scan sits with the connectors a scan calls: the AI platforms, or Bring your
+  // own inventory when there is no AI platform. Never with the source code repositories.
   const runScan = canManage ? <RunScanButton orgName={orgName} /> : undefined;
 
   const handleDelete = (c: ShadowConnectionResponse) =>
@@ -308,9 +304,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
       title: `Delete ${c.name}?`,
       description: SOURCE_HOSTS.includes(c.provider)
         ? "Every agent found in these repositories is deleted from Agent Manager. The repositories are not changed."
-        : FILE_UPLOAD_SOURCES.includes(c.provider)
-          ? "Every agent from its uploaded files is deleted from Agent Manager."
-          : "The stored credential and every agent this connector found are deleted from Agent Manager. The platform account is not changed.",
+        : "The stored credential and every agent this connector found are deleted from Agent Manager. The platform account is not changed.",
       confirmButtonText: "Delete",
       confirmButtonColor: "error",
       onConfirm: () => remove.mutate(c.id),
@@ -319,7 +313,8 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
   const handleTest = (c: ShadowConnectionResponse) =>
     test.mutate(c.id, { onSuccess: (result) => setTestResult({ name: c.name, result }) });
 
-  // The table of AI platforms: Scan, Test connector, Edit and Delete on each row.
+  // The table of platforms a scan calls (AI platforms and Bring your own inventory):
+  // Scan, Test connector, Edit and Delete on each row.
   const cloudTable = (list: ShadowConnectionResponse[]) => (
       <ListingTable>
         <ListingTable.Head>
@@ -500,7 +495,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
           illustration: <PlugZap size={64} />,
           title: "No sources added",
           description:
-            "Connect an AI platform (OpenAI, Anthropic, Amazon Bedrock, Google Agent Platform, Microsoft Foundry) with a read-only credential, a GitHub organization to scan its source code, or upload a file that lists your agents with Bring your own inventory.",
+            "Connect an AI platform (OpenAI, Anthropic, Amazon Bedrock, Google Agent Platform, Microsoft Foundry) with a read-only credential, your own agent inventory with Bring your own inventory, or a GitHub organization to scan its source code.",
           action: addButton,
         }}
         searchEmptyState={{
@@ -619,96 +614,18 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
               </ListingTable>
             </Stack>
           )}
-          {inventories.length > 0 && (
+          {customPlatforms.length > 0 && (
             <Stack spacing={1.5}>
               <SectionHeading
                 title="Bring your own inventory"
-                description="Agents from the files you upload, in the Agent Manager format (JSON, CSV or Excel)."
+                description="Your own agent inventory APIs. Agent Manager calls each one's Agents URL with its API key when you run a scan."
+                action={aiPlatforms.length === 0 ? runScan : undefined}
               />
-              <ListingTable>
-                <ListingTable.Head>
-                  <ListingTable.Row>
-                    <ListingTable.Cell>Name</ListingTable.Cell>
-                    <ListingTable.Cell>Source</ListingTable.Cell>
-                    <ListingTable.Cell>Agents updated</ListingTable.Cell>
-                    <ListingTable.Cell>Created</ListingTable.Cell>
-                    <ListingTable.Cell align="right" />
-                  </ListingTable.Row>
-                </ListingTable.Head>
-                <ListingTable.Body>
-                  {inventories.map((c) => (
-                    <ListingTable.Row key={c.id}>
-                      <ListingTable.Cell>
-                        <Typography variant="body2" fontWeight={500}>
-                          {c.name}
-                        </Typography>
-                      </ListingTable.Cell>
-                      <ListingTable.Cell>
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          <ProviderLogo provider={c.provider} size={18} />
-                          <Typography variant="body2">{providerLabel(c.provider)}</Typography>
-                        </Stack>
-                      </ListingTable.Cell>
-                      <ListingTable.Cell>
-                        <Typography variant="body2" color="text.secondary">
-                          {c.lastUploadAt
-                            ? formatRelativeTime(c.lastUploadAt)
-                            : "No file uploaded yet"}
-                        </Typography>
-                      </ListingTable.Cell>
-                      <ListingTable.Cell>
-                        <Typography variant="body2" color="text.secondary">
-                          {formatRelativeTime(c.createdAt)}
-                        </Typography>
-                      </ListingTable.Cell>
-                      <ListingTable.Cell align="right">
-                        {canManage && (
-                          <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                            <Tooltip title="Upload file">
-                              <IconButton
-                                size="small"
-                                aria-label={`Upload a file to ${c.name}`}
-                                onClick={() => setUploadFor(c)}
-                              >
-                                <FileUp size={18} />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Edit">
-                              <IconButton
-                                size="small"
-                                aria-label={`Edit ${c.name}`}
-                                onClick={() => onEdit(c)}
-                              >
-                                <Pencil size={18} />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Delete">
-                              <IconButton
-                                size="small"
-                                aria-label={`Delete ${c.name}`}
-                                onClick={() => handleDelete(c)}
-                              >
-                                <Trash2 size={18} />
-                              </IconButton>
-                            </Tooltip>
-                          </Stack>
-                        )}
-                      </ListingTable.Cell>
-                    </ListingTable.Row>
-                  ))}
-                </ListingTable.Body>
-              </ListingTable>
+              {cloudTable(customPlatforms)}
             </Stack>
           )}
         </Stack>
       </ResourceListShell>
-
-      <InventoryUploadDialog
-        orgName={orgName}
-        target={uploadFor}
-        spec={providers.data?.providers.find((p) => p.provider === uploadFor?.provider)}
-        onClose={() => setUploadFor(null)}
-      />
 
       <GenerateCommandDialog
         orgName={orgName}

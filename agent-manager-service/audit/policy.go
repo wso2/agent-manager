@@ -239,7 +239,6 @@ var actionOverrides = map[string]Action{
 	"DELETE /orgs/{orgName}/shadow-agents/connections/{connectionId}":                                     "shadow-connection:delete",
 	"POST /orgs/{orgName}/shadow-agents/connections/{connectionId}/test":                                  "shadow-connection:test",
 	"POST /orgs/{orgName}/shadow-agents/connections/{connectionId}/runner-scans":                          "shadow-scan-token:issue",
-	"POST /orgs/{orgName}/shadow-agents/connections/{connectionId}/inventory":                             "shadow-inventory:upload",
 	"POST /orgs/{orgName}/shadow-agents/scans":                                                            "shadow-scan:create",
 	"DELETE /orgs/{orgName}/shadow-agents/scans":                                                          "shadow-scan:clear",
 	"POST /orgs/{orgName}/shadow-agents/scans/{scanId}/results":                                           "shadow-scan:publish",
