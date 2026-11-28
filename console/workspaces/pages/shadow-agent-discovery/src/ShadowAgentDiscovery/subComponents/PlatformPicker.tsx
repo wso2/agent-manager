@@ -27,7 +27,7 @@ import {
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
-import { KeyRound, Laptop } from "@wso2/oxygen-ui-icons-react";
+import { FileUp, KeyRound, Laptop } from "@wso2/oxygen-ui-icons-react";
 import type { ShadowProviderSpec } from "@agent-management-platform/types";
 import { ProviderLogoTile } from "../providerLogos";
 import { AGENT_PLATFORMS, CUSTOM_PLATFORM, DISCOVERS, selectCardSx } from "../shadowUi";
@@ -50,6 +50,11 @@ function PlatformCard({
 }) {
   const descriptionId = useId();
   const source = !!spec.sourceHost;
+  const tag = source
+    ? { icon: <Laptop size={14} />, label: "Runs on your machine" }
+    : spec.fileUpload
+      ? { icon: <FileUp size={14} />, label: "File upload" }
+      : { icon: <KeyRound size={14} />, label: "Read-only key" };
   return (
     <Card
       variant="outlined"
@@ -92,12 +97,7 @@ function PlatformCard({
             {DISCOVERS[spec.provider] ?? spec.description}
           </Typography>
           <Box sx={{ mt: "auto" }}>
-            <Chip
-              size="small"
-              variant="outlined"
-              icon={source ? <Laptop size={14} /> : <KeyRound size={14} />}
-              label={source ? "Runs on your machine" : "Read-only key"}
-            />
+            <Chip size="small" variant="outlined" icon={tag.icon} label={tag.label} />
           </Box>
         </CardContent>
       </CardActionArea>
@@ -121,7 +121,9 @@ export function PlatformPicker({
     {
       title: "AI platforms",
       description: "Lists the agents on the platform through its API, with a read-only key.",
-      list: offered.filter((p) => !p.sourceHost && p.provider !== CUSTOM_PLATFORM),
+      list: offered.filter(
+        (p) => !p.sourceHost && !p.fileUpload && p.provider !== CUSTOM_PLATFORM,
+      ),
     },
     {
       title: "Source code repositories",
@@ -132,8 +134,8 @@ export function PlatformPicker({
     {
       title: "Bring your own inventory",
       description:
-        "Lists the agents your own inventory API returns, built to the Agent Manager contract.",
-      list: offered.filter((p) => p.provider === CUSTOM_PLATFORM),
+        "Upload a file that lists your agents, in the Agent Manager format (JSON, CSV or Excel).",
+      list: offered.filter((p) => p.fileUpload || p.provider === CUSTOM_PLATFORM),
     },
   ].filter((g) => g.list.length > 0);
 

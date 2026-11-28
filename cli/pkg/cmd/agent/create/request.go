@@ -25,8 +25,8 @@ import (
 )
 
 const (
-	provisioningInternal = string(amsvc.ProvisioningTypeInternal)
-	provisioningExternal = string(amsvc.ProvisioningTypeExternal)
+	provisioningInternal = string(amsvc.Internal)
+	provisioningExternal = string(amsvc.External)
 
 	buildTypeBuildpack = string(amsvc.Buildpack)
 	buildTypeDocker    = string(amsvc.Docker)
@@ -113,7 +113,7 @@ func ensureLeadingSlash(s string) string {
 func buildProvisioning(opts *CreateOptions) amsvc.Provisioning {
 	switch opts.Provisioning {
 	case provisioningExternal:
-		return amsvc.Provisioning{Type: amsvc.ProvisioningTypeExternal}
+		return amsvc.Provisioning{Type: amsvc.External}
 	case provisioningInternal, "":
 		repo := &amsvc.RepositoryConfig{
 			Url:     opts.RepoURL,
@@ -124,7 +124,7 @@ func buildProvisioning(opts *CreateOptions) amsvc.Provisioning {
 			repo.SecretRef = &opts.RepoSecret
 		}
 		return amsvc.Provisioning{
-			Type:       amsvc.ProvisioningTypeInternal,
+			Type:       amsvc.Internal,
 			Repository: repo,
 		}
 	default:

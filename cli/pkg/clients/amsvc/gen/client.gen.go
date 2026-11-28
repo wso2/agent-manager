@@ -139,7 +139,7 @@ type ClientInterface interface {
 	GetAgentKindVersion(ctx context.Context, orgName string, kindName string, versionTag string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListOrgAgents request
-	ListOrgAgents(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ListOrgAgents(ctx context.Context, orgName string, params *ListOrgAgentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListCatalogResources request
 	ListCatalogResources(ctx context.Context, orgName string, params *ListCatalogResourcesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -652,7 +652,7 @@ type ClientInterface interface {
 	DeleteAgent(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAgent request
-	GetAgent(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetAgent(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdateAgentWithBody request with any body
 	UpdateAgentWithBody(ctx context.Context, orgName string, projName string, agentName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1165,6 +1165,9 @@ type ClientInterface interface {
 
 	UpdateShadowConnection(ctx context.Context, orgName string, connectionId openapi_types.UUID, body UpdateShadowConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// UploadShadowInventoryWithBody request with any body
+	UploadShadowInventoryWithBody(ctx context.Context, orgName string, connectionId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CreateShadowRunnerScanWithBody request with any body
 	CreateShadowRunnerScanWithBody(ctx context.Context, orgName string, connectionId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1195,6 +1198,9 @@ type ClientInterface interface {
 
 	OnboardShadowFinding(ctx context.Context, orgName string, findingId openapi_types.UUID, body OnboardShadowFindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetShadowInventoryTemplate request
+	GetShadowInventoryTemplate(ctx context.Context, orgName string, params *GetShadowInventoryTemplateParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListShadowAgentProviders request
 	ListShadowAgentProviders(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1211,6 +1217,14 @@ type ClientInterface interface {
 
 	// GetShadowScan request
 	GetShadowScan(ctx context.Context, orgName string, scanId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CancelShadowScan request
+	CancelShadowScan(ctx context.Context, orgName string, scanId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UploadShadowScanResultsWithBody request with any body
+	UploadShadowScanResultsWithBody(ctx context.Context, orgName string, scanId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UploadShadowScanResults(ctx context.Context, orgName string, scanId openapi_types.UUID, body UploadShadowScanResultsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetShadowAgentSummary request
 	GetShadowAgentSummary(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1433,8 +1447,8 @@ func (c *Client) GetAgentKindVersion(ctx context.Context, orgName string, kindNa
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListOrgAgents(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListOrgAgentsRequest(c.Server, orgName)
+func (c *Client) ListOrgAgents(ctx context.Context, orgName string, params *ListOrgAgentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListOrgAgentsRequest(c.Server, orgName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -3677,8 +3691,8 @@ func (c *Client) DeleteAgent(ctx context.Context, orgName string, projName strin
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetAgent(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetAgentRequest(c.Server, orgName, projName, agentName)
+func (c *Client) GetAgent(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAgentRequest(c.Server, orgName, projName, agentName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -5933,6 +5947,18 @@ func (c *Client) UpdateShadowConnection(ctx context.Context, orgName string, con
 	return c.Client.Do(req)
 }
 
+func (c *Client) UploadShadowInventoryWithBody(ctx context.Context, orgName string, connectionId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUploadShadowInventoryRequestWithBody(c.Server, orgName, connectionId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) CreateShadowRunnerScanWithBody(ctx context.Context, orgName string, connectionId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateShadowRunnerScanRequestWithBody(c.Server, orgName, connectionId, contentType, body)
 	if err != nil {
@@ -6065,6 +6091,18 @@ func (c *Client) OnboardShadowFinding(ctx context.Context, orgName string, findi
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetShadowInventoryTemplate(ctx context.Context, orgName string, params *GetShadowInventoryTemplateParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetShadowInventoryTemplateRequest(c.Server, orgName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListShadowAgentProviders(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListShadowAgentProvidersRequest(c.Server, orgName)
 	if err != nil {
@@ -6127,6 +6165,42 @@ func (c *Client) CreateShadowScan(ctx context.Context, orgName string, body Crea
 
 func (c *Client) GetShadowScan(ctx context.Context, orgName string, scanId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetShadowScanRequest(c.Server, orgName, scanId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CancelShadowScan(ctx context.Context, orgName string, scanId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCancelShadowScanRequest(c.Server, orgName, scanId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UploadShadowScanResultsWithBody(ctx context.Context, orgName string, scanId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUploadShadowScanResultsRequestWithBody(c.Server, orgName, scanId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UploadShadowScanResults(ctx context.Context, orgName string, scanId openapi_types.UUID, body UploadShadowScanResultsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUploadShadowScanResultsRequest(c.Server, orgName, scanId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -6852,7 +6926,7 @@ func NewGetAgentKindVersionRequest(server string, orgName string, kindName strin
 }
 
 // NewListOrgAgentsRequest generates requests for ListOrgAgents
-func NewListOrgAgentsRequest(server string, orgName string) (*http.Request, error) {
+func NewListOrgAgentsRequest(server string, orgName string, params *ListOrgAgentsParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -6875,6 +6949,28 @@ func NewListOrgAgentsRequest(server string, orgName string) (*http.Request, erro
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.View != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "view", *params.View, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -14119,7 +14215,7 @@ func NewDeleteAgentRequest(server string, orgName string, projName string, agent
 }
 
 // NewGetAgentRequest generates requests for GetAgent
-func NewGetAgentRequest(server string, orgName string, projName string, agentName string) (*http.Request, error) {
+func NewGetAgentRequest(server string, orgName string, projName string, agentName string, params *GetAgentParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -14156,6 +14252,28 @@ func NewGetAgentRequest(server string, orgName string, projName string, agentNam
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.View != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "view", *params.View, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -23063,6 +23181,49 @@ func NewUpdateShadowConnectionRequestWithBody(server string, orgName string, con
 	return req, nil
 }
 
+// NewUploadShadowInventoryRequestWithBody generates requests for UploadShadowInventory with any type of body
+func NewUploadShadowInventoryRequestWithBody(server string, orgName string, connectionId openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "connectionId", connectionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/connections/%s/inventory", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewCreateShadowRunnerScanRequest calls the generic CreateShadowRunnerScan builder with application/json body
 func NewCreateShadowRunnerScanRequest(server string, orgName string, connectionId openapi_types.UUID, body CreateShadowRunnerScanJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -23534,6 +23695,58 @@ func NewOnboardShadowFindingRequestWithBody(server string, orgName string, findi
 	return req, nil
 }
 
+// NewGetShadowInventoryTemplateRequest generates requests for GetShadowInventoryTemplate
+func NewGetShadowInventoryTemplateRequest(server string, orgName string, params *GetShadowInventoryTemplateParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/inventory/template", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "format", params.Format, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListShadowAgentProvidersRequest generates requests for ListShadowAgentProviders
 func NewListShadowAgentProvidersRequest(server string, orgName string) (*http.Request, error) {
 	var err error
@@ -23742,6 +23955,101 @@ func NewGetShadowScanRequest(server string, orgName string, scanId openapi_types
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewCancelShadowScanRequest generates requests for CancelShadowScan
+func NewCancelShadowScanRequest(server string, orgName string, scanId openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "scanId", scanId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/scans/%s/cancel", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUploadShadowScanResultsRequest calls the generic UploadShadowScanResults builder with application/json body
+func NewUploadShadowScanResultsRequest(server string, orgName string, scanId openapi_types.UUID, body UploadShadowScanResultsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUploadShadowScanResultsRequestWithBody(server, orgName, scanId, "application/json", bodyReader)
+}
+
+// NewUploadShadowScanResultsRequestWithBody generates requests for UploadShadowScanResults with any type of body
+func NewUploadShadowScanResultsRequestWithBody(server string, orgName string, scanId openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "scanId", scanId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/scans/%s/results", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -24011,7 +24319,7 @@ type ClientWithResponsesInterface interface {
 	GetAgentKindVersionWithResponse(ctx context.Context, orgName string, kindName string, versionTag string, reqEditors ...RequestEditorFn) (*GetAgentKindVersionResp, error)
 
 	// ListOrgAgentsWithResponse request
-	ListOrgAgentsWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListOrgAgentsResp, error)
+	ListOrgAgentsWithResponse(ctx context.Context, orgName string, params *ListOrgAgentsParams, reqEditors ...RequestEditorFn) (*ListOrgAgentsResp, error)
 
 	// ListCatalogResourcesWithResponse request
 	ListCatalogResourcesWithResponse(ctx context.Context, orgName string, params *ListCatalogResourcesParams, reqEditors ...RequestEditorFn) (*ListCatalogResourcesResp, error)
@@ -24524,7 +24832,7 @@ type ClientWithResponsesInterface interface {
 	DeleteAgentWithResponse(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*DeleteAgentResp, error)
 
 	// GetAgentWithResponse request
-	GetAgentWithResponse(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*GetAgentResp, error)
+	GetAgentWithResponse(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentParams, reqEditors ...RequestEditorFn) (*GetAgentResp, error)
 
 	// UpdateAgentWithBodyWithResponse request with any body
 	UpdateAgentWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAgentResp, error)
@@ -25037,6 +25345,9 @@ type ClientWithResponsesInterface interface {
 
 	UpdateShadowConnectionWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, body UpdateShadowConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateShadowConnectionResp, error)
 
+	// UploadShadowInventoryWithBodyWithResponse request with any body
+	UploadShadowInventoryWithBodyWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadShadowInventoryResp, error)
+
 	// CreateShadowRunnerScanWithBodyWithResponse request with any body
 	CreateShadowRunnerScanWithBodyWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateShadowRunnerScanResp, error)
 
@@ -25067,6 +25378,9 @@ type ClientWithResponsesInterface interface {
 
 	OnboardShadowFindingWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, body OnboardShadowFindingJSONRequestBody, reqEditors ...RequestEditorFn) (*OnboardShadowFindingResp, error)
 
+	// GetShadowInventoryTemplateWithResponse request
+	GetShadowInventoryTemplateWithResponse(ctx context.Context, orgName string, params *GetShadowInventoryTemplateParams, reqEditors ...RequestEditorFn) (*GetShadowInventoryTemplateResp, error)
+
 	// ListShadowAgentProvidersWithResponse request
 	ListShadowAgentProvidersWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListShadowAgentProvidersResp, error)
 
@@ -25083,6 +25397,14 @@ type ClientWithResponsesInterface interface {
 
 	// GetShadowScanWithResponse request
 	GetShadowScanWithResponse(ctx context.Context, orgName string, scanId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetShadowScanResp, error)
+
+	// CancelShadowScanWithResponse request
+	CancelShadowScanWithResponse(ctx context.Context, orgName string, scanId openapi_types.UUID, reqEditors ...RequestEditorFn) (*CancelShadowScanResp, error)
+
+	// UploadShadowScanResultsWithBodyWithResponse request with any body
+	UploadShadowScanResultsWithBodyWithResponse(ctx context.Context, orgName string, scanId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadShadowScanResultsResp, error)
+
+	UploadShadowScanResultsWithResponse(ctx context.Context, orgName string, scanId openapi_types.UUID, body UploadShadowScanResultsJSONRequestBody, reqEditors ...RequestEditorFn) (*UploadShadowScanResultsResp, error)
 
 	// GetShadowAgentSummaryWithResponse request
 	GetShadowAgentSummaryWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*GetShadowAgentSummaryResp, error)
@@ -32347,6 +32669,33 @@ func (r UpdateShadowConnectionResp) StatusCode() int {
 	return 0
 }
 
+type UploadShadowInventoryResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ShadowInventoryUploadResponse
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+	JSON503      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UploadShadowInventoryResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UploadShadowInventoryResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type CreateShadowRunnerScanResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -32542,6 +32891,30 @@ func (r OnboardShadowFindingResp) StatusCode() int {
 	return 0
 }
 
+type GetShadowInventoryTemplateResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *openapi_types.File
+	JSON400      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetShadowInventoryTemplateResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetShadowInventoryTemplateResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListShadowAgentProvidersResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -32654,6 +33027,59 @@ func (r GetShadowScanResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetShadowScanResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CancelShadowScanResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ShadowScanResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r CancelShadowScanResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CancelShadowScanResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UploadShadowScanResultsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ShadowScanResultsResponse
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON413      *ErrorResponse
+	JSON500      *ErrorResponse
+	JSON503      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UploadShadowScanResultsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UploadShadowScanResultsResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -32910,8 +33336,8 @@ func (c *ClientWithResponses) GetAgentKindVersionWithResponse(ctx context.Contex
 }
 
 // ListOrgAgentsWithResponse request returning *ListOrgAgentsResp
-func (c *ClientWithResponses) ListOrgAgentsWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListOrgAgentsResp, error) {
-	rsp, err := c.ListOrgAgents(ctx, orgName, reqEditors...)
+func (c *ClientWithResponses) ListOrgAgentsWithResponse(ctx context.Context, orgName string, params *ListOrgAgentsParams, reqEditors ...RequestEditorFn) (*ListOrgAgentsResp, error) {
+	rsp, err := c.ListOrgAgents(ctx, orgName, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -34545,8 +34971,8 @@ func (c *ClientWithResponses) DeleteAgentWithResponse(ctx context.Context, orgNa
 }
 
 // GetAgentWithResponse request returning *GetAgentResp
-func (c *ClientWithResponses) GetAgentWithResponse(ctx context.Context, orgName string, projName string, agentName string, reqEditors ...RequestEditorFn) (*GetAgentResp, error) {
-	rsp, err := c.GetAgent(ctx, orgName, projName, agentName, reqEditors...)
+func (c *ClientWithResponses) GetAgentWithResponse(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentParams, reqEditors ...RequestEditorFn) (*GetAgentResp, error) {
+	rsp, err := c.GetAgent(ctx, orgName, projName, agentName, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -36186,6 +36612,15 @@ func (c *ClientWithResponses) UpdateShadowConnectionWithResponse(ctx context.Con
 	return ParseUpdateShadowConnectionResp(rsp)
 }
 
+// UploadShadowInventoryWithBodyWithResponse request with arbitrary body returning *UploadShadowInventoryResp
+func (c *ClientWithResponses) UploadShadowInventoryWithBodyWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadShadowInventoryResp, error) {
+	rsp, err := c.UploadShadowInventoryWithBody(ctx, orgName, connectionId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUploadShadowInventoryResp(rsp)
+}
+
 // CreateShadowRunnerScanWithBodyWithResponse request with arbitrary body returning *CreateShadowRunnerScanResp
 func (c *ClientWithResponses) CreateShadowRunnerScanWithBodyWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateShadowRunnerScanResp, error) {
 	rsp, err := c.CreateShadowRunnerScanWithBody(ctx, orgName, connectionId, contentType, body, reqEditors...)
@@ -36282,6 +36717,15 @@ func (c *ClientWithResponses) OnboardShadowFindingWithResponse(ctx context.Conte
 	return ParseOnboardShadowFindingResp(rsp)
 }
 
+// GetShadowInventoryTemplateWithResponse request returning *GetShadowInventoryTemplateResp
+func (c *ClientWithResponses) GetShadowInventoryTemplateWithResponse(ctx context.Context, orgName string, params *GetShadowInventoryTemplateParams, reqEditors ...RequestEditorFn) (*GetShadowInventoryTemplateResp, error) {
+	rsp, err := c.GetShadowInventoryTemplate(ctx, orgName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetShadowInventoryTemplateResp(rsp)
+}
+
 // ListShadowAgentProvidersWithResponse request returning *ListShadowAgentProvidersResp
 func (c *ClientWithResponses) ListShadowAgentProvidersWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListShadowAgentProvidersResp, error) {
 	rsp, err := c.ListShadowAgentProviders(ctx, orgName, reqEditors...)
@@ -36333,6 +36777,32 @@ func (c *ClientWithResponses) GetShadowScanWithResponse(ctx context.Context, org
 		return nil, err
 	}
 	return ParseGetShadowScanResp(rsp)
+}
+
+// CancelShadowScanWithResponse request returning *CancelShadowScanResp
+func (c *ClientWithResponses) CancelShadowScanWithResponse(ctx context.Context, orgName string, scanId openapi_types.UUID, reqEditors ...RequestEditorFn) (*CancelShadowScanResp, error) {
+	rsp, err := c.CancelShadowScan(ctx, orgName, scanId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCancelShadowScanResp(rsp)
+}
+
+// UploadShadowScanResultsWithBodyWithResponse request with arbitrary body returning *UploadShadowScanResultsResp
+func (c *ClientWithResponses) UploadShadowScanResultsWithBodyWithResponse(ctx context.Context, orgName string, scanId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadShadowScanResultsResp, error) {
+	rsp, err := c.UploadShadowScanResultsWithBody(ctx, orgName, scanId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUploadShadowScanResultsResp(rsp)
+}
+
+func (c *ClientWithResponses) UploadShadowScanResultsWithResponse(ctx context.Context, orgName string, scanId openapi_types.UUID, body UploadShadowScanResultsJSONRequestBody, reqEditors ...RequestEditorFn) (*UploadShadowScanResultsResp, error) {
+	rsp, err := c.UploadShadowScanResults(ctx, orgName, scanId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUploadShadowScanResultsResp(rsp)
 }
 
 // GetShadowAgentSummaryWithResponse request returning *GetShadowAgentSummaryResp
@@ -49753,6 +50223,67 @@ func ParseUpdateShadowConnectionResp(rsp *http.Response) (*UpdateShadowConnectio
 	return response, nil
 }
 
+// ParseUploadShadowInventoryResp parses an HTTP response from a UploadShadowInventoryWithResponse call
+func ParseUploadShadowInventoryResp(rsp *http.Response) (*UploadShadowInventoryResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UploadShadowInventoryResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ShadowInventoryUploadResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseCreateShadowRunnerScanResp parses an HTTP response from a CreateShadowRunnerScanWithResponse call
 func ParseCreateShadowRunnerScanResp(rsp *http.Response) (*CreateShadowRunnerScanResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -50094,6 +50625,49 @@ func ParseOnboardShadowFindingResp(rsp *http.Response) (*OnboardShadowFindingRes
 	return response, nil
 }
 
+// ParseGetShadowInventoryTemplateResp parses an HTTP response from a GetShadowInventoryTemplateWithResponse call
+func ParseGetShadowInventoryTemplateResp(rsp *http.Response) (*GetShadowInventoryTemplateResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetShadowInventoryTemplateResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest openapi_types.File
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case rsp.StatusCode == 200:
+		// Content-type (text/csv) unsupported
+
+	}
+
+	return response, nil
+}
+
 // ParseListShadowAgentProvidersResp parses an HTTP response from a ListShadowAgentProvidersWithResponse call
 func ParseListShadowAgentProvidersResp(rsp *http.Response) (*ListShadowAgentProvidersResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -50274,6 +50848,121 @@ func ParseGetShadowScanResp(rsp *http.Response) (*GetShadowScanResp, error) {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCancelShadowScanResp parses an HTTP response from a CancelShadowScanWithResponse call
+func ParseCancelShadowScanResp(rsp *http.Response) (*CancelShadowScanResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CancelShadowScanResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ShadowScanResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUploadShadowScanResultsResp parses an HTTP response from a UploadShadowScanResultsWithResponse call
+func ParseUploadShadowScanResultsResp(rsp *http.Response) (*UploadShadowScanResultsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UploadShadowScanResultsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ShadowScanResultsResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 

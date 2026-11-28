@@ -324,6 +324,7 @@ The operations below emit a record describing what actually changed, not just th
 | Build token | `build-token:issue` (organization-scoped access token a build uses to call the build publisher endpoint, obtained with `IDP_CLIENT_ID` and stored in the secret store) | Fail-closed |
 | Shadow Agent Discovery | `shadow-scan-token:issue` (a pending source code scan and the organization-scoped scan token its scan command publishes with, obtained with `IDP_CLIENT_ID`; the token is returned once and never recorded) | Fail-closed |
 | Shadow Agent Discovery | `shadow-scan:publish` (a source code scan command publishing the code agents it found and the repositories it scanned, through the scan publisher endpoint, with service actor the client its scan token was issued to, `IDP_CLIENT_ID`; or a signed-in user uploading its results file from the console, `POST .../shadow-agents/scans/{scanId}/results`, with the user as actor; agents and repositories are counted, never named) | Fail-closed |
+| Shadow Agent Discovery | `shadow-inventory:upload` (a signed-in user uploading a Bring your own inventory file, `POST .../shadow-agents/connections/{connectionId}/inventory`: a finished scan of the connection whose agents replace the ones it listed; the file's name and contents are never recorded, its format and agent counts are) | Fail-closed |
 | Gateways | `gateway:delete`, `gateway:set-identity-provider`, `gateway:remove-identity-provider` | Fail-closed |
 | Gateways | `gateway:create` / `:update` / `:assign-environment` / `:unassign-environment` | Fail-open |
 | Internal | `gateway:push-manifest`, `api-key:sync` (bulk sync, coalesced per gateway) | Fail-open |
@@ -417,6 +418,7 @@ The registry is the source of truth (`audit/actions.go`, `audit/actions_domain.g
 | `role:unassign` | identity | 4 critical | `assigneeCount`, `assigneeTypes`, `assignees`, `roleName` |
 | `service-account:configure` | credential | 4 critical | `clientId`, `environment` |
 | `service-account:remove` | credential | 4 critical | `environment` |
+| `shadow-inventory:upload` | config | 2 notice | `agents`, `agentsRead`, `format`, `ignoredColumns`, `leftOut`, `provider`, `scanId` |
 | `shadow-scan-token:issue` | credential | 4 critical | `aiReview`, `clientId`, `llmJudge`, `provider`, `scanId` |
 | `shadow-scan:publish` | config | 2 notice | `agents`, `complete`, `failedRepositories`, `provider`, `scanId`, `scannedRepositories` |
 | `system:agent-identity-exhausted` | credential | 3 warning | `agentName`, `environment`, `reason` |

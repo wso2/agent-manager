@@ -140,15 +140,51 @@ export function serializeRequestBody(body: object): string {
     if (byteLength > limit) {
         // Kept to one short sentence: this surfaces in the single-line,
         // non-wrapping snackbar, which truncates anything longer.
-        const err = new Error(
+        throw requestTooLargeError(
             `Request is too large (${formatBytes(byteLength)} of ${formatBytes(limit)}). `
             + 'Shorten the longest fields, such as file contents or descriptions.'
-        ) as HttpErrorWithStatus;
-        err.status = 413;
-        err.code = REQUEST_TOO_LARGE_CODE;
-        throw err;
+        );
     }
     return serialized;
+}
+
+function requestTooLargeError(message: string): Error {
+    const err = new Error(message) as HttpErrorWithStatus;
+    err.status = 413;
+    err.code = REQUEST_TOO_LARGE_CODE;
+    return err;
+}
+
+/**
+ * POST a multipart/form-data body (a file upload). The browser sets the
+ * Content-Type with its boundary, so it is not set here. Refused, like a JSON
+ * body, when larger than MAX_REQUEST_BODY_BYTES.
+ */
+export async function httpPOSTForm(
+    context: string,
+    form: FormData,
+    params: { token?: string, signal?: AbortSignal },
+) {
+    const {token, signal} = params;
+    const limit = getMaxRequestBodyBytes();
+    if (limit > 0) {
+        let byteLength = 0;
+        form.forEach((v) => {
+            byteLength += typeof v === 'string' ? utf8ByteLength(v) : v.size;
+        });
+        if (byteLength > limit) {
+            throw requestTooLargeError(
+                `File is too large (${formatBytes(byteLength)} of ${formatBytes(limit)}).`
+            );
+        }
+    }
+    const response = await backendFetch(`${globalConfig.apiBaseUrl}${context}`, {
+        method: 'POST',
+        headers: token ? {'Authorization': `Bearer ${token}`} : {},
+        body: form,
+        signal,
+    });
+    return finalizeHttpWriteResponse(response, signal);
 }
 
 export async function httpGET(

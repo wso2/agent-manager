@@ -67,6 +67,7 @@ export function isCancellable(s: ShadowScanResponse): boolean {
  */
 function scannedLabel(s: ShadowScanResponse): string {
   const names = s.results.map((r) => r.connectionName);
+  if (s.inventoryUpload) return `${names.filter(Boolean).join(", ") || "Inventory"} (file upload)`;
   if (names.length > 0 && names.every(Boolean)) return names.join(", ");
   const n = s.connectionIds.length;
   return `${n} ${n === 1 ? "connector" : "connectors"}`;

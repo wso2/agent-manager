@@ -462,6 +462,12 @@ func (s *shadowAgentScanner) scanConnection(
 		return res
 	}
 	res.ConnectionName, res.Provider = c.Name, c.Provider
+	if spec, ok := sa.Provider(c.Provider); ok && !spec.CloudScanned() {
+		// A scan queued before the platform stopped being scanned (Bring
+		// your own inventory now takes uploaded files): nothing to read.
+		res.Outcome, res.Message = models.ShadowCallSkipped, "not scanned: "+shadowNotScannedReason(spec)
+		return res
+	}
 	connector, ok := s.connectors[c.Provider]
 	if !ok {
 		res.Message = "no connector for this platform"
@@ -511,6 +517,15 @@ func (s *shadowAgentScanner) scanConnection(
 	}
 	res.FindingsCount = n
 	return res
+}
+
+// shadowNotScannedReason says where the agents of a platform a cloud scan
+// does not read come from.
+func shadowNotScannedReason(spec sa.ProviderSpec) string {
+	if spec.FileUpload {
+		return "its agents come from uploaded inventory files"
+	}
+	return "its repositories are scanned by the scan command"
 }
 
 // runConnector runs a connector, turning a panic into a failed result so one

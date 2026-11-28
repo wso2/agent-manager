@@ -137,9 +137,9 @@ func validateRequest(req amsvc.CreateAgentRequest) []string {
 	}
 
 	switch req.Provisioning.Type {
-	case amsvc.ProvisioningTypeInternal:
+	case amsvc.Internal:
 		v = append(v, internalRequestViolations(req)...)
-	case amsvc.ProvisioningTypeExternal:
+	case amsvc.External:
 		v = append(v, externalRequestViolations(req)...)
 	case "":
 		v = append(v, "spec.provisioning.type is required")

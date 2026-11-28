@@ -135,7 +135,7 @@ func CompleteAgents(cmd *cobra.Command, f *Factory) []string {
 // IsBuildable returns true if the agent supports build operations.
 // Only internally-provisioned agents can be built.
 func IsBuildable(agent amsvc.AgentResponse) bool {
-	return agent.Provisioning.Type == amsvc.ProvisioningTypeInternal
+	return agent.Provisioning.Type == amsvc.Internal
 }
 
 // CompleteBuildableAgents returns sorted names of agents that support builds
