@@ -49,7 +49,14 @@ func newTestHandler(t *testing.T, upstreamURL string) http.Handler {
 		Observer: config.ObserverConfig{BaseURL: upstreamURL, DefaultNamespace: "default"},
 		Auth:     config.AuthConfig{IsLocalDevEnv: true},
 	}
-	return newHandler(cfg, requestTokenProvider{})
+	handler, cleanup, err := newHandler(cfg, requestTokenProvider{})
+
+	if err != nil {
+		t.Fatalf("newHandler: %v", err)
+	}
+	t.Cleanup(cleanup)
+
+	return handler
 }
 
 func scopedToken(t *testing.T) string {

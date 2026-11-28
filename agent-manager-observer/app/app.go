@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -48,10 +49,18 @@ func Run(cfg *config.Config, tokenProvider observer.TokenProvider, _ Options) er
 
 	slog.Info("Starting agent-manager-observer", "port", cfg.Server.Port)
 
+	handler, cleanup, err := newHandler(cfg, tokenProvider)
+
+	if err != nil {
+		return err
+	}
+
+	defer cleanup()
+
 	// Create server
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
-		Handler:      newHandler(cfg, tokenProvider),
+		Handler:      handler,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
@@ -89,7 +98,7 @@ func Run(cfg *config.Config, tokenProvider observer.TokenProvider, _ Options) er
 	return nil
 }
 
-func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.Handler {
+func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) (http.Handler, func(), error) {
 	// Setup routes
 	mux := http.NewServeMux()
 
@@ -109,7 +118,28 @@ func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.H
 
 	// v1 routes — observer-backed
 	observerClient := observer.NewClient(cfg.Observer.BaseURL, tokenProvider, cfg.Observer.DefaultNamespace)
-	controller := controllers.NewTracingController(observerClient)
+	traceReader, err := newTraceReader(cfg, observerClient)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("select trace backend: %w", err)
+	}
+	cleanup := func() {}
+	if closer, ok := traceReader.(io.Closer); ok {
+		cleanup = func() {
+			if err := closer.Close(); err != nil {
+				slog.Error("failed to close trace reader", "error", err)
+			}
+		}
+	}
+
+	controller := controllers.NewTracingController(traceReader)
+	controller.SetBatching(cfg.Traces.Batching)
+	
+	if cfg.Traces.Batching && !controller.CanBatch() {
+		slog.Warn("TRACE_BATCHING is on, but this trace backend cannot batch; using per-trace calls")
+	}
+	slog.Info("trace batching", "enabled", cfg.Traces.Batching && controller.CanBatch())
+
 	obsController := controllers.NewObservabilityController(observerClient)
 	handler := handlers.NewHandler(controller, obsController)
 
@@ -158,7 +188,7 @@ func newHandler(cfg *config.Config, tokenProvider observer.TokenProvider) http.H
 	corsHandler := middleware.CORS(corsConfig)(mux)
 	loggerHandler := logger.RequestLogger()(corsHandler)
 
-	return loggerHandler
+	return loggerHandler, cleanup, nil
 }
 
 func setupLogger(cfg *config.Config) {
