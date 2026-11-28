@@ -806,6 +806,56 @@ func TestCapabilityDiscovery_ShortQueryValueIsNotRedactedAlone(t *testing.T) {
 	assert.Equal(t, "Exports json", (*resp.Capabilities.Tools)[0]["description"])
 }
 
+// A query value is redacted from descriptions but never from a capability's name or URI: mcp-acl-list and
+// mcp-rewrite match those as the gateway sees them, so a scrubbed name would be saved in a rule that never matches.
+func TestCapabilityDiscovery_QueryValueIsNotScrubbedFromCapabilityIdentities(t *testing.T) {
+	f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{})
+	f.identityByURL(t, nil)
+	f.proxy.Endpoints[0].Configuration.Upstream.URL = "https://api.example.com/mcp?toolset=issues"
+	f.enqueue(t)
+	f.respond = func(probeCall) (*models.MCPServerInfoFetchResponse, error) {
+		tools := []map[string]interface{}{{"name": "list_issues", "description": "Lists issues"}}
+		prompts := []map[string]interface{}{{"name": "triage_issues"}}
+		resources := []map[string]interface{}{{"name": "issues", "uri": "repo://issues/open"}}
+		return &models.MCPServerInfoFetchResponse{Tools: &tools, Prompts: &prompts, Resources: &resources}, nil
+	}
+
+	f.recon.RunOnce(context.Background())
+
+	require.Equal(t, models.MCPCapabilityDiscoveryDiscovered, f.row(t).Status, f.row(t).LastError)
+	resp := f.get(t)
+	require.NotNil(t, resp.Capabilities)
+	require.NotNil(t, resp.Capabilities.Tools)
+	require.NotNil(t, resp.Capabilities.Prompts)
+	require.NotNil(t, resp.Capabilities.Resources)
+	tool := (*resp.Capabilities.Tools)[0]
+	assert.Equal(t, "list_issues", tool["name"])
+	assert.Equal(t, "Lists [REDACTED]", tool["description"], "other strings are still scrubbed")
+	assert.Equal(t, "triage_issues", (*resp.Capabilities.Prompts)[0]["name"])
+	resources := *resp.Capabilities.Resources
+	assert.Equal(t, "issues", resources[0]["name"])
+	assert.Equal(t, "repo://issues/open", resources[0]["uri"])
+}
+
+// A capability named with the upstream credential can be stored neither scrubbed (rules on it would never match) nor
+// as sent, so discovery fails for good without naming the credential.
+func TestCapabilityDiscovery_CapabilityNamedWithTheCredentialIsRefused(t *testing.T) {
+	f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{})
+	f.identityByURL(t, upstreamAPIKey("Authorization", "Bearer github-pat"))
+	f.enqueue(t)
+	f.respond = func(probeCall) (*models.MCPServerInfoFetchResponse, error) {
+		tools := []map[string]interface{}{{"name": "whoami_github-pat"}}
+		return &models.MCPServerInfoFetchResponse{Tools: &tools}, nil
+	}
+
+	f.recon.RunOnce(context.Background())
+
+	row := f.row(t)
+	assert.Equal(t, models.MCPCapabilityDiscoveryFailed, row.Status)
+	assert.Contains(t, row.LastError, "capability's name")
+	assert.NotContains(t, row.LastError, "github-pat")
+}
+
 // Scrubbing walks the values: only strings change, so numbers, booleans, nulls and arrays keep their types and the
 // stored schema stays valid; the probe's own answer is not modified.
 func TestScrubCapabilitiesKeepsNonStringValues(t *testing.T) {
@@ -822,7 +872,7 @@ func TestScrubCapabilitiesKeepsNonStringValues(t *testing.T) {
 		},
 	}}
 
-	got, err := scrubCapabilities(&models.MCPProxyCapabilities{Tools: &answer}, []string{"s3cr3t-value"})
+	got, err := scrubCapabilities(&models.MCPProxyCapabilities{Tools: &answer}, []string{"s3cr3t-value"}, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, got.Tools)
@@ -855,7 +905,7 @@ func TestScrubCapabilitiesScrubsKeys(t *testing.T) {
 		},
 	}}
 
-	got, err := scrubCapabilities(&models.MCPProxyCapabilities{Tools: &answer}, []string{"Bearer github-pat", "github-pat"})
+	got, err := scrubCapabilities(&models.MCPProxyCapabilities{Tools: &answer}, []string{"Bearer github-pat", "github-pat"}, nil)
 
 	require.NoError(t, err)
 	tool := (*got.Tools)[0]
@@ -874,7 +924,7 @@ func TestScrubCapabilitiesRefusesKeysThatCollide(t *testing.T) {
 		"_meta": map[string]interface{}{"github-pat": "a", "[REDACTED]": "b"},
 	}}
 
-	_, err := scrubCapabilities(&models.MCPProxyCapabilities{Tools: &answer}, []string{"github-pat"})
+	_, err := scrubCapabilities(&models.MCPProxyCapabilities{Tools: &answer}, []string{"github-pat"}, nil)
 
 	var permanent *mcpDiscoveryPermanentError
 	require.ErrorAs(t, err, &permanent)

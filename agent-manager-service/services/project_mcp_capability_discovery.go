@@ -262,7 +262,7 @@ func (s *projectMCPCapabilityDiscoveryService) attempt(
 		if err != nil {
 			return nil, err
 		}
-		return scrubCapabilities(capabilities, upstreamSecrets(target))
+		return scrubCapabilities(capabilities, upstreamSecrets(target), upstreamCredentials(target))
 	}
 	headerName, headerValue := "", ""
 	if target.security.RequiresAPIKey() {
@@ -464,43 +464,66 @@ func redactSecret(err error, secret string) error {
 const mcpDiscoveryMinQuerySecret = 6
 
 // upstreamSecrets is what an upstream probe must never let reach lastError, the logs or the stored capabilities: the
-// credential header's value, its credential without a scheme ("Bearer <token>" also hides "<token>"), and what the
-// registered URL carries besides its endpoint: its query, each query value (decoded and as encoded), and its
-// userinfo and password. Longest first, so a secret that contains another is replaced whole.
+// upstream credentials (upstreamCredentials) and what the registered URL's query carries: the whole query and each
+// query value, decoded and as encoded. Longest first, so a secret that contains another is replaced whole.
 func upstreamSecrets(target *mcpDiscoveryTarget) []string {
-	seen := map[string]bool{}
-	var secrets []string
-	add := func(secret string, minLen int) {
-		secret = strings.TrimSpace(secret)
-		if len(secret) < minLen || seen[secret] {
-			return
-		}
-		seen[secret] = true
-		secrets = append(secrets, secret)
-	}
-	if v := strings.TrimSpace(target.headerValue); v != "" {
-		add(v, 1)
-		if _, credential, ok := strings.Cut(v, " "); ok {
-			add(credential, 1)
-		}
+	s := newSecretSet()
+	for _, credential := range upstreamCredentials(target) {
+		s.add(credential, 1)
 	}
 	if u, err := url.Parse(target.probeURL); err == nil {
-		add(u.RawQuery, 1)
+		s.add(u.RawQuery, 1)
 		for _, values := range u.Query() {
 			for _, value := range values {
-				add(value, mcpDiscoveryMinQuerySecret)
-				add(url.QueryEscape(value), mcpDiscoveryMinQuerySecret)
-			}
-		}
-		if u.User != nil {
-			add(u.User.String(), 1)
-			if password, ok := u.User.Password(); ok {
-				add(password, mcpDiscoveryMinQuerySecret)
+				s.add(value, mcpDiscoveryMinQuerySecret)
+				s.add(url.QueryEscape(value), mcpDiscoveryMinQuerySecret)
 			}
 		}
 	}
-	sort.SliceStable(secrets, func(i, j int) bool { return len(secrets[i]) > len(secrets[j]) })
-	return secrets
+	return s.longestFirst()
+}
+
+// upstreamCredentials is what certainly is a credential of the probe: the credential header's value, its credential
+// without a scheme ("Bearer <token>" also yields "<token>"), and the registered URL's userinfo and password. A query
+// value is left out: it may as well be an ordinary setting (?toolset=issues) that the server's tool names repeat.
+func upstreamCredentials(target *mcpDiscoveryTarget) []string {
+	s := newSecretSet()
+	if v := strings.TrimSpace(target.headerValue); v != "" {
+		s.add(v, 1)
+		if _, credential, ok := strings.Cut(v, " "); ok {
+			s.add(credential, 1)
+		}
+	}
+	if u, err := url.Parse(target.probeURL); err == nil && u.User != nil {
+		s.add(u.User.String(), 1)
+		if password, ok := u.User.Password(); ok {
+			s.add(password, mcpDiscoveryMinQuerySecret)
+		}
+	}
+	return s.longestFirst()
+}
+
+// secretSet collects distinct, trimmed secrets.
+type secretSet struct {
+	seen    map[string]bool
+	secrets []string
+}
+
+func newSecretSet() *secretSet { return &secretSet{seen: map[string]bool{}} }
+
+// add keeps secret when it is at least minLen long.
+func (s *secretSet) add(secret string, minLen int) {
+	secret = strings.TrimSpace(secret)
+	if len(secret) < minLen || s.seen[secret] {
+		return
+	}
+	s.seen[secret] = true
+	s.secrets = append(s.secrets, secret)
+}
+
+func (s *secretSet) longestFirst() []string {
+	sort.SliceStable(s.secrets, func(i, j int) bool { return len(s.secrets[i]) > len(s.secrets[j]) })
+	return s.secrets
 }
 
 // redactUpstream is an upstream probe's error with each of upstreamSecrets hidden; a transport error that names the
@@ -522,29 +545,38 @@ func safeEndpoint(raw string) string {
 	return (&url.URL{Scheme: u.Scheme, Host: u.Host, Path: u.Path}).String()
 }
 
+// capabilityIdentityFields are the fields that name a capability. The binding's policies match on them as the gateway
+// sees them (mcp-acl-list allows or denies by name and URI, mcp-rewrite renames by name), so they are stored exactly
+// as the MCP server sent them: a scrubbed name would be listed in the console and saved in a rule that never matches.
+var capabilityIdentityFields = []string{"name", "uri"}
+
 // scrubCapabilities hides secrets in every string an MCP server returned in its capabilities (a description that
 // echoes the request's credential, say) and in every map key, so a binding read never returns one. It walks the
-// values, so numbers, booleans and nulls are kept as they are and the schemas stay valid.
-func scrubCapabilities(capabilities *models.MCPProxyCapabilities, secrets []string) (*models.MCPProxyCapabilities, error) {
+// values, so numbers, booleans and nulls are kept as they are and the schemas stay valid. A capability's identity
+// fields (capabilityIdentityFields) are kept as sent; one that carries one of credentials cannot be stored either way,
+// so the capabilities are refused.
+func scrubCapabilities(
+	capabilities *models.MCPProxyCapabilities, secrets, credentials []string,
+) (*models.MCPProxyCapabilities, error) {
 	if capabilities == nil || len(secrets) == 0 {
 		return capabilities, nil
 	}
-	tools, err := scrubCapabilityList(capabilities.Tools, secrets)
+	tools, err := scrubCapabilityList(capabilities.Tools, secrets, credentials)
 	if err != nil {
 		return nil, err
 	}
-	prompts, err := scrubCapabilityList(capabilities.Prompts, secrets)
+	prompts, err := scrubCapabilityList(capabilities.Prompts, secrets, credentials)
 	if err != nil {
 		return nil, err
 	}
-	resources, err := scrubCapabilityList(capabilities.Resources, secrets)
+	resources, err := scrubCapabilityList(capabilities.Resources, secrets, credentials)
 	if err != nil {
 		return nil, err
 	}
 	return &models.MCPProxyCapabilities{Tools: tools, Prompts: prompts, Resources: resources}, nil
 }
 
-func scrubCapabilityList(list *[]map[string]interface{}, secrets []string) (*[]map[string]interface{}, error) {
+func scrubCapabilityList(list *[]map[string]interface{}, secrets, credentials []string) (*[]map[string]interface{}, error) {
 	if list == nil {
 		return nil, nil //nolint:nilnil // an absent list stays absent
 	}
@@ -555,6 +587,19 @@ func scrubCapabilityList(list *[]map[string]interface{}, secrets []string) (*[]m
 			return nil, err
 		}
 		out[i], _ = scrubbed.(map[string]interface{})
+		for _, field := range capabilityIdentityFields {
+			identity, ok := entry[field].(string)
+			if !ok {
+				continue
+			}
+			if scrubString(identity, credentials) != identity {
+				return nil, &mcpDiscoveryPermanentError{
+					reason: "the MCP server's capabilities carry the binding's upstream credential in a capability's " +
+						field + " and cannot be stored; send capabilities with the binding",
+				}
+			}
+			out[i][field] = identity
+		}
 	}
 	return &out, nil
 }
