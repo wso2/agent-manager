@@ -570,6 +570,7 @@ components:
           type: object
         rooms:
           type: array
+          maxItems: 1000
           items:
             type: object
         recent_reviews:
@@ -593,6 +594,7 @@ components:
           type: string
         available_rooms:
           type: array
+          maxItems: 1000
           items:
             type: object
         total_available:
