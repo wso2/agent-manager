@@ -38,6 +38,17 @@ db:
 events:
   mode: embedded
 
+# Stored secrets are sealed into the database with ENCRYPTION_KEY. To keep
+# them in a standalone OpenBao KV v2 server instead, put its token in
+# secrets/openbao-token next to this file, then uncomment and fill in
+# (README: Store secrets in OpenBao):
+# secret:
+#   vault_provider: openbao
+# openbao:
+#   addr: https://openbao.example.com:8200
+#   token: "${file:/run/secrets/openbao-token}"
+#   kv_mount: secret
+
 console:
   docs_url: https://wso2.com/agent-platform/docs/next
   # Console UI modules to turn on besides those the API's modules offer,

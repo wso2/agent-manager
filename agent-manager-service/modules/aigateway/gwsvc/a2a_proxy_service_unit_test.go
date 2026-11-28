@@ -18,6 +18,7 @@ package gwsvc
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -70,6 +71,9 @@ func newProxyHarness(t *testing.T) *proxyHarness {
 	}
 	m.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error) {
 		return nil, gwrepo.ErrA2AProxyNotFound
+	}
+	m.proxies.PrepareUpstreamFunc = func(ctx context.Context, _, _, _ string, _ uuid.UUID, _ string) (context.Context, uuid.UUID, error) {
+		return ctx, uuid.Nil, nil
 	}
 	h.txProxies.LockAgentEnvFunc = func(context.Context, string, string, string, uuid.UUID) error {
 		h.steps = append(h.steps, "lock")
@@ -191,6 +195,23 @@ func devEnv() *modkit.Environment {
 // tierOnlyCtx authorises both tiers but carries no audit recorder.
 func tierOnlyCtx() context.Context {
 	return tierGrantedOn(context.Background())
+}
+
+// A failure to stage the credential is returned before the owning transaction opens.
+func TestSetA2AProxyReturnsAStagingFailureBeforeTheTransaction(t *testing.T) {
+	h := newProxyHarness(t)
+	h.acceptsWrites()
+	h.proxies.PrepareUpstreamFunc = func(ctx context.Context, _, _, _ string, _ uuid.UUID, _ string) (context.Context, uuid.UUID, error) {
+		return ctx, uuid.Nil, errors.New("vault unavailable")
+	}
+	value := "s3cret"
+
+	err := h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev",
+		&gwmodels.A2AProxyAuthUpdate{Header: "X-Upstream-Key", Value: &value})
+
+	require.ErrorContains(t, err, "vault unavailable")
+	assert.Empty(t, h.txProxies.LockAgentEnvCalls(), "nothing runs inside the transaction")
+	assert.Empty(t, h.txProxies.UpsertCalls())
 }
 
 func TestSetA2AProxySwitchesADirectEnvironmentToProxied(t *testing.T) {

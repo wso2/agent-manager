@@ -118,6 +118,10 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 | `SECRET_VAULT_PROVIDER` | `secret.vault_provider` | `local` | The vault that seals stored secrets. |
 | `SECRET_VAULT_READERS` | `secret.vault_readers` |  | Other vaults kept for reading and cleanup, comma-separated. |
 | `SECRET_VAULT_BIND_LOCAL_ROWS` | `secret.vault_bind_local_rows` | `false` | Bind each locally sealed secret to its row. |
+| `OPENBAO_ADDR` | `openbao.addr` |  | Origin of a standalone OpenBao server, with SECRET_VAULT_PROVIDER=openbao: https://, or http:// only on a loopback host. |
+| `OPENBAO_TOKEN` | `openbao.token` |  | OpenBao token limited to the policy in vault/openbao/policy.hcl. **Secret.** |
+| `OPENBAO_KV_MOUNT` | `openbao.kv_mount` | `secret` | OpenBao KV v2 mount AMP stores secrets in; use one per deployment. |
+| `OPENBAO_ALLOW_INSECURE_HTTP` | `openbao.allow_insecure_http` | `false` | Allow plain http:// to a non-loopback OpenBao host. Sends the token unencrypted: disposable development servers only. |
 | `GITHUB_TOKEN` | `github.token` |  | GitHub token for repository API calls. **Secret.** |
 
 ## Events

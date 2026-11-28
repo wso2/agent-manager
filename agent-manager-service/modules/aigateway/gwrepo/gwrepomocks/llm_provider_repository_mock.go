@@ -57,6 +57,9 @@ import (
 //			MarkDeletingFunc: func(providerUUID uuid.UUID) (bool, error) {
 //				panic("mock out the MarkDeleting method")
 //			},
+//			PrepareCreateFunc: func(ctx context.Context, p *gwmodels.LLMProvider, orgUUID string) (context.Context, error) {
+//				panic("mock out the PrepareCreate method")
+//			},
 //			UpdateFunc: func(ctx context.Context, p *gwmodels.LLMProvider, providerID string, orgUUID string) error {
 //				panic("mock out the Update method")
 //			},
@@ -105,6 +108,9 @@ type LLMProviderRepositoryMock struct {
 
 	// MarkDeletingFunc mocks the MarkDeleting method.
 	MarkDeletingFunc func(providerUUID uuid.UUID) (bool, error)
+
+	// PrepareCreateFunc mocks the PrepareCreate method.
+	PrepareCreateFunc func(ctx context.Context, p *gwmodels.LLMProvider, orgUUID string) (context.Context, error)
 
 	// UpdateFunc mocks the Update method.
 	UpdateFunc func(ctx context.Context, p *gwmodels.LLMProvider, providerID string, orgUUID string) error
@@ -214,6 +220,15 @@ type LLMProviderRepositoryMock struct {
 			// ProviderUUID is the providerUUID argument value.
 			ProviderUUID uuid.UUID
 		}
+		// PrepareCreate holds details about calls to the PrepareCreate method.
+		PrepareCreate []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// P is the p argument value.
+			P *gwmodels.LLMProvider
+			// OrgUUID is the orgUUID argument value.
+			OrgUUID string
+		}
 		// Update holds details about calls to the Update method.
 		Update []struct {
 			// Ctx is the ctx argument value.
@@ -239,6 +254,7 @@ type LLMProviderRepositoryMock struct {
 	lockIsDeletingForUpdate  sync.RWMutex
 	lockList                 sync.RWMutex
 	lockMarkDeleting         sync.RWMutex
+	lockPrepareCreate        sync.RWMutex
 	lockUpdate               sync.RWMutex
 }
 
@@ -731,6 +747,46 @@ func (mock *LLMProviderRepositoryMock) MarkDeletingCalls() []struct {
 	mock.lockMarkDeleting.RLock()
 	calls = mock.calls.MarkDeleting
 	mock.lockMarkDeleting.RUnlock()
+	return calls
+}
+
+// PrepareCreate calls PrepareCreateFunc.
+func (mock *LLMProviderRepositoryMock) PrepareCreate(ctx context.Context, p *gwmodels.LLMProvider, orgUUID string) (context.Context, error) {
+	if mock.PrepareCreateFunc == nil {
+		panic("LLMProviderRepositoryMock.PrepareCreateFunc: method is nil but LLMProviderRepository.PrepareCreate was just called")
+	}
+	callInfo := struct {
+		Ctx     context.Context
+		P       *gwmodels.LLMProvider
+		OrgUUID string
+	}{
+		Ctx:     ctx,
+		P:       p,
+		OrgUUID: orgUUID,
+	}
+	mock.lockPrepareCreate.Lock()
+	mock.calls.PrepareCreate = append(mock.calls.PrepareCreate, callInfo)
+	mock.lockPrepareCreate.Unlock()
+	return mock.PrepareCreateFunc(ctx, p, orgUUID)
+}
+
+// PrepareCreateCalls gets all the calls that were made to PrepareCreate.
+// Check the length with:
+//
+//	len(mockedLLMProviderRepository.PrepareCreateCalls())
+func (mock *LLMProviderRepositoryMock) PrepareCreateCalls() []struct {
+	Ctx     context.Context
+	P       *gwmodels.LLMProvider
+	OrgUUID string
+} {
+	var calls []struct {
+		Ctx     context.Context
+		P       *gwmodels.LLMProvider
+		OrgUUID string
+	}
+	mock.lockPrepareCreate.RLock()
+	calls = mock.calls.PrepareCreate
+	mock.lockPrepareCreate.RUnlock()
 	return calls
 }
 

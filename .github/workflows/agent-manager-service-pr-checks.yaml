@@ -84,6 +84,7 @@ jobs:
       # collides with another run's container.
       PG_CONTAINER: amp-it-postgres-${{ github.run_id }}-${{ github.run_attempt }}
       CH_CONTAINER: amp-it-clickhouse-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.db }}
+      OPENBAO_CONTAINER: amp-it-openbao-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.db }}
     strategy:
       fail-fast: false
       matrix:
@@ -175,6 +176,23 @@ jobs:
           cp .env .env.test
           echo "DB_NAME=agentmanager_test" >> .env.test
 
+      # The OpenBao test mints a token limited to the documented policy
+      # (vault/openbao/policy.hcl) from this admin token and runs with it.
+      - name: Start OpenBao
+        run: |
+          docker run -d --name "$OPENBAO_CONTAINER" \
+            quay.io/openbao/openbao:2.7.3 \
+            server -dev -dev-root-token-id=ci-root -dev-listen-address=0.0.0.0:8200
+          # Like PostgreSQL above, reach the container by its IP: published
+          # ports are not on this runner's localhost.
+          OPENBAO_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$OPENBAO_CONTAINER")
+          until curl -sf "http://${OPENBAO_IP}:8200/v1/sys/health" >/dev/null; do
+            echo "Waiting for OpenBao..."
+            sleep 1
+          done
+          echo "OPENBAO_ADDR=http://${OPENBAO_IP}:8200" >> "$GITHUB_ENV"
+        timeout-minutes: 2
+
       - name: Run integration tests
         working-directory: ./agent-manager-service
         env:
@@ -186,6 +204,9 @@ jobs:
           AMP_CLICKHOUSE_INGEST_PASSWORD: ingest
           AMP_CLICKHOUSE_READER_PASSWORD: reader
           AMP_CLICKHOUSE_CLEANER_PASSWORD: cleaner
+          OPENBAO_TOKEN: ci-root
+          # The disposable dev-mode server above is plain HTTP on a bridge IP.
+          OPENBAO_ALLOW_INSECURE_HTTP: "true"
         run: make test-integration
 
       - name: Upload integration coverage
@@ -211,6 +232,10 @@ jobs:
       - name: Remove ClickHouse
         if: always()
         run: docker rm -fv "$CH_CONTAINER" || true
+
+      - name: Remove OpenBao
+        if: always()
+        run: docker rm -f "$OPENBAO_CONTAINER" || true
 
   coverage:
     name: Coverage

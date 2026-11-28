@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -199,4 +200,43 @@ func TestRegisterRejectsBadNames(t *testing.T) {
 	require.Panics(t, func() { Register("a-name-longer-than-the-column", factory) })
 	require.Panics(t, func() { Register(ProviderLocal, factory) })
 	require.Panics(t, func() { Register("no-factory", nil) })
+}
+
+type checkingVault struct {
+	*memoryVault
+	err error
+}
+
+func (c checkingVault) Check(context.Context) error { return c.err }
+
+func TestOpenRejectsBrokenProviders(t *testing.T) {
+	cfg := Config{EncryptionKey: testKey(1)}
+	Register("test-failing", func(Config) (Vault, error) { return nil, errors.New("boom") })
+	Register("test-misnamed", func(Config) (Vault, error) { return &memoryVault{name: "other"}, nil })
+	Register("test-local-only", func(Config) (Vault, error) { return localOnly{name: "test-local-only"}, nil })
+
+	_, err := Open("test-failing", cfg)
+	require.ErrorContains(t, err, "boom")
+	_, err = Open("test-misnamed", cfg)
+	require.ErrorContains(t, err, "reports itself as")
+	_, err = Open("test-local-only", cfg)
+	require.ErrorContains(t, err, "does not support external writes")
+}
+
+// localOnly seals in place, so it cannot be a writer next to the local vault.
+type localOnly struct{ name string }
+
+func (l localOnly) Provider() string { return l.name }
+func (localOnly) Seal(context.Context, Ref, []byte, *Sealed) (Sealed, error) {
+	return Sealed{}, nil
+}
+func (localOnly) Open(context.Context, Ref, Sealed) ([]byte, error) { return nil, nil }
+func (localOnly) Destroy(context.Context, Ref, Sealed) error        { return nil }
+
+func TestCheckReportsTheFirstFailingVault(t *testing.T) {
+	ok := checkingVault{memoryVault: &memoryVault{name: "a"}}
+	bad := checkingVault{memoryVault: &memoryVault{name: "b"}, err: errors.New("sealed")}
+	require.NoError(t, Of(ok).Check(context.Background()))
+	err := Of(ok, bad).Check(context.Background())
+	require.ErrorContains(t, err, `secret vault "b": sealed`)
 }

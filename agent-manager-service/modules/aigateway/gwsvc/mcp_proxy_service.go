@@ -285,6 +285,7 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 	}
 
 	proxy := &gwmodels.MCPProxy{
+		UUID:        uuid.New(),
 		Description: valueOrEmpty(req.Description),
 		CreatedBy:   createdBy,
 		Status:      gwmodels.StatusCreated,
@@ -297,6 +298,11 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 			// Offered here; enforced at the gateway once agents subscribe.
 			SubscriptionPlans: plans,
 		},
+	}
+
+	ctx, err = s.prepareEndpointSecrets(ctx, orgUUID, proxy.UUID, req.Endpoints)
+	if err != nil {
+		return nil, err
 	}
 
 	// Each endpoint deploys one gateway artifact per target environment, in the creating transaction. These are the
@@ -520,9 +526,17 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 		return nil, httpx.ErrInvalidInput
 	}
 
-	// Refuse a project proxy before any validation or network work; it is re-checked on
-	// the locked row below.
-	if existing, err := s.repo.GetByHandle(ctx, handle, orgUUID); err == nil && existing != nil && existing.ProjectUUID != nil {
+	// Refuse a missing or project proxy before any validation, network work or credential
+	// staging; both are re-checked on the locked row below, which catches a proxy deleted
+	// or moved in between. The proxy's current endpoints anchor the checks that follow.
+	existingProxy, err := s.repo.GetByHandle(ctx, handle, orgUUID)
+	if errors.Is(err, gorm.ErrRecordNotFound) || errors.Is(err, gwerr.ErrMCPProxyNotFound) || (err == nil && existingProxy == nil) {
+		return nil, gwerr.ErrMCPProxyNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get MCP proxy before update: %w", err)
+	}
+	if existingProxy.ProjectUUID != nil {
 		return nil, gwerr.ErrMCPProxyProjectOwned
 	}
 
@@ -538,23 +552,11 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 	if err := validateMCPProxyDeploymentHandleLengths(handle, req.Endpoints); err != nil {
 		return nil, err
 	}
-	// Load the proxy's current (environment -> artifact) mapping so the identity-security
-	// probe can anchor each environment on its existing deployment instead of re-selecting
-	// from the environment — mirrors indexExistingMCPEndpoints below, done here (outside
-	// the transaction) because the probe itself performs DB reads. A missing proxy is left
-	// to GetByHandleForUpdate inside the transaction, the authoritative existence check.
-	// Any other failure is returned: the placement check needs the proxy to find the agents
-	// that use it.
-	var existingArtifactByEnv map[string]uuid.UUID
-	proxyUUID := uuid.Nil
-	existingProxy, err := s.repo.GetByHandle(ctx, handle, orgUUID)
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, fmt.Errorf("failed to get MCP proxy before update: %w", err)
-	}
-	if err == nil && existingProxy != nil {
-		existingArtifactByEnv = indexExistingMCPEndpoints(existingProxy.Endpoints).artifactByEnv
-		proxyUUID = existingProxy.UUID
-	}
+	// Anchor the identity-security probe on each environment's existing deployment instead
+	// of re-selecting from the environment — mirrors indexExistingMCPEndpoints below, done
+	// here (outside the transaction) because the probe itself performs DB reads.
+	existingArtifactByEnv := indexExistingMCPEndpoints(existingProxy.Endpoints).artifactByEnv
+	proxyUUID := existingProxy.UUID
 	if err := s.validateMCPEndpointSecurity(ctx, orgUUID, req.Endpoints, existingArtifactByEnv); err != nil {
 		return nil, err
 	}
@@ -568,6 +570,11 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 		currentPlans = existingProxy.Configuration.SubscriptionPlans
 	}
 	plans, err := s.offeredPlans(ctx, orgUUID, req.SubscriptionPlans, currentPlans)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, err = s.prepareEndpointSecrets(ctx, orgUUID, proxyUUID, req.Endpoints)
 	if err != nil {
 		return nil, err
 	}
@@ -1951,6 +1958,20 @@ func applyRequestedGatewayUUIDs(proxy *gwmodels.MCPProxy, endpoints []gwmodels.M
 			}
 		}
 	}
+}
+
+func (s *MCPProxyService) prepareEndpointSecrets(ctx context.Context, org string, proxyID uuid.UUID, endpoints []gwmodels.MCPProxyEndpointDTO) (context.Context, error) {
+	for _, endpoint := range endpoints {
+		if endpoint.Upstream.Main == nil {
+			continue
+		}
+		var err error
+		ctx, err = gwsecret.Prepare(ctx, s.secrets, org, gwsecret.MCPEndpoint(proxyID, strings.TrimSpace(endpoint.ID)), endpoint.Upstream.Main.Auth)
+		if err != nil {
+			return ctx, err
+		}
+	}
+	return ctx, nil
 }
 
 // persistMCPEndpoints inserts the endpoint rows and their (endpoint, environment) join rows

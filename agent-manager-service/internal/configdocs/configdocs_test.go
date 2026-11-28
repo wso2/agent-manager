@@ -28,6 +28,7 @@ import (
 	_ "github.com/wso2/agent-manager/agent-manager-service/ampinit" // registers amp init's settings
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	_ "github.com/wso2/agent-manager/agent-manager-service/modules/all"
+	_ "github.com/wso2/agent-manager/agent-manager-service/vault/openbao" // registers the OpenBao vault's settings
 )
 
 // TestEverySettingIsDocumented: config.Settings documents exactly the

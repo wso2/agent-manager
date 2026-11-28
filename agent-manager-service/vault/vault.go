@@ -25,6 +25,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -69,11 +71,8 @@ type Sealed struct {
 
 // Vault is one secret backend.
 //
-// An external vault is only ever written after the database change that needs
-// the value has committed, by the secret store's job worker. Until a write's
-// row commits, the row keeps pointing at the previous value, so an external
-// vault must keep that value readable: Seal stages a new value and never
-// changes what current refers to.
+// A vault must preserve the current value until its replacement is committed
+// and the old reference is released through Destroy.
 type Vault interface {
 	// Provider is the name recorded in secrets.provider for values this vault sealed.
 	Provider() string
@@ -101,6 +100,16 @@ type Vault interface {
 type ExternalVault interface {
 	Vault
 	PromotionReference(ref Ref) (string, error)
+}
+
+// ReferenceVault stores new values before their references are committed. The
+// SQL store never seals or queues a copy of the credential for these providers.
+// Seal receives a fresh operation ID and must write to a new, immutable
+// reference. Abandon permanently removes a reserved value and fences late writes.
+type ReferenceVault interface {
+	Vault
+	Reserve(ref Ref) (string, error)
+	Abandon(ctx context.Context, ref Ref, reference string) error
 }
 
 // Config is what a provider is built from. A provider reads any settings of its
@@ -194,8 +203,10 @@ func Open(provider string, cfg Config, readers ...string) (*Vaults, error) {
 			return nil, err
 		}
 		if name != ProviderLocal && name == provider {
-			if _, ok := v.(ExternalVault); !ok {
-				return nil, fmt.Errorf("secret vault writer %q does not support recoverable writes", name)
+			_, promotes := v.(ExternalVault)
+			_, referenceOnly := v.(ReferenceVault)
+			if !promotes && !referenceOnly {
+				return nil, fmt.Errorf("secret vault writer %q does not support external writes", name)
 			}
 		}
 		set.byName[name] = v
@@ -216,6 +227,25 @@ func Of(writer Vault, readers ...Vault) *Vaults {
 
 // Writer is the vault new values are sealed with.
 func (s *Vaults) Writer() Vault { return s.writer }
+
+// Checker is a vault that can tell whether it is usable right now, such as an
+// external service that may be down, sealed or refuse the configured token.
+type Checker interface {
+	Check(ctx context.Context) error
+}
+
+// Check returns the first error of a loaded vault that can check itself.
+func (s *Vaults) Check(ctx context.Context) error {
+	names := slices.Sorted(maps.Keys(s.byName))
+	for _, name := range names {
+		if c, ok := s.byName[name].(Checker); ok {
+			if err := c.Check(ctx); err != nil {
+				return fmt.Errorf("secret vault %q: %w", name, err)
+			}
+		}
+	}
+	return nil
+}
 
 // For returns the vault that sealed a row whose provider column is provider.
 func (s *Vaults) For(provider string) (Vault, error) {

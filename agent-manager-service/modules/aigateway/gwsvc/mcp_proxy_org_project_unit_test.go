@@ -19,6 +19,7 @@ package gwsvc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"testing"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -203,4 +205,43 @@ func TestListEnvironmentScopesExcludesProjectProxies(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, f.AllProjects, "the user-facing scope catalog must not sweep project proxies")
 	assert.Nil(t, f.ProjectUUID)
+}
+
+// countingSecrets records how often a credential is staged in the external vault.
+type countingSecrets struct {
+	*gwtest.Secrets
+	prepared int
+}
+
+func (s *countingSecrets) Prepare(ctx context.Context, _, _, _ string) (context.Context, error) {
+	s.prepared++
+	return ctx, errors.New("vault unavailable")
+}
+
+// Updating a proxy that does not exist must answer not found before staging its credential: staging writes to an
+// external vault, and a failure there would turn the 404 into a 500.
+func TestUpdateMissingProxyDoesNotStageCredential(t *testing.T) {
+	for name, missing := range map[string]error{"record": gorm.ErrRecordNotFound, "proxy": gwerr.ErrMCPProxyNotFound} {
+		secrets := &countingSecrets{Secrets: gwtest.NewSecrets()}
+		svc := &MCPProxyService{
+			logger:  slog.Default(),
+			secrets: secrets,
+			repo: &gwrepomocks.MCPProxyRepositoryMock{
+				GetByHandleFunc: func(context.Context, string, string) (*gwmodels.MCPProxy, error) { return nil, missing },
+			},
+		}
+		authType, header, value := "api-key", "Authorization", "s3cret"
+		_, err := svc.Update(context.Background(), "org", "missing-mcp", &gwmodels.MCPProxyDTO{
+			ID: "missing-mcp", Name: "x", Version: "v1",
+			Endpoints: []gwmodels.MCPProxyEndpointDTO{{
+				ID: "primary",
+				Upstream: gwmodels.UpstreamConfig{Main: &gwmodels.UpstreamEndpoint{
+					URL:  orgPickerUpstream,
+					Auth: &gwmodels.UpstreamAuth{Type: &authType, Header: &header, Value: &value},
+				}},
+			}},
+		})
+		require.ErrorIs(t, err, gwerr.ErrMCPProxyNotFound, name)
+		assert.Zero(t, secrets.prepared, "%s: the credential was staged for a missing proxy", name)
+	}
 }

@@ -127,12 +127,49 @@ func (t txStore) Delete(ctx context.Context, orgID, path string) error {
 
 func (t txStore) In(tx *gorm.DB) modkit.Secrets { return txStore{st: t.st, tx: tx} }
 
+// Prepare stages outside the transaction, whatever tx this store writes through.
+func (t txStore) Prepare(ctx context.Context, orgID, path, value string) (context.Context, error) {
+	return t.st.Prepare(ctx, orgID, path, value)
+}
+
+// clearsCredential reports whether auth explicitly carries an empty value,
+// which means no credential: Prepare stages nothing and Seal deletes it.
+func clearsCredential(auth *gwmodels.UpstreamAuth) bool {
+	return auth != nil && auth.Value != nil && *auth.Value == ""
+}
+
+// Prepare stages the plaintext, if any, before the owning transaction. An
+// empty value is no credential (see Seal), so it stages nothing.
+func Prepare(ctx context.Context, store modkit.Secrets, orgID, path string, auth *gwmodels.UpstreamAuth) (context.Context, error) {
+	if auth == nil || auth.Value == nil || clearsCredential(auth) {
+		return ctx, nil
+	}
+	return PrepareValue(ctx, store, orgID, path, *auth.Value)
+}
+
+func PrepareValue(ctx context.Context, store modkit.Secrets, orgID, path, value string) (context.Context, error) {
+	return store.Prepare(ctx, orgID, path, value)
+}
+
+func (st *Store) Prepare(ctx context.Context, orgID, path, value string) (context.Context, error) {
+	store, err := st.get()
+	if err != nil {
+		return ctx, err
+	}
+	return store.Prepare(ctx, orgID, path, value)
+}
+
 // Seal stores auth's plaintext value at path and leaves path in its place as
 // the secretRef, so the row never holds the value. A row whose auth carries
 // no value and no reference holds no credential, so what path held is
-// deleted. A reference to another path is refused: each row owns its own.
+// deleted; so does an explicitly empty value, which is cleared from auth along
+// with any reference. A reference to another path is refused: each row owns
+// its own.
 func Seal(ctx context.Context, s modkit.Secrets, orgID, path string, auth *gwmodels.UpstreamAuth) error {
 	switch {
+	case clearsCredential(auth):
+		auth.SecretRef, auth.Value = nil, nil
+		return s.Delete(ctx, orgID, path)
 	case auth != nil && auth.Value != nil:
 		if err := s.Put(ctx, orgID, path, *auth.Value); err != nil {
 			return fmt.Errorf("store the upstream credential: %w", err)
