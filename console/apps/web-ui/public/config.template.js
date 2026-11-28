@@ -110,7 +110,7 @@ window.__RUNTIME_CONFIG__ = {
   },
   footerLinks: {
     privacyPolicyUrl: 'https://choreolabs.com/privacy-policy',
-    termsOfUseUrl: 'https://choreolabs.com/privacy-policy',
+    termsOfUseUrl: 'https://choreolabs.com/terms-of-use',
     supportUrl: 'https://choreolabs.com/subscription',
   },
   instrumentationDocLinks: {

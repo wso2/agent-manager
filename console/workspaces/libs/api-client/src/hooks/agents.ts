@@ -24,7 +24,7 @@ import {
   provisionAgentIdentity, regenerateAgentIdentitySecret, retryAgentIdentityProvisioning,
   revokeAgentIdentitySecret,
 } from "../apis";
-import { SLOW_POLL_INTERVAL } from "../utils";
+import { SLOW_POLL_INTERVAL, listAllPages } from "../utils";
 import type {
   AgentListResponse,
   AgentResponse,
@@ -76,6 +76,31 @@ export function useListAgents(
   return useApiQuery<AgentListResponse>({
     queryKey: ['agents', params, query],
     queryFn: () => listAgents(params, query, getToken),
+    enabled: !!params.orgName && !!params.projName,
+  });
+}
+
+/** Every agent in a project, across all pages. */
+export async function listAllAgents(
+  params: ListAgentsPathParams,
+  getToken?: () => Promise<string>,
+): Promise<AgentListResponse> {
+  const { first, all } = await listAllPages(
+    (query) => listAgents(params, query, getToken),
+    (page) => page.agents,
+  );
+  return { ...first, agents: all, limit: all.length };
+}
+
+/**
+ * Hook to list every agent in a project, for pickers that must offer all of
+ * them.
+ */
+export function useListAllAgents(params: ListAgentsPathParams) {
+  const { getToken } = useAuthHooks();
+  return useApiQuery<AgentListResponse>({
+    queryKey: ['agents', params, 'all'],
+    queryFn: () => listAllAgents(params, getToken),
     enabled: !!params.orgName && !!params.projName,
   });
 }

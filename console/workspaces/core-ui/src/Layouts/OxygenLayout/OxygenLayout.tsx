@@ -33,6 +33,7 @@ import { Logo, useExternalComponentModules } from "@agent-management-platform/vi
 import { globalConfig, absoluteRouteMap } from "@agent-management-platform/types";
 import { LeftNavigation, combineNavItems, flattenWithChildren } from "./LeftNavigation";
 import { useNavigationItems } from "./navigationItems";
+import { NavEntriesProvider } from "./navigation/useNavEntries";
 import { TopNavigation } from "./TopNavigation";
 import { useFooterLinkModules } from "./useFooterLinkModules";
 import { ConsoleAction, orgRouteId, useGetUserProfile, useListOrganizations, useTrack } from "@agent-management-platform/api-client";
@@ -48,7 +49,16 @@ function getUserAvatarInitials(fullName: string): string {
   return (initials || "U").toUpperCase();
 }
 
+// The menu, top bar and routed pages share one set of menu entries.
 export function OxygenLayout() {
+  return (
+    <NavEntriesProvider>
+      <OxygenLayoutContent />
+    </NavEntriesProvider>
+  );
+}
+
+function OxygenLayoutContent() {
   const [collapsed, setCollapsed] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const { userInfo, logout } = useAuthHooks();

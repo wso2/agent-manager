@@ -205,7 +205,6 @@ export function BuildCard(props: BuildCardProps) {
   const agentRoutes = absoluteRouteMap.children.org.children.projects.children.agents;
   const routeParams = { orgId: orgId ?? "", projectId: projectId ?? "", agentId: agentId ?? "" };
   const buildPath = generatePath(agentRoutes.children.build.path, routeParams);
-  const publishPath = generatePath(agentRoutes.children.publish.path, routeParams);
 
   // ── Build-agent data ────────────────────────────────────────────────────────
   const { data: builds, isLoading: isBuildsLoading } = useGetAllAgentBuilds({
@@ -262,6 +261,19 @@ export function BuildCard(props: BuildCardProps) {
     orgName: orgId,
     kindName: agent?.kindName  ?? "",
   });
+  // A kind agent's versions are published from the agent the kind came from,
+  // so open that agent's Publish page (the catalog page if it isn't known).
+  const kindSourcePublishPath =
+    kind?.projectName && kind?.agentName
+      ? generatePath(agentRoutes.children.publish.path, {
+          orgId: orgId ?? "",
+          projectId: kind.projectName,
+          agentId: kind.agentName,
+        })
+      : generatePath(absoluteRouteMap.children.org.children.catalog.children.kindDetails.path, {
+          orgId: orgId ?? "",
+          kindId: agent?.kindName ?? "",
+        });
 
   const sortedKindVersions = useMemo(
     () =>
@@ -419,10 +431,10 @@ export function BuildCard(props: BuildCardProps) {
               compact
               icon={Tag}
               title="Publish a version first"
-              description="Kind agents deploy from a published version, and this kind has none yet."
+              description="Kind agents deploy from a published version, and this kind has none yet. Versions are published from the agent the kind was created from."
               actions={
-                <Button variant="contained" component={Link} to={publishPath}>
-                  Go to Publish
+                <Button variant="contained" component={Link} to={kindSourcePublishPath}>
+                  Publish from source agent
                 </Button>
               }
             />

@@ -38,7 +38,9 @@ import {
   useParams,
   type LinkProps,
 } from "react-router-dom";
-import { useActiveAgentPage, useActiveOrgPage, useActiveProjectPage } from "./path-map";
+import { useLevelSwitchHref } from "./navigation/useLevelSwitchHref";
+import { AGENT_LEVEL, ORG_LEVEL, PROJECT_LEVEL } from "./navigation/breadcrumbLevels";
+import type { LevelGateFrom } from "./navigation/navModel";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import {
   useExternalComponentModules,
@@ -106,9 +108,6 @@ const RouterLink = forwardRef<
 ));
 RouterLink.displayName = "RouterLink";
 
-const ORG_LEVEL = "organization";
-const PROJECT_LEVEL = "project";
-const AGENT_LEVEL = "agent";
 
 const orgLabel = (
   org?: { name: string; displayName: string },
@@ -141,9 +140,8 @@ export function TopNavigation() {
     agentId: string;
   }>();
 
-  const commonOrgPages = useActiveOrgPage();
-  const commonProjectPages = useActiveProjectPage();
-  const commonAgentPages = useActiveAgentPage();
+  // Moving to another org/project/agent keeps the left-menu item in view.
+  const switchHref = useLevelSwitchHref();
 
   // Get all organizations
   const { data: organizations } = useListOrganizations();
@@ -216,8 +214,7 @@ export function TopNavigation() {
       return [];
     }
 
-    const orgHome = (id: string) =>
-      generatePath(absoluteRouteMap.children.org.path, { orgId: id });
+    const orgHome = (id: string) => switchHref({ orgId: id });
     // The console's own org, even when the org list failed or does not include
     // it, so the project and agent levels still render.
     const currentOrgItem: HeaderBreadcrumbsItem = {
@@ -276,10 +273,7 @@ export function TopNavigation() {
         items: (projects?.projects ?? []).map((project) => ({
           id: project.name,
           name: project.displayName,
-          href: generatePath(
-            absoluteRouteMap.children.org.children.projects.path,
-            { orgId, projectId: project.name },
-          ),
+          href: switchHref({ orgId, projectId: project.name }),
         })),
         selectedId: projectId ?? null,
         createAction: {
@@ -301,11 +295,7 @@ export function TopNavigation() {
         items: (agents?.agents ?? []).map((agent) => ({
           id: agent.name,
           name: agent.displayName,
-          href: generatePath(
-            absoluteRouteMap.children.org.children.projects.children.agents
-              .path,
-            { orgId, projectId, agentId: agent.name },
-          ),
+          href: switchHref({ orgId, projectId, agentId: agent.name }),
         })),
         selectedId: agentId ?? null,
         createAction: {
@@ -333,11 +323,12 @@ export function TopNavigation() {
     projectsLoading,
     agents,
     agentsLoading,
+    switchHref,
   ]);
 
   // Picking another entry from a level's menu (by click, or Enter in its search
-  // field) keeps the page the user is on within that level, such as switching
-  // agents while on Traces.
+  // field) keeps the left-menu item the user is on, such as switching agents
+  // while on Traces. The item hrefs already point there (see switchHref).
   const handleSelect = useCallback(
     (levelId: string, item: HeaderBreadcrumbsItem) => {
       if (levelId === ORG_LEVEL && externalSwitcher) {
@@ -355,29 +346,23 @@ export function TopNavigation() {
       } else if (levelId === PROJECT_LEVEL && item.id !== projectId) {
         track(ConsoleAction.ContextSwitch, { switch_type: "project" });
       }
-      const subPage =
-        levelId === ORG_LEVEL
-          ? commonOrgPages
-          : levelId === PROJECT_LEVEL
-            ? commonProjectPages
-            : commonAgentPages;
-      navigate(subPage ? `${item.href}/${subPage}` : item.href);
+      navigate(item.href);
     },
-    [
-      externalSwitcher, navigate, commonOrgPages, commonProjectPages, commonAgentPages,
-      orgId, projectId, track,
-    ],
+    [externalSwitcher, navigate, orgId, projectId, track],
   );
 
-  // Clicking a name in the trail goes to that level's home page, such as the
-  // project page from an agent page.
+  // Clicking a name in the trail moves up to that level and keeps the left-menu
+  // item: from an agent's Traces, the project name opens the Traces agent
+  // picker for that project. The state lets that picker preselect where the
+  // user came from.
   const handleNavigate = useCallback(
     (_levelId: string, item: HeaderBreadcrumbsItem) => {
       if (item.href && item.href !== pathname) {
-        navigate(item.href);
+        const from: LevelGateFrom = { projectId, agentId };
+        navigate(item.href, { state: { from } });
       }
     },
-    [navigate, pathname],
+    [navigate, pathname, projectId, agentId],
   );
 
   const openTrailNameInNewTab = (event: MouseEvent) => {

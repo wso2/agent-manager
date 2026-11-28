@@ -25,11 +25,8 @@ import React, {
 import { PageLayout, TextInput } from "@agent-management-platform/views";
 import {
   Alert,
-  Avatar,
   Box,
   Button,
-  Chip,
-  Form,
   ListingTable,
   Skeleton,
   Stack,
@@ -40,20 +37,13 @@ import {
 } from "@wso2/oxygen-ui";
 import {
   AlertTriangle,
-  Check,
-  Circle,
-  Edit,
-  Info,
   Link,
   Search,
-  ServerCog,
 } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   absoluteRouteMap,
-  type CatalogSecuritySummary,
-  type CatalogRateLimitingSummary,
   type LLMPolicy,
   INPUT_LIMITS,
 } from "@agent-management-platform/types";
@@ -67,7 +57,7 @@ import {
   useUpdateAgentModelConfig,
 } from "@agent-management-platform/api-client";
 import {
-  formatRelativeTime,
+  LLMProviderCard,
   getErrorMessage,
   PolicyListSection,
   type PolicySelection as GuardrailSelection,
@@ -87,281 +77,11 @@ import {
   type LLMEnvVarKey,
 } from "./utils/envConfig";
 
-type DeploymentSummary = { gatewayName?: string; deployedAt?: string };
-
 const ENV_VAR_DESCRIPTIONS: Record<LLMEnvVarKey, string> = {
   url: "Base URL of the LLM provider",
   apikey: "API key for authenticating with the LLM provider",
   provider: "Name of the LLM provider, for example openai or anthropic",
 };
-
-function getLatestDeployment(
-  deployments: DeploymentSummary[] | undefined,
-): DeploymentSummary | null {
-  if (!deployments?.length) return null;
-  const sorted = [...deployments].sort(
-    (a, b) =>
-      new Date(b.deployedAt ?? 0).getTime() -
-      new Date(a.deployedAt ?? 0).getTime(),
-  );
-  return sorted[0] ?? null;
-}
-
-function formatCost(amount: number): string {
-  if (amount < 0.01) return `$${amount.toFixed(6)}`;
-  return `$${amount.toFixed(2)}`;
-}
-
-function formatResetWindow(duration?: number, unit?: string): string {
-  if (!unit) return "";
-  const abbrev: Record<string, string> = {
-    minute: "min",
-    hour: "hr",
-    day: "day",
-  };
-  const u = abbrev[unit.toLowerCase()] ?? unit;
-  return duration && duration !== 1 ? `${duration} ${u}` : u;
-}
-
-const RateLimitDisplay: React.FC<{
-  rateLimiting?: CatalogRateLimitingSummary;
-}> = ({ rateLimiting }) => {
-  if (!rateLimiting) {
-    return (
-      <Typography variant="caption" color="text.secondary">
-        Rate Limiting:{" "}
-        <Typography component="span" variant="caption" color="text.disabled">
-          Not configured
-        </Typography>
-      </Typography>
-    );
-  }
-
-  const cl = rateLimiting.consumerLevel;
-  const pl = rateLimiting.providerLevel;
-
-  // Whether the consumer level is actively enabled (rate limiting applies to this consumer)
-  const consumerEnabled = cl?.globalEnabled ?? false;
-  // Whether the consumer level has its own per-consumer numeric limits configured
-  const consumerHasLimits =
-    consumerEnabled &&
-    (cl?.request != null || cl?.token != null || cl?.cost != null);
-
-  if (!consumerEnabled && !pl?.globalEnabled) {
-    return (
-      <Typography variant="caption" color="text.secondary">
-        Rate Limiting:{" "}
-        <Typography component="span" variant="caption" color="text.disabled">
-          Configured (disabled)
-        </Typography>
-      </Typography>
-    );
-  }
-
-  // Use consumer-specific limits when set; otherwise fall back to provider limits for display
-  const limitScope = consumerHasLimits ? cl : pl;
-  // Org-wide whenever we fall back to provider-level limits (no per-consumer numeric overrides)
-  const isOrgWide = !consumerHasLimits;
-
-  const limits: { label: string; value: string }[] = [];
-  if (limitScope?.request) {
-    const w = formatResetWindow(
-      limitScope.request.resetDuration,
-      limitScope.request.resetUnit,
-    );
-    limits.push({
-      label: "Requests",
-      value: `${limitScope.request.limit.toLocaleString()}${w ? `/${w}` : ""}`,
-    });
-  }
-  if (limitScope?.token) {
-    const w = formatResetWindow(
-      limitScope.token.resetDuration,
-      limitScope.token.resetUnit,
-    );
-    limits.push({
-      label: "Tokens",
-      value: `${limitScope.token.limit.toLocaleString()}${w ? `/${w}` : ""}`,
-    });
-  }
-  if (limitScope?.cost) {
-    const w = formatResetWindow(
-      limitScope.cost.resetDuration,
-      limitScope.cost.resetUnit,
-    );
-    limits.push({
-      label: "Budget",
-      value: `${formatCost(limitScope.cost.limit)}${w ? `/${w}` : ""}`,
-    });
-  }
-
-  return (
-    <Stack
-      direction="row"
-      spacing={0.5}
-      alignItems="center"
-      flexWrap="wrap"
-      useFlexGap
-    >
-      <Typography variant="caption" color="text.secondary">
-        {isOrgWide ? "Your Quota (org-wide limit):" : "Your Quota:"}
-      </Typography>
-      {isOrgWide && (
-        <Tooltip
-          title="No per-consumer limit is configured. The org-wide provider limit applies to all consumers."
-          placement="top"
-          arrow
-        >
-          <Box
-            component="span"
-            sx={{
-              display: "inline-flex",
-              alignItems: "center",
-              color: "text.secondary",
-              cursor: "default",
-            }}
-          >
-            <Info size={12} />
-          </Box>
-        </Tooltip>
-      )}
-      {limits.length > 0 ? (
-        <Typography
-          variant="caption"
-          color={isOrgWide ? "text.secondary" : "text.primary"}
-          sx={{ fontVariantNumeric: "tabular-nums" }}
-        >
-          {limits.map((l) => `${l.label}: ${l.value}`).join(" · ")}
-        </Typography>
-      ) : (
-        <Typography variant="caption" color="text.secondary">
-          Enabled (no numeric limits set)
-        </Typography>
-      )}
-    </Stack>
-  );
-};
-
-export const ProviderDisplay: React.FC<{
-  provider: {
-    name: string;
-    template?: string;
-    version?: string;
-    deployments?: DeploymentSummary[];
-    security?: CatalogSecuritySummary;
-    rateLimiting?: CatalogRateLimitingSummary;
-    policies?: string[];
-  } | null;
-  isSelected: boolean;
-  hideCheckbox?: boolean;
-  templateInfo?: { displayName: string; logoUrl?: string } | null;
-  fallbackLabel?: string;
-}> = ({
-  provider,
-  isSelected,
-  templateInfo,
-  fallbackLabel = "Select provider",
-  hideCheckbox,
-}) => {
-    const latest = getLatestDeployment(provider?.deployments);
-    const avatarSize = hideCheckbox ? 36 : 32;
-    return (
-      <Stack direction="row" spacing={2} flexGrow={1} alignItems="flex-start">
-        {!hideCheckbox && (
-          <Avatar
-            sx={{
-              height: avatarSize,
-              width: avatarSize,
-              backgroundColor: isSelected ? "primary.main" : "secondary.main",
-              color: isSelected ? "common.white" : "text.secondary",
-            }}
-          >
-            {isSelected ? <Check size={16} /> : <Circle size={16} />}
-          </Avatar>
-        )}
-        {hideCheckbox && (
-          <Avatar
-            src={templateInfo?.logoUrl}
-            sx={{ height: avatarSize, width: avatarSize, backgroundColor: "action.selected" }}
-          >
-            <ServerCog size={16} />
-          </Avatar>
-        )}
-
-        <Stack spacing={0.5} flexGrow={1} sx={{ minWidth: 0 }}>
-          {/* Title + provider template */}
-          <Stack
-            direction="row"
-            spacing={0.75}
-            alignItems="center"
-            flexWrap="wrap"
-            useFlexGap
-            sx={{ minHeight: avatarSize }}
-          >
-            <Typography variant="h4">
-              {provider?.name ?? fallbackLabel}
-            </Typography>
-            {provider?.template && (
-              <Tooltip title="Service Provider template" placement="top" arrow>
-                {hideCheckbox ?
-                  (<Typography variant="caption" color="text.disabled">
-                    | {templateInfo?.displayName ?? provider.template}
-                  </Typography>) :
-                  (<Chip
-                    label={templateInfo?.displayName ?? provider.template}
-                    size="small"
-                    variant="outlined"
-                    icon={
-                      templateInfo?.logoUrl ? (
-                        <Box
-                          component="img"
-                          src={templateInfo.logoUrl}
-                          alt={templateInfo.displayName}
-                          sx={{ width: 14, height: 14, borderRadius: "100%" }}
-                        />
-                      ) : undefined
-                    }
-                  />)}
-
-
-              </Tooltip>
-            )}
-          </Stack>
-
-          {latest?.deployedAt && (
-            <Typography variant="caption" color="text.secondary">
-              Deployed{" "}
-              {formatRelativeTime(latest.deployedAt)}
-            </Typography>
-          )}
-
-          <RateLimitDisplay rateLimiting={provider?.rateLimiting} />
-
-          {/* Guardrails — plain inline text (full list shown on hover) */}
-          <Typography variant="caption" color="text.secondary">
-            Guardrails:{" "}
-            {provider?.policies?.length ? (
-              <Tooltip
-                title={provider.policies.join(", ")}
-                placement="top"
-                arrow
-              >
-                <Typography component="span" variant="caption" color="text.primary">
-                  {provider.policies.slice(0, 3).join(", ")}
-                  {provider.policies.length > 3 &&
-                    ` +${provider.policies.length - 3} more`}
-                </Typography>
-              </Tooltip>
-            ) : (
-              <Typography component="span" variant="caption" color="text.disabled">
-                None
-              </Typography>
-            )}
-          </Typography>
-        </Stack>
-      </Stack>
-    );
-  };
 
 export const AddLLMProviderComponent: React.FC = () => {
   const { orgId, projectId, agentId, configId } = useParams<{
@@ -467,7 +187,6 @@ export const AddLLMProviderComponent: React.FC = () => {
         version: e.version,
         template: e.template,
         deployments: e.deployments ?? [],
-        security: e.security,
         rateLimiting: e.rateLimiting,
         policies: e.policies ?? [],
       })),
@@ -924,36 +643,11 @@ export const AddLLMProviderComponent: React.FC = () => {
               const fullProvider =
                 providers.find((p) => p.uuid === selectedUuid) ?? null;
               return (
-                <Form.CardButton
-                  onClick={() => setProviderDrawerOpen(true)}
-                  selected
-                  aria-label={`Selected: ${fullProvider?.name ?? "Unknown"}. Click to change.`}
-                  sx={{ position: "relative" }}
-                >
-                  <Tooltip title="Change provider" placement="top" arrow>
-                    <Box
-                      sx={{
-                        position: "absolute",
-                        top: 8,
-                        right: 8,
-                        display: "inline-flex",
-                        color: "text.secondary",
-                      }}
-                    >
-                      <Edit size={16} />
-                    </Box>
-                  </Tooltip>
-                  <Form.CardContent>
-                    <ProviderDisplay
-                      provider={fullProvider}
-                      isSelected={false}
-                      hideCheckbox
-                      templateInfo={templateMap.get(
-                        fullProvider?.template ?? "",
-                      )}
-                    />
-                  </Form.CardContent>
-                </Form.CardButton>
+                <LLMProviderCard
+                  provider={fullProvider}
+                  templateInfo={templateMap.get(fullProvider?.template ?? "")}
+                  onChange={() => setProviderDrawerOpen(true)}
+                />
               );
             })()
           ) : (
@@ -1042,30 +736,31 @@ export const AddLLMProviderComponent: React.FC = () => {
               }));
             }}
           />
-          {providerByEnv[selectedEnvName] && (
-            <PolicyListSection
-              providerId={providerByEnv[selectedEnvName]?.uuid}
-              title="Guardrails"
-              description="Add safety policies to enforce consistent protections."
-              addButtonLabel="Add guardrail"
-              drawerAddTitle="Add Guardrail"
-              drawerEditTitle="Edit Guardrail"
-              drawerAddSubtitle="Choose a guardrail to configure advanced options."
-              drawerEditSubtitle="Update the guardrail configuration."
-              policyNoun="guardrail"
-              loadingLabel="Loading guardrails..."
-              searchPlaceholder="Search guardrails"
-              catalogErrorLabel="Failed to load guardrails."
-              emptySearchTitle="No guardrails match your search"
-              emptyCatalogTitle="No guardrails available"
-              emptyCatalogDescription="No guardrail policies are available in the catalog."
-              policies={guardrails}
-              onAdd={handleAddGuardrail}
-              onEdit={handleEditGuardrail}
-              onRemove={handleRemoveGuardrail}
-            />
-          )}
         </Box>
+
+        {providerByEnv[selectedEnvName] && (
+          <PolicyListSection
+            providerId={providerByEnv[selectedEnvName]?.uuid}
+            title="Guardrails"
+            description="Add safety policies to enforce consistent protections."
+            addButtonLabel="Add guardrail"
+            drawerAddTitle="Add Guardrail"
+            drawerEditTitle="Edit Guardrail"
+            drawerAddSubtitle="Choose a guardrail to configure advanced options."
+            drawerEditSubtitle="Update the guardrail configuration."
+            policyNoun="guardrail"
+            loadingLabel="Loading guardrails..."
+            searchPlaceholder="Search guardrails"
+            catalogErrorLabel="Failed to load guardrails."
+            emptySearchTitle="No guardrails match your search"
+            emptyCatalogTitle="No guardrails available"
+            emptyCatalogDescription="No guardrail policies are available in the catalog."
+            policies={guardrails}
+            onAdd={handleAddGuardrail}
+            onEdit={handleEditGuardrail}
+            onRemove={handleRemoveGuardrail}
+          />
+        )}
 
         {hasAnyProvider && (
           <ConfigNameSection

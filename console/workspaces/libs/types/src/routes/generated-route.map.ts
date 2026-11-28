@@ -11,6 +11,11 @@ export const generatedRouteMap =  {
       "path": "/organizations/:orgId",
       "wildPath": "/organizations/:orgId/*",
       "children": {
+        "levelGate": {
+          "path": "/organizations/:orgId/go/:navKey",
+          "wildPath": "/organizations/:orgId/go/:navKey/*",
+          "children": {}
+        },
         "profile": {
           "path": "/organizations/:orgId/profile",
           "wildPath": "/organizations/:orgId/profile/*",
@@ -259,6 +264,11 @@ export const generatedRouteMap =  {
           "path": "/organizations/:orgId/projects/:projectId",
           "wildPath": "/organizations/:orgId/projects/:projectId/*",
           "children": {
+            "levelGate": {
+              "path": "/organizations/:orgId/projects/:projectId/go/:navKey",
+              "wildPath": "/organizations/:orgId/projects/:projectId/go/:navKey/*",
+              "children": {}
+            },
             "events": {
               "path": "/organizations/:orgId/projects/:projectId/events",
               "wildPath": "/organizations/:orgId/projects/:projectId/events/*",
@@ -333,6 +343,11 @@ export const generatedRouteMap =  {
               "path": "/organizations/:orgId/projects/:projectId/agents/:agentId",
               "wildPath": "/organizations/:orgId/projects/:projectId/agents/:agentId/*",
               "children": {
+                "levelGate": {
+                  "path": "/organizations/:orgId/projects/:projectId/agents/:agentId/go/:navKey",
+                  "wildPath": "/organizations/:orgId/projects/:projectId/agents/:agentId/go/:navKey/*",
+                  "children": {}
+                },
                 "edit": {
                   "path": "/organizations/:orgId/projects/:projectId/agents/:agentId/edit",
                   "wildPath": "/organizations/:orgId/projects/:projectId/agents/:agentId/edit/*",

@@ -23,20 +23,17 @@ import {
   DrawerHeader,
   DrawerWrapper,
 } from "@agent-management-platform/views";
-import { Box, Divider, Form, ListingTable, SearchBar, Stack, Typography } from "@wso2/oxygen-ui";
+import {
+  LLMProviderCard,
+  type LLMProviderCardProvider,
+} from "@agent-management-platform/shared-component";
+import { Box, Divider, ListingTable, SearchBar, Stack, Typography } from "@wso2/oxygen-ui";
 import { ExternalLink, Link, Plus, Search } from "@wso2/oxygen-ui-icons-react";
-import { ProviderDisplay } from "./AddLLMProvider.Component";
 
-export type ProviderOption = {
+export type ProviderOption = LLMProviderCardProvider & {
   uuid: string;
   id: string;
-  name: string;
-  template?: string;
   version?: string;
-  deployments?: unknown[];
-  security?: unknown;
-  rateLimiting?: unknown;
-  policies?: unknown[];
 };
 
 interface ProviderSelectDrawerProps {
@@ -129,23 +126,16 @@ export const ProviderSelectDrawer: React.FC<ProviderSelectDrawerProps> = ({
               filtered.map((p) => {
                 const isSelected = selectedUuid === p.uuid;
                 return (
-                  <Form.CardButton
+                  <LLMProviderCard
                     key={p.uuid}
-                    onClick={() => {
+                    provider={p}
+                    templateInfo={templateMap.get(p.template ?? "")}
+                    selected={isSelected}
+                    onSelect={() => {
                       onSelect(p.uuid);
                       onClose();
                     }}
-                    selected={isSelected}
-                    aria-label={`${p.name}. ${isSelected ? "Selected" : "Click to select"}`}
-                  >
-                    <Form.CardContent>
-                      <ProviderDisplay
-                        provider={p as Parameters<typeof ProviderDisplay>[0]["provider"]}
-                        isSelected={isSelected}
-                        templateInfo={templateMap.get(p.template ?? "")}
-                      />
-                    </Form.CardContent>
-                  </Form.CardButton>
+                  />
                 );
               })
             )}

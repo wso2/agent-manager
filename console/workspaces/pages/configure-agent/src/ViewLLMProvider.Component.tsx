@@ -25,6 +25,7 @@ import {
 } from "@agent-management-platform/views";
 import {
   CodeBlock,
+  LLMProviderCard,
   PolicyListSection,
   ResilienceTimeoutFields,
   usePipelineEnvironmentsState,
@@ -35,22 +36,18 @@ import {
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
   Chip,
   Divider,
   FormLabel,
-  IconButton,
   Skeleton,
   Stack,
   Tab,
   Tabs,
   ToggleButton,
   ToggleButtonGroup,
-  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { AlertTriangle, BookOpen, Edit, Plus } from "@wso2/oxygen-ui-icons-react";
+import { AlertTriangle, BookOpen, Plus } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useLocation, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap, type CatalogLLMProviderEntry } from "@agent-management-platform/types";
 import {
@@ -61,7 +58,6 @@ import {
   useListLLMProviderTemplates,
   useUpdateAgentModelConfig,
 } from "@agent-management-platform/api-client";
-import { ProviderDisplay } from "./AddLLMProvider.Component";
 import { ProviderSelectDrawer } from "./ProviderSelectDrawer";
 import { EmptyConfigCard } from "./Configure/subComponents/EmptyConfigCard";
 import { EnvironmentVariablesGuideDrawer } from "./Configure/subComponents/EnvironmentVariablesGuideDrawer";
@@ -414,7 +410,6 @@ export const ViewLLMProviderComponent: React.FC = () => {
         template: e.template,
         version: e.version,
         deployments: e.deployments,
-        security: e.security,
         rateLimiting: e.rateLimiting,
         policies: e.policies,
       })),
@@ -1285,43 +1280,29 @@ export const ViewLLMProviderComponent: React.FC = () => {
                 : null);
 
             return (
-              <Card variant="outlined">
-                <CardContent sx={{ position: "relative" }}>
-                  {canWrite && (
-                    <Tooltip title="Change provider" placement="top" arrow>
-                      <IconButton
-                        size="small"
-                        color="primary"
-                        sx={{ position: "absolute", top: 8, right: 8 }}
-                        onClick={() => setProviderDrawerOpen(true)}
-                        aria-label="Change provider"
-                      >
-                        <Edit size={16} />
-                      </IconButton>
-                    </Tooltip>
-                  )}
-                  <ProviderDisplay
-                    provider={
-                      displayCatalog
-                        ? {
-                          name: displayCatalog.name ?? providerConfig?.providerName ?? "",
-                          template: displayCatalog.template,
-                          version: displayCatalog.version,
-                          deployments: displayCatalog.deployments,
-                          security: displayCatalog.security,
-                          rateLimiting: displayCatalog.rateLimiting,
-                          policies: displayCatalog.policies?.map(
-                            (name) => guardrailDisplayNames.get(name) ?? name,
-                          ),
-                        }
-                        : { name: providerConfig?.providerName ?? "" }
+              <LLMProviderCard
+                provider={
+                  displayCatalog
+                    ? {
+                      name: displayCatalog.name ?? providerConfig?.providerName ?? "",
+                      template: displayCatalog.template,
+                      deployments: displayCatalog.deployments,
+                      rateLimiting: displayCatalog.rateLimiting,
+                      policies: displayCatalog.policies?.map(
+                        (name) => guardrailDisplayNames.get(name) ?? name,
+                      ),
                     }
-                    isSelected={false}
-                    hideCheckbox
-                    templateInfo={displayTemplate ?? null}
-                  />
-                </CardContent>
-              </Card>
+                    : {
+                      name: providerConfig?.providerName ?? "",
+                      // Saved guardrails while the catalog loads, so it doesn't say "None".
+                      policies: providerConfig?.providerPolicies?.map(
+                        (policy) => guardrailDisplayNames.get(policy.name) ?? policy.name,
+                      ),
+                    }
+                }
+                templateInfo={displayTemplate ?? null}
+                onChange={canWrite ? () => setProviderDrawerOpen(true) : undefined}
+              />
             );
           })()}
 

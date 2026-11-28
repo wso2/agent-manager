@@ -113,3 +113,4 @@ export {
 // EnvVarReferenceRow is intentionally not re-exported here — it originates in
 // utils/mcpEnvVarSpec, which the package index already re-exports.
 export { EnvironmentVariablesReference } from "./EnvironmentVariablesReference/EnvironmentVariablesReference";
+export * from "./LLMProviderCard";

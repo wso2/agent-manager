@@ -104,6 +104,9 @@ import {
   usePageViewTracking,
 } from "@agent-management-platform/api-client";
 import { MountPoints } from "../types";
+import { LevelGate } from "../pages/LevelGate/LevelGate";
+import { AgentUnsupportedNotice } from "../pages/LevelGate/subComponents/AgentUnsupportedNotice";
+import { useActiveNavEntry } from "../Layouts/OxygenLayout/navigation/useNavEntries";
 
 // Back-compat redirect: routes moved from /org/:orgId/project/:projectId/* to
 // /organizations/:orgId/projects/:projectId/*. Keeps the sub-path, query and
@@ -223,11 +226,24 @@ function ProjectGuard() {
 
 function AgentGuard() {
   const { orgId, projectId, agentId } = useParams();
-  const { isLoading, isError } = useGetAgent({
+  const { data: agent, isLoading, isError } = useGetAgent({
     orgName: orgId,
     projName: projectId,
     agentName: agentId,
   });
+  // Pages that don't apply to this kind of agent (Build on an external agent,
+  // …) explain why, whether reached from the menu, a gate or a direct URL.
+  const active = useActiveNavEntry();
+  const reason = agent && active?.unsupportedReason?.(agent);
+  if (reason && active) {
+    return (
+      <AgentUnsupportedNotice
+        label={active.label}
+        reason={reason}
+        params={{ orgId, projectId, agentId }}
+      />
+    );
+  }
   return (
     <GuardedOutlet
       isLoading={isLoading}
@@ -299,6 +315,10 @@ export function RootRouter() {
             element={<OrgGuard />}
           >
             <Route index element={<LazyOverviewOrg />} />
+            <Route
+              path={relativeRouteMap.children.org.children.levelGate.path}
+              element={<LevelGate />}
+            />
             <Route
               path={relativeRouteMap.children.org.children.projectListing.path}
               element={
@@ -451,6 +471,13 @@ export function RootRouter() {
               <Route
                 path={
                   relativeRouteMap.children.org.children.projects.children
+                    .levelGate.path
+                }
+                element={<LevelGate />}
+              />
+              <Route
+                path={
+                  relativeRouteMap.children.org.children.projects.children
                     .agentListing.path
                 }
                 element={
@@ -522,6 +549,13 @@ export function RootRouter() {
                 element={<AgentGuard />}
               >
                 <Route index element={<LazyOverviewComponent />} />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.levelGate.path
+                  }
+                  element={<LevelGate />}
+                />
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children

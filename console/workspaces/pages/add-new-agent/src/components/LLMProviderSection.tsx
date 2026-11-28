@@ -26,10 +26,8 @@ import {
   Accordion,
   AccordionDetails,
   AccordionSummary,
-  Avatar,
   Box,
   Button,
-  Chip,
   CircularProgress,
   Divider,
   Form,
@@ -44,20 +42,14 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import {
-  Check,
   ChevronDown,
-  Circle,
-  Coins,
   DoorClosedLocked,
   ExternalLink,
-  Hash,
-  Info,
   Link,
   Plus,
   RefreshCw,
   Search,
   Trash2,
-  Zap,
 } from "@wso2/oxygen-ui-icons-react";
 import { useParams, generatePath } from "react-router-dom";
 import {
@@ -66,7 +58,7 @@ import {
   useListLLMProviderTemplates,
 } from "@agent-management-platform/api-client";
 import {
-  formatRelativeTime,
+  LLMProviderCard,
   PolicyListSection,
   type PolicySelection as GuardrailSelection,
 } from "@agent-management-platform/shared-component";
@@ -76,7 +68,6 @@ import {
   absoluteRouteMap,
   withBasePath,
   type CatalogRateLimitingSummary,
-  type CatalogSecuritySummary,
 } from "@agent-management-platform/types";
 
 type DeploymentSummary = { gatewayName?: string; deployedAt?: string };
@@ -88,195 +79,9 @@ interface ProviderInfo {
   version?: string;
   template?: string;
   deployments?: DeploymentSummary[];
-  security?: CatalogSecuritySummary;
   rateLimiting?: CatalogRateLimitingSummary;
   policies?: string[];
 }
-
-function getLatestDeployment(
-  deployments: DeploymentSummary[] | undefined,
-): DeploymentSummary | null {
-  if (!deployments?.length) return null;
-  return [...deployments].sort(
-    (a, b) =>
-      new Date(b.deployedAt ?? 0).getTime() - new Date(a.deployedAt ?? 0).getTime(),
-  )[0] ?? null;
-}
-
-function formatCost(amount: number): string {
-  if (amount < 0.01) return `$${amount.toFixed(6)}`;
-  return `$${amount.toFixed(2)}`;
-}
-
-function formatResetWindow(duration?: number, unit?: string): string {
-  if (!unit) return "";
-  const abbrev: Record<string, string> = { minute: "min", hour: "hr", day: "day" };
-  const u = abbrev[unit.toLowerCase()] ?? unit;
-  return duration && duration !== 1 ? `${duration} ${u}` : u;
-}
-
-const RateLimitDisplay: React.FC<{
-  rateLimiting?: CatalogRateLimitingSummary;
-}> = ({ rateLimiting }) => {
-  if (!rateLimiting) {
-    return (
-      <Typography variant="caption" color="text.secondary">
-        Rate Limiting: <Typography component="span" variant="body2" color="text.disabled">Not configured</Typography>
-      </Typography>
-    );
-  }
-
-  const cl = rateLimiting.consumerLevel;
-  const pl = rateLimiting.providerLevel;
-
-  const consumerEnabled = cl?.globalEnabled ?? false;
-  const consumerHasLimits =
-    consumerEnabled && (cl?.request != null || cl?.token != null || cl?.cost != null);
-
-  if (!consumerEnabled && !pl?.globalEnabled) {
-    return (
-      <Typography variant="caption" color="text.secondary">
-        Rate Limiting: <Typography component="span" variant="body2" color="text.disabled">Configured (disabled)</Typography>
-      </Typography>
-    );
-  }
-
-  const limitScope = consumerHasLimits ? cl : pl;
-  const isOrgWide = !consumerHasLimits;
-
-  const limits: { icon: React.ReactNode; label: string; value: string }[] = [];
-  if (limitScope?.request) {
-    const w = formatResetWindow(limitScope.request.resetDuration, limitScope.request.resetUnit);
-    limits.push({ icon: <Zap size={12} />, label: "Requests", value: `${limitScope.request.limit.toLocaleString()}${w ? `/${w}` : ""}` });
-  }
-  if (limitScope?.token) {
-    const w = formatResetWindow(limitScope.token.resetDuration, limitScope.token.resetUnit);
-    limits.push({ icon: <Hash size={12} />, label: "Tokens", value: `${limitScope.token.limit.toLocaleString()}${w ? `/${w}` : ""}` });
-  }
-  if (limitScope?.cost) {
-    const w = formatResetWindow(limitScope.cost.resetDuration, limitScope.cost.resetUnit);
-    limits.push({ icon: <Coins size={12} />, label: "Budget", value: `${formatCost(limitScope.cost.limit)}${w ? `/${w}` : ""}` });
-  }
-
-  return (
-    <Stack spacing={0.5}>
-      <Stack direction="row" spacing={0.5} alignItems="center">
-        <Typography variant="caption" color="text.secondary">
-          {isOrgWide ? "Your Quota (org-wide limit):" : "Your Quota:"}
-        </Typography>
-        {isOrgWide && (
-          <Tooltip
-            title="No per-consumer limit is configured. The org-wide provider limit applies to all consumers."
-            placement="top"
-            arrow
-          >
-            <Box component="span" sx={{ display: "inline-flex", alignItems: "center", color: "text.secondary", cursor: "default" }}>
-              <Info size={12} />
-            </Box>
-          </Tooltip>
-        )}
-      </Stack>
-      {limits.length > 0 ? (
-        <Stack direction="row" spacing={0.75} flexWrap="wrap">
-          {limits.map(({ icon, label, value }) => (
-            <Chip
-              key={label}
-              icon={<Box component="span" sx={{ display: "inline-flex", alignItems: "center", pl: 0.5 }}>{icon}</Box>}
-              label={`${label}: ${value}`}
-              size="small"
-              variant="outlined"
-              color={isOrgWide ? "default" : "primary"}
-              sx={{ fontVariantNumeric: "tabular-nums" }}
-            />
-          ))}
-        </Stack>
-      ) : (
-        <Typography variant="body2" color="text.secondary">Enabled (no numeric limits set)</Typography>
-      )}
-    </Stack>
-  );
-};
-
-const ProviderDisplay: React.FC<{
-  provider: ProviderInfo | null;
-  isSelected: boolean;
-  templateInfo?: { displayName: string; logoUrl?: string } | null;
-  fallbackLabel?: string;
-}> = ({ provider, isSelected, templateInfo, fallbackLabel = "Select provider" }) => {
-  const latest = getLatestDeployment(provider?.deployments);
-  return (
-    <Stack direction="row" spacing={2} flexGrow={1} alignItems="center">
-      <Avatar
-        sx={{
-          height: 32,
-          width: 32,
-          backgroundColor: isSelected ? "primary.main" : "secondary.main",
-          color: isSelected ? "common.white" : "text.secondary",
-        }}
-      >
-        {isSelected ? <Check size={16} /> : <Circle size={16} />}
-      </Avatar>
-      <Stack spacing={0.25} flexGrow={1}>
-        <Stack direction="row" spacing={0.25} alignItems="center">
-          <Typography variant="h6">{provider?.name ?? fallbackLabel} &nbsp;</Typography>
-          {provider?.template && (
-            <Tooltip title="Provider template" placement="top" arrow>
-              <Chip
-                label={templateInfo?.displayName ?? provider.template}
-                size="small"
-                variant="outlined"
-                icon={
-                  templateInfo?.logoUrl ? (
-                    <Box
-                      component="img"
-                      src={templateInfo.logoUrl}
-                      alt={templateInfo.displayName}
-                      sx={{ width: 14, height: 14, borderRadius: "100%" }}
-                    />
-                  ) : undefined
-                }
-              />
-            </Tooltip>
-          )}
-        </Stack>
-        {latest?.deployedAt && (
-          <Typography variant="caption" color="text.secondary">
-            Deployed {formatRelativeTime(latest.deployedAt)}
-          </Typography>
-        )}
-        <Divider orientation="vertical" />
-        <Stack direction="column" spacing={0.5}>
-          <RateLimitDisplay rateLimiting={provider?.rateLimiting} />
-          <Typography variant="caption" color="text.secondary">
-            Guardrails:{" "}
-            <Typography
-              component="span"
-              variant="body2"
-              color={provider?.policies?.length ? "text.primary" : "text.disabled"}
-            >
-              {provider?.policies?.length ? (
-                <Stack direction="row" spacing={0.25} flexWrap="wrap" alignItems="center">
-                  {provider.policies.slice(0, 3).map((p) => (
-                    <Chip key={p} label={p} size="small" variant="outlined" />
-                  ))}
-                  {provider.policies.length > 3 && (
-                    <Tooltip title={provider.policies.join(", ")} placement="top" arrow>
-                      <Typography variant="caption" color="text.secondary">
-                        {` +${provider.policies.length - 3} more..`}
-                      </Typography>
-                    </Tooltip>
-                  )}
-                </Stack>
-              ) : (
-                "None"
-              )}
-            </Typography>
-          </Typography>
-        </Stack>
-      </Stack>
-    </Stack>
-  );
-};
 
 // ─── Per-entry accordion card ────────────────────────────────────────────────
 
@@ -416,17 +221,13 @@ const EntryCard: React.FC<EntryCardProps> = ({
 
           <Box>
             {currentEnvProviderUuid ? (
-              <Form.CardButton onClick={handleOpenDrawer} selected>
-                <Form.CardContent>
-                  <ProviderDisplay
-                    provider={providers.find((p) => p.uuid === currentEnvProviderUuid) ?? null}
-                    isSelected
-                    templateInfo={templateMap.get(
-                      providers.find((p) => p.uuid === currentEnvProviderUuid)?.template ?? "",
-                    )}
-                  />
-                </Form.CardContent>
-              </Form.CardButton>
+              <LLMProviderCard
+                provider={providers.find((p) => p.uuid === currentEnvProviderUuid) ?? null}
+                templateInfo={templateMap.get(
+                  providers.find((p) => p.uuid === currentEnvProviderUuid)?.template ?? "",
+                )}
+                onChange={handleOpenDrawer}
+              />
             ) : (
               <Button
                 variant="outlined"
@@ -610,7 +411,6 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
         version: e.version,
         template: e.template,
         deployments: e.deployments ?? [],
-        security: e.security,
         rateLimiting: e.rateLimiting,
         policies: e.policies ?? [],
       })),
@@ -864,20 +664,13 @@ export const LLMProviderSection: React.FC<LLMProviderSectionProps> = ({
                   const isSelected = currentDrawerProviderUuid === p.uuid;
                   const handleClick = () => handleProviderSelect(p.uuid, p.id);
                   return (
-                    <Form.CardButton
+                    <LLMProviderCard
                       key={p.uuid}
-                      onClick={handleClick}
+                      provider={p}
+                      templateInfo={templateMap.get(p.template ?? "")}
                       selected={isSelected}
-                      aria-label={`${p.name}. ${isSelected ? "Selected" : "Click to select"}`}
-                    >
-                      <Form.CardContent>
-                        <ProviderDisplay
-                          provider={p}
-                          isSelected={isSelected}
-                          templateInfo={templateMap.get(p.template ?? "")}
-                        />
-                      </Form.CardContent>
-                    </Form.CardButton>
+                      onSelect={handleClick}
+                    />
                   );
                 });
               })()}
