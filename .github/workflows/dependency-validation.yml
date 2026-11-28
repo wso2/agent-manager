@@ -1,11 +1,13 @@
 name: Dependency Validation
 
 on:
+  # Runs on every PR update, not only when the update touches go.mod: a PR
+  # that adds a dependency and then removes it must run again, so the check and
+  # its comment reflect the PR as it is now. "Detect modified go.mod files"
+  # compares the whole PR with its base, so a PR without go.mod changes passes
+  # in seconds.
   pull_request_target:
     types: [opened, synchronize, reopened]
-    paths:
-      - '**/go.mod'
-      - '**/go.sum'
 
 permissions:
   pull-requests: write
@@ -141,12 +143,22 @@ jobs:
               comment += '⚠️ Please verify the scope of the dependencies usage is necessary\n';
             }
 
-            github.rest.issues.createComment({
+            // One comment per PR, updated in place, so an earlier result never
+            // stays behind after the PR changes.
+            const marker = '<!-- dependency-validation -->';
+            const body = `${marker}\n${comment}`;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              ...context.repo,
               issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
+              per_page: 100,
             });
+            const previous = comments.find((c) => c.user?.login === 'github-actions[bot]' &&
+              (c.body?.includes(marker) || c.body?.startsWith('## Dependency Validation Results')));
+            if (previous) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: previous.id, body });
+            } else {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+            }
 
       - name: Comment on PR - Validation Passed
         if: steps.validate.outcome == 'success' && steps.detect-changes.outputs.has_changes == 'true'
@@ -190,17 +202,51 @@ jobs:
 
             comment += '⚠️ Please verify the scope of the dependencies usage is necessary\n';
 
-            github.rest.issues.createComment({
+            // One comment per PR, updated in place, so an earlier result never
+            // stays behind after the PR changes.
+            const marker = '<!-- dependency-validation -->';
+            const body = `${marker}\n${comment}`;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              ...context.repo,
               issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
+              per_page: 100,
             });
+            const previous = comments.find((c) => c.user?.login === 'github-actions[bot]' &&
+              (c.body?.includes(marker) || c.body?.startsWith('## Dependency Validation Results')));
+            if (previous) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: previous.id, body });
+            } else {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+            }
 
       - name: Mark validation as passed
         if: steps.detect-changes.outputs.has_changes == 'false'
         run: |
           echo "No dependency changes detected - validation passed"
+
+      - name: Update an earlier comment - no dependency changes
+        if: steps.detect-changes.outputs.has_changes == 'false'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            // A PR without go.mod changes gets no comment, but if an earlier
+            // push changed go.mod and was commented on, that comment is updated
+            // so it does not keep reporting a dependency the PR no longer adds.
+            const marker = '<!-- dependency-validation -->';
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              ...context.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const previous = comments.find((c) => c.user?.login === 'github-actions[bot]' &&
+              (c.body?.includes(marker) || c.body?.startsWith('## Dependency Validation Results')));
+            if (previous) {
+              const sha = context.payload.pull_request.head.sha;
+              const body = `${marker}\n## Dependency Validation Results\n\n` +
+                `✅ As of ${sha}, this PR changes no go.mod file, so it adds no dependencies. ` +
+                'An earlier result in this comment no longer applies.\n';
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: previous.id, body });
+            }
 
       - name: Fail job if validation failed
         if: steps.validate.outcome == 'failure'

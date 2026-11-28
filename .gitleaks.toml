@@ -1,0 +1,21 @@
+title = "agent-manager gitleaks config"
+
+# Start from gitleaks' built-in rules; everything below only narrows them.
+[extend]
+useDefault = true
+
+# Unit tests and golden files need credential-shaped placeholders (a key that
+# must be refused, a value that must be redacted). The heuristic
+# generic-api-key rule cannot tell them from real keys, and a fingerprint in
+# .gitleaksignore covers one commit only, so a revert or a moved file fails the
+# scan again. In test files only, this rule is skipped. Every provider-specific
+# rule (GitHub, AWS, OpenAI, Anthropic, private keys, JWTs, ...) still applies
+# there, and generic-api-key still applies everywhere else.
+[[allowlists]]
+description = "Placeholder credentials in tests"
+targetRules = ["generic-api-key"]
+paths = [
+  '''_test\.go$''',
+  '''\.test\.[cm]?[jt]sx?$''',
+  '''(^|/)testdata/''',
+]
