@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsecret"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
@@ -122,3 +123,29 @@ func TestTransactionStorePreparesThroughTheActiveStore(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"p"}, secrets.staged)
 }
+
+// TestStoreCreatesOnlyThroughACreatingStore: Create keeps the value already stored, needs an active store, and
+// is not implemented by a store that cannot create atomically.
+func TestStoreCreatesOnlyThroughACreatingStore(t *testing.T) {
+	ctx := context.Background()
+	st := gwsecret.NewStore()
+	_, err := st.Create(ctx, "org-1", "k", "first")
+	require.Error(t, err, "no store before activation")
+	_, err = st.Prepare(ctx, "org-1", "k", "first")
+	require.Error(t, err, "no store before activation")
+
+	st.Use(gwtest.NewSecrets())
+	got, err := st.Create(ctx, "org-1", "k", "first")
+	require.NoError(t, err)
+	assert.Equal(t, "first", got)
+	got, err = st.Create(ctx, "org-1", "k", "second")
+	require.NoError(t, err)
+	assert.Equal(t, "first", got, "an existing value is kept")
+
+	st.Use(createlessSecrets{gwtest.NewSecrets()})
+	_, err = st.Create(ctx, "org-1", "k", "v")
+	assert.ErrorIs(t, err, modkit.ErrNotImplemented)
+}
+
+// createlessSecrets exposes only modkit.Secrets, hiding the wrapped store's Create.
+type createlessSecrets struct{ modkit.Secrets }

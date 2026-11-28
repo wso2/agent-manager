@@ -31,6 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
@@ -384,13 +385,162 @@ type putOnlySecrets struct{ s *gwtest.Secrets }
 func (p putOnlySecrets) Prepare(ctx context.Context, o, path, v string) (context.Context, error) {
 	return p.s.Prepare(ctx, o, path, v)
 }
+
 func (p putOnlySecrets) Put(ctx context.Context, o, path, v string) error {
 	return p.s.Put(ctx, o, path, v)
 }
+
 func (p putOnlySecrets) Get(ctx context.Context, o, path string) (string, error) {
 	return p.s.Get(ctx, o, path)
 }
+
 func (p putOnlySecrets) Delete(ctx context.Context, o, path string) error {
 	return p.s.Delete(ctx, o, path)
 }
 func (p putOnlySecrets) In(*gorm.DB) modkit.Secrets { return p }
+
+// keyFaultSecrets is a secret store whose handle key cannot be read, or is absent and cannot be created.
+type keyFaultSecrets struct {
+	*gwtest.Secrets
+	getErr, createErr error
+}
+
+func (s *keyFaultSecrets) Get(ctx context.Context, orgID, path string) (string, error) {
+	if path == gatewaySecretHandleKeyPath && s.getErr != nil {
+		return "", s.getErr
+	}
+	return s.Secrets.Get(ctx, orgID, path)
+}
+
+func (s *keyFaultSecrets) Create(ctx context.Context, orgID, path, value string) (string, error) {
+	if s.createErr != nil {
+		return "", s.createErr
+	}
+	return s.Secrets.Create(ctx, orgID, path, value)
+}
+
+func (s *keyFaultSecrets) In(*gorm.DB) modkit.Secrets { return s }
+
+// A handle key that can't be read or created fails every path that needs it, instead of sending or serving
+// handles under some other key.
+func TestGatewaySecretHandleKeyFailuresAreReported(t *testing.T) {
+	for name, store := range map[string]*keyFaultSecrets{
+		"read":   {getErr: errors.New("vault sealed")},
+		"create": {getErr: modkit.ErrNotFound, createErr: errors.New("vault sealed")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newSecretFixture(t, gwmodels.SecretDeliveryReference)
+			ctx := context.Background()
+			value, err := f.secrets.Get(ctx, "ou-1", f.ref)
+			require.NoError(t, err)
+			store.Secrets = f.secrets
+			f.svc.secrets = store
+
+			_, err = f.svc.ListGatewaySecrets(ctx, "ou-1", "gw-1", false)
+			assert.ErrorContains(t, err, "vault sealed")
+			_, err = f.svc.GetGatewaySecretValue(ctx, "ou-1", "gw-1", "amp-unknown")
+			assert.ErrorContains(t, err, "vault sealed")
+			got, err := f.svc.GetActiveAgentDeploymentByGateway(ctx, testArtifactID, "ou-1", "gw-1")
+			assert.ErrorContains(t, err, "vault sealed")
+			for _, yaml := range got {
+				assert.NotContains(t, yaml, value)
+			}
+		})
+	}
+}
+
+// A gateway that can't be looked up is not sent secrets in any form, and is not offered any to fetch.
+func TestGatewaySecretsNeedTheGateway(t *testing.T) {
+	lookupFails := errors.New("db down")
+	for name, tc := range map[string]struct {
+		repo *gwrepomocks.GatewayRepositoryMock
+		want error
+	}{
+		"lookup fails": {&gwrepomocks.GatewayRepositoryMock{
+			GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return nil, lookupFails },
+		}, lookupFails},
+		"gone": {&gwrepomocks.GatewayRepositoryMock{
+			GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) {
+				return nil, nil //nolint:nilnil // exercising the (nil, nil) input the service must handle
+			},
+		}, gwerr.ErrGatewayNotFound},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newSecretFixture(t, gwmodels.SecretDeliveryReference)
+			f.svc.gatewayRepo = tc.repo
+			ctx := context.Background()
+
+			_, err := f.svc.ListGatewaySecrets(ctx, "ou-1", "gw-1", true)
+			assert.ErrorIs(t, err, tc.want)
+			_, err = f.svc.GetGatewaySecretValue(ctx, "ou-1", "gw-1", "amp-unknown")
+			assert.ErrorIs(t, err, tc.want)
+			_, err = f.svc.GetActiveAgentDeploymentByGateway(ctx, testArtifactID, "ou-1", "gw-1")
+			assert.ErrorIs(t, err, tc.want)
+		})
+	}
+}
+
+// A secret that exists but can't be read fails the fetch of its handle rather than reporting it not found, so the
+// gateway retries instead of dropping the credential.
+func TestGatewaySecretValueReportsAnUnreadableSecret(t *testing.T) {
+	ref := "a2a-proxies/1/upstream-auth"
+	svc, secrets := newMultiSecretFixture(t, []string{ref}, map[string]string{ref: "s3cret"})
+	ctx := context.Background()
+	_, err := svc.ListGatewaySecrets(ctx, "ou-1", "gw-1", false)
+	require.NoError(t, err)
+	handle := handleFor(t, secrets, ref, "s3cret")
+
+	secrets.failing[ref] = errors.New("vault unavailable")
+	_, err = svc.GetGatewaySecretValue(ctx, "ou-1", "gw-1", handle)
+	assert.ErrorContains(t, err, "vault unavailable")
+	assert.NotErrorIs(t, err, gwerr.ErrGatewaySecretNotFound)
+}
+
+// The secretRefs a gateway is offered come from its deployments: a failure to read them fails the request, and a
+// deployment of a kind this module does not serve contributes none.
+func TestGatewaySecretRefsFromDeployments(t *testing.T) {
+	ctx := context.Background()
+	deployed := func(kind string, content string) *gwrepomocks.DeploymentRepositoryMock {
+		artifact := gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: kind}
+		id := uuid.New()
+		return &gwrepomocks.DeploymentRepositoryMock{
+			ListForGatewaySyncFunc: func(context.Context, string, string) ([]gwmodels.GatewaySyncRow, error) {
+				return []gwmodels.GatewaySyncRow{
+					{ArtifactRef: artifact, DeploymentID: id.String(), State: gwmodels.GatewaySyncStateDeployed},
+					// A row without a valid deployment ID names no content.
+					{ArtifactRef: artifact, DeploymentID: "not-a-uuid", State: gwmodels.GatewaySyncStateDeployed},
+				}, nil
+			},
+			ListContentForGatewayFunc: func(_ context.Context, _, _ string, ids []uuid.UUID) ([]gwmodels.GatewayDeploymentContent, error) {
+				assert.Equal(t, []uuid.UUID{id}, ids)
+				return []gwmodels.GatewayDeploymentContent{{ArtifactRef: artifact, DeploymentID: id, Content: []byte(content)}}, nil
+			},
+		}
+	}
+	newSvc := func(repo gwrepo.DeploymentRepository) *GatewayInternalAPIService {
+		return NewGatewayInternalAPIService(nil, nil, repo, nil, gatewayWithDelivery(gwmodels.SecretDeliveryReference),
+			nil, gwtest.NewSecrets(), gatewayKinds())
+	}
+
+	listed, err := newSvc(deployed("NotAGatewayKind", "kind: Unknown\n")).ListGatewaySecrets(ctx, "ou-1", "gw-1", false)
+	require.NoError(t, err)
+	assert.Empty(t, listed)
+
+	_, err = newSvc(deployed(gwmodels.KindAgent, "{not yaml")).ListGatewaySecrets(ctx, "ou-1", "gw-1", false)
+	assert.ErrorContains(t, err, "secret references")
+
+	syncFails := &gwrepomocks.DeploymentRepositoryMock{
+		ListForGatewaySyncFunc: func(context.Context, string, string) ([]gwmodels.GatewaySyncRow, error) {
+			return nil, errors.New("db down")
+		},
+	}
+	_, err = newSvc(syncFails).ListGatewaySecrets(ctx, "ou-1", "gw-1", false)
+	assert.ErrorContains(t, err, "db down")
+
+	contentFails := deployed(gwmodels.KindAgent, "")
+	contentFails.ListContentForGatewayFunc = func(context.Context, string, string, []uuid.UUID) ([]gwmodels.GatewayDeploymentContent, error) {
+		return nil, errors.New("db down")
+	}
+	_, err = newSvc(contentFails).GetGatewaySecretValue(ctx, "ou-1", "gw-1", "amp-unknown")
+	assert.ErrorContains(t, err, "db down")
+}
