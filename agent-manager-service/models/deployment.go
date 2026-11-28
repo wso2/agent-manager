@@ -48,6 +48,13 @@ type Deployment struct {
 	RenderReason  *string           `gorm:"column:render_reason;->" json:"-"`
 }
 
+// DeploymentPageCursor is the immutable sort key of the last deployment in a page.
+type DeploymentPageCursor struct {
+	GatewayUUID  uuid.UUID `json:"gatewayId"`
+	CreatedAt    time.Time `json:"createdAt"`
+	DeploymentID uuid.UUID `json:"deploymentId"`
+}
+
 // SetStatusRow records row, the status row pointing at the deployment, on it.
 func (d *Deployment) SetStatusRow(row *DeploymentStatusRecord) {
 	d.Status = &row.Status

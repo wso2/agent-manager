@@ -53,6 +53,9 @@ import (
 //			GetDeploymentsWithStateFunc: func(artifactUUID string, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int) ([]*models.Deployment, error) {
 //				panic("mock out the GetDeploymentsWithState method")
 //			},
+//			GetDeploymentsWithStatePageFunc: func(ctx context.Context, artifactUUID string, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int, after *models.DeploymentPageCursor, limit int) ([]*models.Deployment, error) {
+//				panic("mock out the GetDeploymentsWithStatePage method")
+//			},
 //			GetPullableFunc: func(ctx context.Context, ouID string, artifactUUID uuid.UUID, gatewayID string) (*models.Deployment, error) {
 //				panic("mock out the GetPullable method")
 //			},
@@ -149,6 +152,9 @@ type DeploymentRepositoryMock struct {
 
 	// GetDeploymentsWithStateFunc mocks the GetDeploymentsWithState method.
 	GetDeploymentsWithStateFunc func(artifactUUID string, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int) ([]*models.Deployment, error)
+
+	// GetDeploymentsWithStatePageFunc mocks the GetDeploymentsWithStatePage method.
+	GetDeploymentsWithStatePageFunc func(ctx context.Context, artifactUUID string, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int, after *models.DeploymentPageCursor, limit int) ([]*models.Deployment, error)
 
 	// GetPullableFunc mocks the GetPullable method.
 	GetPullableFunc func(ctx context.Context, ouID string, artifactUUID uuid.UUID, gatewayID string) (*models.Deployment, error)
@@ -319,6 +325,25 @@ type DeploymentRepositoryMock struct {
 			Status *string
 			// MaxPerAPIGW is the maxPerAPIGW argument value.
 			MaxPerAPIGW int
+		}
+		// GetDeploymentsWithStatePage holds details about calls to the GetDeploymentsWithStatePage method.
+		GetDeploymentsWithStatePage []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// ArtifactUUID is the artifactUUID argument value.
+			ArtifactUUID string
+			// OrgUUID is the orgUUID argument value.
+			OrgUUID string
+			// GatewayID is the gatewayID argument value.
+			GatewayID *string
+			// Status is the status argument value.
+			Status *string
+			// MaxPerAPIGW is the maxPerAPIGW argument value.
+			MaxPerAPIGW int
+			// After is the after argument value.
+			After *models.DeploymentPageCursor
+			// Limit is the limit argument value.
+			Limit int
 		}
 		// GetPullable holds details about calls to the GetPullable method.
 		GetPullable []struct {
@@ -512,36 +537,37 @@ type DeploymentRepositoryMock struct {
 			Tx *gorm.DB
 		}
 	}
-	lockAbandonRender              sync.RWMutex
-	lockApplyAck                   sync.RWMutex
-	lockBeginUndeploy              sync.RWMutex
-	lockClaimDueRenders            sync.RWMutex
-	lockClaimDueRendersOf          sync.RWMutex
-	lockCompleteRender             sync.RWMutex
-	lockCreateWithLimitEnforcement sync.RWMutex
-	lockDelete                     sync.RWMutex
-	lockDeleteEventGateways        sync.RWMutex
-	lockFailStaleTransitional      sync.RWMutex
-	lockGetDeploymentsWithState    sync.RWMutex
-	lockGetPullable                sync.RWMutex
-	lockGetStatusRecord            sync.RWMutex
-	lockGetWithContent             sync.RWMutex
-	lockGetWithState               sync.RWMutex
-	lockGetWithStateCtx            sync.RWMutex
-	lockInsertPending              sync.RWMutex
-	lockListContentForGateway      sync.RWMutex
-	lockListDeployedForDrift       sync.RWMutex
-	lockListForGatewaySync         sync.RWMutex
-	lockLockEnvironmentMapping     sync.RWMutex
-	lockLockStatusRows             sync.RWMutex
-	lockPlacedGateways             sync.RWMutex
-	lockQueueRender                sync.RWMutex
-	lockRecordRenderOutcome        sync.RWMutex
-	lockSentGateways               sync.RWMutex
-	lockStartDeploy                sync.RWMutex
-	lockStartRestore               sync.RWMutex
-	lockStatusRecords              sync.RWMutex
-	lockWithTx                     sync.RWMutex
+	lockAbandonRender               sync.RWMutex
+	lockApplyAck                    sync.RWMutex
+	lockBeginUndeploy               sync.RWMutex
+	lockClaimDueRenders             sync.RWMutex
+	lockClaimDueRendersOf           sync.RWMutex
+	lockCompleteRender              sync.RWMutex
+	lockCreateWithLimitEnforcement  sync.RWMutex
+	lockDelete                      sync.RWMutex
+	lockDeleteEventGateways         sync.RWMutex
+	lockFailStaleTransitional       sync.RWMutex
+	lockGetDeploymentsWithState     sync.RWMutex
+	lockGetDeploymentsWithStatePage sync.RWMutex
+	lockGetPullable                 sync.RWMutex
+	lockGetStatusRecord             sync.RWMutex
+	lockGetWithContent              sync.RWMutex
+	lockGetWithState                sync.RWMutex
+	lockGetWithStateCtx             sync.RWMutex
+	lockInsertPending               sync.RWMutex
+	lockListContentForGateway       sync.RWMutex
+	lockListDeployedForDrift        sync.RWMutex
+	lockListForGatewaySync          sync.RWMutex
+	lockLockEnvironmentMapping      sync.RWMutex
+	lockLockStatusRows              sync.RWMutex
+	lockPlacedGateways              sync.RWMutex
+	lockQueueRender                 sync.RWMutex
+	lockRecordRenderOutcome         sync.RWMutex
+	lockSentGateways                sync.RWMutex
+	lockStartDeploy                 sync.RWMutex
+	lockStartRestore                sync.RWMutex
+	lockStatusRecords               sync.RWMutex
+	lockWithTx                      sync.RWMutex
 }
 
 // AbandonRender calls AbandonRenderFunc.
@@ -1005,6 +1031,66 @@ func (mock *DeploymentRepositoryMock) GetDeploymentsWithStateCalls() []struct {
 	mock.lockGetDeploymentsWithState.RLock()
 	calls = mock.calls.GetDeploymentsWithState
 	mock.lockGetDeploymentsWithState.RUnlock()
+	return calls
+}
+
+// GetDeploymentsWithStatePage calls GetDeploymentsWithStatePageFunc.
+func (mock *DeploymentRepositoryMock) GetDeploymentsWithStatePage(ctx context.Context, artifactUUID string, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int, after *models.DeploymentPageCursor, limit int) ([]*models.Deployment, error) {
+	if mock.GetDeploymentsWithStatePageFunc == nil {
+		panic("DeploymentRepositoryMock.GetDeploymentsWithStatePageFunc: method is nil but DeploymentRepository.GetDeploymentsWithStatePage was just called")
+	}
+	callInfo := struct {
+		Ctx          context.Context
+		ArtifactUUID string
+		OrgUUID      string
+		GatewayID    *string
+		Status       *string
+		MaxPerAPIGW  int
+		After        *models.DeploymentPageCursor
+		Limit        int
+	}{
+		Ctx:          ctx,
+		ArtifactUUID: artifactUUID,
+		OrgUUID:      orgUUID,
+		GatewayID:    gatewayID,
+		Status:       status,
+		MaxPerAPIGW:  maxPerAPIGW,
+		After:        after,
+		Limit:        limit,
+	}
+	mock.lockGetDeploymentsWithStatePage.Lock()
+	mock.calls.GetDeploymentsWithStatePage = append(mock.calls.GetDeploymentsWithStatePage, callInfo)
+	mock.lockGetDeploymentsWithStatePage.Unlock()
+	return mock.GetDeploymentsWithStatePageFunc(ctx, artifactUUID, orgUUID, gatewayID, status, maxPerAPIGW, after, limit)
+}
+
+// GetDeploymentsWithStatePageCalls gets all the calls that were made to GetDeploymentsWithStatePage.
+// Check the length with:
+//
+//	len(mockedDeploymentRepository.GetDeploymentsWithStatePageCalls())
+func (mock *DeploymentRepositoryMock) GetDeploymentsWithStatePageCalls() []struct {
+	Ctx          context.Context
+	ArtifactUUID string
+	OrgUUID      string
+	GatewayID    *string
+	Status       *string
+	MaxPerAPIGW  int
+	After        *models.DeploymentPageCursor
+	Limit        int
+} {
+	var calls []struct {
+		Ctx          context.Context
+		ArtifactUUID string
+		OrgUUID      string
+		GatewayID    *string
+		Status       *string
+		MaxPerAPIGW  int
+		After        *models.DeploymentPageCursor
+		Limit        int
+	}
+	mock.lockGetDeploymentsWithStatePage.RLock()
+	calls = mock.calls.GetDeploymentsWithStatePage
+	mock.lockGetDeploymentsWithStatePage.RUnlock()
 	return calls
 }
 

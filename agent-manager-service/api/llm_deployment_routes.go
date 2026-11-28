@@ -32,6 +32,7 @@ func RegisterLLMDeploymentRoutes(rr *middleware.RouteRegistrar, ctrl controllers
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/llm-providers/{providerId}/deployments/restore", rbac.LLMProviderDeploy,
 		growthanalytics.Track("amp.connections.deploy-llm-provider", actionDims("restored-llm-provider-deployment"), ctrl.RestoreLLMProviderDeployment))
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers/{providerId}/deployments", rbac.LLMProviderRead, ctrl.GetLLMProviderDeployments)
+	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers/{providerId}/deployment-history", rbac.LLMProviderRead, ctrl.ListLLMProviderDeploymentHistory)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers/{providerId}/deployments/{deploymentId}", rbac.LLMProviderRead, ctrl.GetLLMProviderDeployment)
 	// DeleteLLMProviderDeployment removes a deployment record outright; the
 	// taxonomy's action enum has no "delete" value for this feature, so it's

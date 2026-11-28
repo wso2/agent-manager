@@ -1,0 +1,94 @@
+name: Read workflow settings
+
+on:
+  workflow_call:
+    inputs:
+      section:
+        type: string
+        required: true
+      defaults:
+        description: JSON object with typed defaults. Null denotes a required string.
+        type: string
+        required: true
+      caller-inputs:
+        description: Explicit settings supplied by a reusable workflow caller
+        type: string
+        default: '{}'
+    outputs:
+      values:
+        value: ${{ jobs.read.outputs.values }}
+
+permissions:
+  contents: read
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    outputs:
+      values: ${{ steps.settings.outputs.values }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        if: >-
+          github.event_name == 'workflow_dispatch' &&
+          (inputs.caller-inputs == '{}' || inputs.caller-inputs == 'null' || inputs.caller-inputs == '')
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/workflow-settings.json
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v6
+        if: inputs.section == 'amp_evaluation_release' || inputs.section == 'amp_instrumentation_release'
+        with:
+          python-version: "3.12"
+      - name: Install the Python version parser
+        if: inputs.section == 'amp_evaluation_release' || inputs.section == 'amp_instrumentation_release'
+        run: python -m pip install packaging==25.0
+      - name: Resolve settings
+        id: settings
+        env:
+          SECTION: ${{ inputs.section }}
+          DEFAULTS: ${{ inputs.defaults }}
+          CALLER_INPUTS: ${{ inputs.caller-inputs }}
+        shell: python
+        run: |
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          section = os.environ["SECTION"]
+          defaults = json.loads(os.environ["DEFAULTS"])
+          overrides = json.loads(os.environ["CALLER_INPUTS"] or "{}") or {}
+          if not overrides and os.environ["GITHUB_EVENT_NAME"] == "workflow_dispatch":
+              overrides = json.loads(Path(".github/workflow-settings.json").read_text())[section]
+          unknown = overrides.keys() - defaults.keys()
+          if unknown:
+              raise SystemExit(f"Unknown settings for {section}: {sorted(unknown)}")
+
+          values = defaults | overrides
+          for key, default in defaults.items():
+              value = values[key]
+              if default is None and (not isinstance(value, str) or not value.strip()):
+                  raise SystemExit(f"Set {section}.{key} in .github/workflow-settings.json before dispatch")
+              if default is not None and type(value) is not type(default):
+                  raise SystemExit(f"{section}.{key} must be a {type(default).__name__}")
+              if isinstance(value, str) and any(ord(char) < 32 for char in value):
+                  raise SystemExit(f"{section}.{key} must be a single line")
+
+          python_release = section in ("amp_evaluation_release", "amp_instrumentation_release")
+          if python_release:
+              from packaging.version import InvalidVersion, Version
+
+              try:
+                  values["target_version"] = str(Version(values["target_version"]))
+              except InvalidVersion:
+                  raise SystemExit(f"{section}.target_version must be a valid Python package version") from None
+
+          for key in ("target_version", "source_version", "force_version"):
+              version = values.get(key)
+              if version and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.+!-]*", version):
+                  raise SystemExit(f"{section}.{key} must be a version")
+          if "ginkgo_procs" in values and not re.fullmatch(r"[1-9][0-9]*", values["ginkgo_procs"]):
+              raise SystemExit(f"{section}.ginkgo_procs must be a positive integer")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              print("values=" + json.dumps(values, separators=(",", ":")), file=output)

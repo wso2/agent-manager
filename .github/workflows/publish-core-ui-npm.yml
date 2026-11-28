@@ -2,32 +2,6 @@ name: Publish core-ui to npm
 
 on:
   workflow_dispatch:
-    inputs:
-      source_ref:
-        description: "Branch, tag, or commit SHA to publish from"
-        required: false
-        default: "main"
-        type: string
-      target_version:
-        description: "Version to publish (e.g., 0.0.1, 0.0.1-rc.1). Blank derives one from the commit."
-        required: false
-        default: ""
-        type: string
-      npm_scope:
-        description: "NPM scope. Blank uses the owner of this repository."
-        required: false
-        default: ""
-        type: string
-      registry:
-        description: "Registry. Blank uses npmjs for wso2, GitHub Packages elsewhere."
-        required: false
-        default: ""
-        type: string
-      runner:
-        description: "Runner label (use ubuntu-latest for fork testing)"
-        required: false
-        default: "ubuntu-latest"
-        type: string
   workflow_call:
     inputs:
       source_ref:
@@ -54,7 +28,7 @@ on:
       NPM_TOKEN_WSO2:
         required: false
 
-run-name: Publish core-ui ${{ inputs.target_version || inputs.source_ref }}
+run-name: Publish core-ui to npm (${{ github.ref_name }})
 
 # Default token scope is read-only; jobs that publish, push or deploy
 # request the extra scopes they need at job level.
@@ -62,9 +36,18 @@ permissions:
   contents: read
 
 jobs:
+  settings:
+    uses: ./.github/workflows/read-workflow-settings.yml
+    with:
+      section: publish-core-ui-npm
+      defaults: >-
+        {"source_ref": "main", "target_version": "", "npm_scope": "", "registry": "", "runner": "ubuntu-latest"}
+      caller-inputs: ${{ toJSON(inputs) }}
+
   publish-core-ui-npm:
+    needs: settings
     name: Publish core-ui to npm
-    runs-on: ${{ inputs.runner }}
+    runs-on: ${{ fromJSON(needs.settings.outputs.values).runner }}
     permissions:
       contents: read
       # A reusable workflow cannot exceed its caller, so callers must grant this too.
@@ -76,8 +59,8 @@ jobs:
       - name: Resolve the publish target
         id: target
         env:
-          NPM_SCOPE: ${{ inputs.npm_scope || vars.CORE_UI_NPM_SCOPE }}
-          REGISTRY: ${{ inputs.registry || vars.CORE_UI_REGISTRY }}
+          NPM_SCOPE: ${{ fromJSON(needs.settings.outputs.values).npm_scope || vars.CORE_UI_NPM_SCOPE }}
+          REGISTRY: ${{ fromJSON(needs.settings.outputs.values).registry || vars.CORE_UI_REGISTRY }}
           OWNER: ${{ github.repository_owner }}
         working-directory: .
         run: |
@@ -121,13 +104,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.source_ref }}
+          ref: ${{ fromJSON(needs.settings.outputs.values).source_ref }}
 
       - name: Resolve target version
         id: version
         working-directory: .
         env:
-          TARGET_RELEASE: ${{ inputs.target_version }}
+          TARGET_RELEASE: ${{ fromJSON(needs.settings.outputs.values).target_version }}
           REGISTRY: ${{ steps.target.outputs.registry }}
         run: |
           set -euo pipefail

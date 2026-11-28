@@ -1,6 +1,6 @@
 name: Nightly Dev Build
 
-run-name: Nightly Dev Build #${{ github.run_number }}${{ inputs.dry_run && ' (dry run)' || '' }}
+run-name: Nightly Dev Build (${{ github.ref_name }})
 
 # Builds the images and charts, runs the e2e tests, and publishes the nightly
 # tag only when they pass. Manual runs are dry runs by default.
@@ -9,20 +9,6 @@ on:
   schedule:
     - cron: '30 21 * * *' # 21:30 UTC
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: >-
-          Test only: uses a temporary version that is deleted at the end.
-        required: false
-        default: true
-        type: boolean
-      ginkgo_procs:
-        description: >-
-          How many test suites run at the same time.
-        required: false
-        default: '1'
-        type: string
-
 concurrency:
   group: nightly
   cancel-in-progress: false
@@ -37,8 +23,16 @@ env:
   HELM_REGISTRY: ${{ vars.AMP_HELM_REGISTRY || 'oci://ghcr.io/wso2' }}
 
 jobs:
+  settings:
+    uses: ./.github/workflows/read-workflow-settings.yml
+    with:
+      section: nightly
+      defaults: >-
+        {"dry_run": true, "ginkgo_procs": "1"}
+
   # Dated version used by all jobs. A dry run gets its own version.
   compute-version:
+    needs: settings
     name: Compute Version
     runs-on: [self-hosted, amp-nightly-e2e]
     timeout-minutes: 10
@@ -50,7 +44,7 @@ jobs:
         id: version
         env:
           # Inputs are empty on a schedule, so scheduled runs are never dry runs.
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && fromJSON(needs.settings.outputs.values).dry_run }}
         run: |
           if [ "$DRY_RUN" = "true" ]; then
             DEV_VERSION="0.0.0-dryrun-$(date -u +%Y%m%d)-${GITHUB_RUN_ID}"
@@ -221,7 +215,7 @@ jobs:
 
   e2e:
     name: E2E
-    needs: [compute-version, package-charts]
+    needs: [settings, compute-version, package-charts]
     runs-on: [self-hosted, amp-nightly-e2e]
     timeout-minutes: 260
     permissions:
@@ -281,7 +275,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.INSTRUMENTATION_TEST_OPENAI_API_KEY }}
           # Same chart version as the install above.
           CHART_VERSION: ${{ needs.compute-version.outputs.dev-version }}
-          GINKGO_PROCS: ${{ inputs.ginkgo_procs || '1' }}
+          GINKGO_PROCS: ${{ fromJSON(needs.settings.outputs.values).ginkgo_procs || '1' }}
           # Use the shared Thunder instead of one per test environment.
           PROVISION_THUNDER: "false"
         run: |
@@ -567,8 +561,11 @@ jobs:
   # Posts the result of every run, except cancelled runs and dry runs.
   notify-google-chat:
     name: Notify Google Chat
-    needs: [compute-version, load-config, build-images, package-charts, e2e, publish-dev-tag]
-    if: ${{ !cancelled() && needs.compute-version.outputs.dry-run != 'true' }}
+    needs: [settings, compute-version, load-config, build-images, package-charts, e2e, publish-dev-tag]
+    # A settings failure has no dry-run output. Report it as a failed setup.
+    if: >-
+      ${{ !cancelled() && (github.event_name == 'schedule' || needs.settings.result == 'failure' ||
+      (needs.settings.result == 'success' && !fromJSON(needs.settings.outputs.values).dry_run)) }}
     runs-on: [self-hosted, amp-nightly-e2e]
     timeout-minutes: 10
     steps:
@@ -578,6 +575,7 @@ jobs:
           DEV_VERSION: ${{ needs.compute-version.outputs.dev-version }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           TEST_SUMMARY: ${{ needs.e2e.outputs.summary }}
+          SETTINGS_RESULT: ${{ needs.settings.result }}
           VERSION_RESULT: ${{ needs.compute-version.result }}
           CONFIG_RESULT: ${{ needs.load-config.result }}
           BUILD_RESULT: ${{ needs.build-images.result }}
@@ -585,7 +583,7 @@ jobs:
           E2E_RESULT: ${{ needs.e2e.result }}
           TAG_RESULT: ${{ needs.publish-dev-tag.result }}
         run: |
-          STAGES="version=${VERSION_RESULT} config=${CONFIG_RESULT} build=${BUILD_RESULT} package=${PACKAGE_RESULT} e2e=${E2E_RESULT} tag=${TAG_RESULT}"
+          STAGES="settings=${SETTINGS_RESULT} version=${VERSION_RESULT} config=${CONFIG_RESULT} build=${BUILD_RESULT} package=${PACKAGE_RESULT} e2e=${E2E_RESULT} tag=${TAG_RESULT}"
           echo "Stages: ${STAGES}"
           if [ -z "${GCHAT_WEBHOOK_URL}" ]; then
             echo "::warning::GCHAT_WEBHOOK_URL secret is not set; skipping Chat notification."
@@ -600,7 +598,8 @@ jobs:
             [ "${PACKAGE_RESULT}" != "success" ] && FAILED_STAGE="package"
             [ "${BUILD_RESULT}" != "success" ] && FAILED_STAGE="build"
             SETUP_FAILED=""
-            case "${VERSION_RESULT}" in failure|cancelled) SETUP_FAILED="compute-version" ;; esac
+            case "${SETTINGS_RESULT}" in failure|cancelled) SETUP_FAILED="settings" ;; esac
+            case "${VERSION_RESULT}" in failure|cancelled) SETUP_FAILED="${SETUP_FAILED:+${SETUP_FAILED} and }compute-version" ;; esac
             case "${CONFIG_RESULT}" in failure|cancelled) SETUP_FAILED="${SETUP_FAILED:+${SETUP_FAILED} and }load-config" ;; esac
             [ -n "${SETUP_FAILED}" ] && FAILED_STAGE="${SETUP_FAILED}"
             HEADLINE="*🔴 Nightly failed at ${FAILED_STAGE}* — \`${DEV_VERSION:-unknown version}\`"

@@ -1,18 +1,11 @@
 name: Dev Build
 
-run-name: Dev Build from ${{ inputs.source-ref }}
+run-name: Dev Build (${{ github.ref_name }})
 
 # Builds and publishes every image and chart from a ref, without E2E, so a
 # build can be installed and tested by hand. Earlier builds are kept.
 on:
   workflow_dispatch:
-    inputs:
-      source-ref:
-        description: "Branch, tag or commit SHA to build"
-        required: false
-        default: "main"
-        type: string
-
 concurrency:
   group: dev-build
   cancel-in-progress: false
@@ -27,8 +20,16 @@ permissions:
   contents: read
 
 jobs:
+  settings:
+    uses: ./.github/workflows/read-workflow-settings.yml
+    with:
+      section: dev-build
+      defaults: >-
+        {"source-ref": "main"}
+
   # Pin the source commit once; every job builds that exact commit.
   prepare:
+    needs: settings
     name: Prepare
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
@@ -38,7 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ inputs.source-ref }}
+          ref: ${{ fromJSON(needs.settings.outputs.values).source-ref }}
 
       # A prefix other than 0.0.0-dev keeps the nightly cleanup off these builds.
       - name: Compute version

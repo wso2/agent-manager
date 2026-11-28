@@ -2,23 +2,7 @@ name: WSO2 AI Agent Management Platform Release
 
 on:
   workflow_dispatch:
-    inputs:
-      source-ref:
-        description: "Source ref to create release from (branch name or commit SHA)"
-        required: false
-        default: "main"
-        type: string
-      target_version:
-        description: "Target release version (e.g., 0.0.1)"
-        required: true
-        type: string
-      create_patch_branch:
-        description: "Create a patch branch (check only for production releases)"
-        required: false
-        default: false
-        type: boolean
-
-run-name: Agent Manager Release ${{ inputs.target_version }}
+run-name: WSO2 AI Agent Management Platform Release (${{ github.ref_name }})
 
 env:
   REGISTRY: ${{ vars.AMP_REGISTRY || 'ghcr.io' }}
@@ -31,12 +15,20 @@ permissions:
   contents: read
 
 jobs:
+  settings:
+    uses: ./.github/workflows/read-workflow-settings.yml
+    with:
+      section: release
+      defaults: >-
+        {"source-ref": "main", "target_version": null, "create_patch_branch": false}
+
   prepare-release:
+    needs: settings
     name: Prepare Release
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     concurrency:
-      group: release-${{ inputs.target_version }}
+      group: release-${{ fromJSON(needs.settings.outputs.values).target_version }}
       cancel-in-progress: false
     permissions:
       contents: write
@@ -62,8 +54,8 @@ jobs:
           echo "source-ref=$SOURCE_REF" >> $GITHUB_OUTPUT
           echo "✅ Inputs validated"
         env:
-          TARGET_RELEASE: ${{ inputs.target_version }}
-          SOURCE_REF: ${{ inputs.source-ref }}
+          TARGET_RELEASE: ${{ fromJSON(needs.settings.outputs.values).target_version }}
+          SOURCE_REF: ${{ fromJSON(needs.settings.outputs.values).source-ref }}
         shell: bash
 
       - name: Checkout code
@@ -121,12 +113,12 @@ jobs:
           echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
           echo "✅ Release branch: $BRANCH_NAME"
         env:
-          TARGET_RELEASE: ${{ inputs.target_version }}
+          TARGET_RELEASE: ${{ fromJSON(needs.settings.outputs.values).target_version }}
           COMMIT_SHA: ${{ steps.verify-commit.outputs.commit-sha }}
         shell: bash
 
       - name: Create patch branch
-        if: ${{ inputs.create_patch_branch }}
+        if: ${{ fromJSON(needs.settings.outputs.values).create_patch_branch }}
         run: |
           MAJOR=$(echo "$TARGET_RELEASE" | cut -d. -f1)
           MINOR=$(echo "$TARGET_RELEASE" | cut -d. -f2)
@@ -140,7 +132,7 @@ jobs:
             echo "✅ Created patch branch: $PATCH_BRANCH"
           fi
         env:
-          TARGET_RELEASE: ${{ inputs.target_version }}
+          TARGET_RELEASE: ${{ fromJSON(needs.settings.outputs.values).target_version }}
         shell: bash
 
       - name: Update Helm chart versions
@@ -156,7 +148,7 @@ jobs:
               "ghcr.io/wso2" "${REGISTRY}/${REGISTRY_ORG}"
           fi
         env:
-          TARGET_RELEASE: ${{ inputs.target_version }}
+          TARGET_RELEASE: ${{ fromJSON(needs.settings.outputs.values).target_version }}
         shell: bash
 
       - name: Update install-helpers.sh
@@ -165,7 +157,7 @@ jobs:
             "$TARGET_RELEASE" \
             "./deployments/quick-start/install-helpers.sh"
         env:
-          TARGET_RELEASE: ${{ inputs.target_version }}
+          TARGET_RELEASE: ${{ fromJSON(needs.settings.outputs.values).target_version }}
         shell: bash
 
       - name: Update start.sh
@@ -174,7 +166,7 @@ jobs:
             "$TARGET_RELEASE" \
             "./deployments/quick-start/start.sh"
         env:
-          TARGET_RELEASE: ${{ inputs.target_version }}
+          TARGET_RELEASE: ${{ fromJSON(needs.settings.outputs.values).target_version }}
         shell: bash
 
       - name: Update the k3d installers
@@ -186,7 +178,7 @@ jobs:
             "$TARGET_RELEASE" \
             "./deployments/quick-start/k3d-install-subscription.sh"
         env:
-          TARGET_RELEASE: ${{ inputs.target_version }}
+          TARGET_RELEASE: ${{ fromJSON(needs.settings.outputs.values).target_version }}
         shell: bash
 
       - name: Update the isolation installers
@@ -198,7 +190,7 @@ jobs:
             "$TARGET_RELEASE" \
             "./deployments/setup/install-kata.sh"
         env:
-          TARGET_RELEASE: ${{ inputs.target_version }}
+          TARGET_RELEASE: ${{ fromJSON(needs.settings.outputs.values).target_version }}
         shell: bash
 
       - name: Commit version updates
@@ -220,7 +212,7 @@ jobs:
             echo "✅ Committed version updates"
           fi
         env:
-          TARGET_RELEASE: ${{ inputs.target_version }}
+          TARGET_RELEASE: ${{ fromJSON(needs.settings.outputs.values).target_version }}
         shell: bash
 
       - name: Create git tag
@@ -257,7 +249,7 @@ jobs:
           git push origin "$MAJOR_TAG"
           echo "✅ Created/updated major version tag: $MAJOR_TAG"
         env:
-          TARGET_RELEASE: ${{ inputs.target_version }}
+          TARGET_RELEASE: ${{ fromJSON(needs.settings.outputs.values).target_version }}
           COMMIT_SHA: ${{ steps.verify-commit.outputs.commit-sha }}
           SOURCE_TYPE: ${{ steps.validate.outputs.source-type }}
           SOURCE_REF: ${{ steps.validate.outputs.source-ref }}
@@ -273,7 +265,7 @@ jobs:
 
   load-config:
     name: Load Release Configuration
-    needs: prepare-release
+    needs: [settings, prepare-release]
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     outputs:
@@ -284,7 +276,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: amp/v${{ inputs.target_version }}
+          ref: amp/v${{ fromJSON(needs.settings.outputs.values).target_version }}
 
       - name: Load configuration and set matrix
         id: set-matrix
@@ -328,7 +320,7 @@ jobs:
 
   build-images:
     name: Build ${{ matrix.image.name }}
-    needs: load-config
+    needs: [settings, load-config]
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     permissions:
@@ -342,7 +334,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: amp/v${{ inputs.target_version }}
+          ref: amp/v${{ fromJSON(needs.settings.outputs.values).target_version }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -362,12 +354,12 @@ jobs:
           image-name: ${{ matrix.image.name }}
           registry: ${{ env.REGISTRY }}
           registry-org: ${{ env.REGISTRY_ORG }}
-          tag: v${{ inputs.target_version }}
+          tag: v${{ fromJSON(needs.settings.outputs.values).target_version }}
           context: ${{ matrix.image.context }}
 
   build-python-instrumentation-provider-images:
     name: Build Instrumentation Provider ${{ matrix.image.instrumentation_version }} (Python ${{ matrix.image.python_version }})
-    needs: load-config
+    needs: [settings, load-config]
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     permissions:
@@ -381,7 +373,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: amp/v${{ inputs.target_version }}
+          ref: amp/v${{ fromJSON(needs.settings.outputs.values).target_version }}
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -406,7 +398,7 @@ jobs:
   package-charts:
     name: Package ${{ matrix.chart.name }}
     needs:
-      [load-config, build-images, build-python-instrumentation-provider-images]
+      [settings, load-config, build-images, build-python-instrumentation-provider-images]
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     permissions:
@@ -420,7 +412,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: amp/v${{ inputs.target_version }}
+          ref: amp/v${{ fromJSON(needs.settings.outputs.values).target_version }}
 
       # A release cut from an older branch (amp-patch-*) can predate
       # setup-cluster-clis. Tooling runs from the dispatched commit (no ref: = github.sha).
@@ -453,7 +445,7 @@ jobs:
             "$HELM_TOKEN"
         env:
           CHART_PATH: ${{ matrix.chart.path }}
-          TARGET_RELEASE: ${{ inputs.target_version }}
+          TARGET_RELEASE: ${{ fromJSON(needs.settings.outputs.values).target_version }}
           HELM_REGISTRY: ${{ env.HELM_REGISTRY }}
           HELM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # package-helm-chart.sh prefers these over the positional token, so a
@@ -467,6 +459,7 @@ jobs:
     name: E2E
     needs:
       [
+        settings,
         build-images,
         build-python-instrumentation-provider-images,
         package-charts,
@@ -483,7 +476,7 @@ jobs:
       - name: Clone the code
         uses: actions/checkout@v6
         with:
-          ref: amp/v${{ inputs.target_version }}
+          ref: amp/v${{ fromJSON(needs.settings.outputs.values).target_version }}
 
       # A release cut from an older branch (amp-patch-*) can predate
       # setup-cluster-clis. Tooling runs from the dispatched commit (no ref: = github.sha).
@@ -507,7 +500,7 @@ jobs:
       - name: Install platform
         id: install-platform
         env:
-          VERSION: ${{ inputs.target_version }}
+          VERSION: ${{ fromJSON(needs.settings.outputs.values).target_version }}
           REPO_OWNER: ${{ github.repository_owner }}
         run: |
           cd deployments/quick-start && bash install.sh
@@ -530,7 +523,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.INSTRUMENTATION_TEST_OPENAI_API_KEY }}
           # add-environment.sh requires CHART_VERSION; pin it to the same chart
           # version the platform was installed with above.
-          CHART_VERSION: ${{ inputs.target_version }}
+          CHART_VERSION: ${{ fromJSON(needs.settings.outputs.values).target_version }}
         run: |
           set -o pipefail
           if [[ -f deployments/scripts/platform-oauth.sh ]]; then
@@ -545,7 +538,7 @@ jobs:
         if: ${{ !cancelled() && steps.install-platform.outcome == 'success' }}
         env:
           SECURITY_PROBE_REPOSITORY_URL: ${{ format('{0}/{1}', github.server_url, github.repository) }}
-          SECURITY_PROBE_REPOSITORY_BRANCH: amp/v${{ inputs.target_version }}
+          SECURITY_PROBE_REPOSITORY_BRANCH: amp/v${{ fromJSON(needs.settings.outputs.values).target_version }}
         run: |
           set -o pipefail
           make security-test-live 2>&1 | tee test/e2e/security-output.log
@@ -604,6 +597,7 @@ jobs:
     # red/green for the same run, but it does not gate the release.
     needs:
       [
+        settings,
         prepare-release,
         build-images,
         build-python-instrumentation-provider-images,
@@ -618,7 +612,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: amp/v${{ inputs.target_version }}
+          ref: amp/v${{ fromJSON(needs.settings.outputs.values).target_version }}
 
       - name: Get source commit info
         id: commit-info
@@ -628,7 +622,7 @@ jobs:
           echo "commit-sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
           echo "short-sha=$SHORT_SHA" >> $GITHUB_OUTPUT
         env:
-          TARGET_RELEASE: ${{ inputs.target_version }}
+          TARGET_RELEASE: ${{ fromJSON(needs.settings.outputs.values).target_version }}
         shell: bash
 
       - name: Generate release body
@@ -677,7 +671,7 @@ jobs:
             echo "RELEASE_BODY_EOF"
           } >> $GITHUB_OUTPUT
         env:
-          VERSION: ${{ inputs.target_version }}
+          VERSION: ${{ fromJSON(needs.settings.outputs.values).target_version }}
           # The published URLs follow the repository, not REGISTRY_ORG, which
           # names a registry namespace and need not match the GitHub owner.
           REPO_OWNER: ${{ github.repository_owner }}
@@ -689,15 +683,15 @@ jobs:
             "$TARGET_RELEASE" \
             dist/
         env:
-          TARGET_RELEASE: ${{ inputs.target_version }}
+          TARGET_RELEASE: ${{ fromJSON(needs.settings.outputs.values).target_version }}
         shell: bash
 
       - name: Create GitHub release
         id: create-release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: amp/v${{ inputs.target_version }}
-          name: Release amp/v${{ inputs.target_version }}
+          tag_name: amp/v${{ fromJSON(needs.settings.outputs.values).target_version }}
+          name: Release amp/v${{ fromJSON(needs.settings.outputs.values).target_version }}
           body: ${{ steps.release-body.outputs.body }}
           draft: true
           files: dist/*

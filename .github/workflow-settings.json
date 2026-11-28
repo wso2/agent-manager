@@ -1,0 +1,58 @@
+{
+  "release": {
+    "source-ref": "main",
+    "target_version": null,
+    "create_patch_branch": false
+  },
+  "traceloop-release-watch": {
+    "force_version": ""
+  },
+  "publish-core-ui-npm": {
+    "source_ref": "main",
+    "target_version": "",
+    "npm_scope": "",
+    "registry": "",
+    "runner": "ubuntu-latest"
+  },
+  "amp_evaluation_release": {
+    "branch": "main",
+    "target_version": null
+  },
+  "python_instrumentation_image_release": {
+    "branch": "main",
+    "instrumentation_version": "all"
+  },
+  "e2e": {
+    "helm_chart_version": "0.0.0-latest-dev"
+  },
+  "release-promote": {
+    "source_version": null,
+    "target_version": null,
+    "create_patch_branch": false
+  },
+  "dev-build": {
+    "source-ref": "main"
+  },
+  "amctl_release": {
+    "branch": "main",
+    "target_version": null
+  },
+  "instrumentation-matrix-manual": {
+    "traceloop_versions": "all",
+    "frameworks": "all",
+    "framework_versions": "all",
+    "python_versions": "all",
+    "include_heavy_tier": false,
+    "include_record_mode": false,
+    "heavy_only": false,
+    "heavy_cell_id": ""
+  },
+  "amp_instrumentation_release": {
+    "branch": "main",
+    "target_version": null
+  },
+  "nightly": {
+    "dry_run": true,
+    "ginkgo_procs": "1"
+  }
+}

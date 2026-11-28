@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 from opentelemetry import trace as otel_trace
 
+from harness.cassettes import cassette_directory
 from harness.exporter_handle import exporter_handle
 from harness.reports import CellResult, write_cell_report
 from harness.validator import ContractValidator
@@ -84,9 +85,7 @@ def _strip_response_headers(response):
 # framework-level cassette.
 @pytest.fixture
 def vcr_cassette_dir():
-    framework_dir = _HERE / "cassettes" / _FRAMEWORK
-    version_dir = framework_dir / CELL_MANIFEST["framework_version"]
-    return str(version_dir if version_dir.is_dir() else framework_dir)
+    return str(cassette_directory(_HERE / "cassettes", _FRAMEWORK, CELL_MANIFEST["framework_version"]))
 
 
 @pytest.mark.vcr

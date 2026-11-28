@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"testing"
 	"time"
@@ -266,4 +267,47 @@ func TestDelete_CompletesAfterCancellationFollowingSuccessfulUndeploy(t *testing
 	require.NoError(t, err)
 	assert.True(t, deleteCalled)
 	assert.Empty(t, providerRepo.ClearDeletingCalls())
+}
+
+func TestGetLLMProviderDeploymentsPage(t *testing.T) {
+	provider := createdProvider()
+	gateway := uuid.NewString()
+	deployed := string(models.DeploymentStatusDeployed)
+	ctx := context.Background()
+	after := &models.DeploymentPageCursor{
+		GatewayUUID: uuid.MustParse(gateway), CreatedAt: time.Now(), DeploymentID: uuid.New(),
+	}
+
+	for _, rows := range []int{0, llmProviderDeploymentPageSize, llmProviderDeploymentPageSize + 1} {
+		lastPage := rows <= llmProviderDeploymentPageSize
+		t.Run(fmt.Sprintf("rows=%d", rows), func(t *testing.T) {
+			service := &LLMProviderDeploymentService{
+				providerRepo: &repomocks.LLMProviderRepositoryMock{
+					GetByUUIDFunc: func(id, ouID string) (*models.LLMProvider, error) {
+						assert.Equal(t, provider.UUID.String(), id)
+						assert.Equal(t, "ou-acme", ouID)
+						return provider, nil
+					},
+				},
+				deploymentRepo: &repomocks.DeploymentRepositoryMock{
+					GetDeploymentsWithStatePageFunc: func(queryCtx context.Context, artifactID, ouID string, gatewayID, status *string, perGateway int, cursor *models.DeploymentPageCursor, limit int) ([]*models.Deployment, error) {
+						assert.Equal(t, ctx, queryCtx)
+						assert.Equal(t, provider.UUID.String(), artifactID)
+						assert.Equal(t, "ou-acme", ouID)
+						assert.Equal(t, &gateway, gatewayID)
+						assert.Equal(t, &deployed, status)
+						assert.Equal(t, maxDeploymentsPerAPI, perGateway)
+						assert.Equal(t, after, cursor)
+						assert.Equal(t, 1001, limit)
+						return make([]*models.Deployment, rows), nil
+					},
+				},
+			}
+
+			deployments, hasMore, err := service.GetLLMProviderDeploymentsPage(ctx, provider.UUID.String(), "ou-acme", &gateway, &deployed, after)
+			require.NoError(t, err)
+			assert.Len(t, deployments, min(rows, llmProviderDeploymentPageSize))
+			assert.Equal(t, !lastPage, hasMore)
+		})
+	}
 }

@@ -48,3 +48,31 @@ def test_from_env_reads_every_axis():
     assert not f.matches(_cell("0.62.4", "langchain", "1.1.0", "3.12"))
     assert not f.matches(_cell("0.62.4", "crewai", "1.2.0", "3.12"))
     assert not f.matches(_cell("0.62.4", "crewai", "1.1.0", "3.11"))
+
+
+def test_recording_plan_assigns_one_owner_per_cassette(tmp_path):
+    from scripts.expand_filter import plan_recordings
+
+    first = _cell()
+    another_python = _cell(py="3.12")
+    another_traceloop = _cell(tl="0.62.4")
+    shared_version = _cell(fwv="0.3.28")
+    separate_version = _cell(fwv="1.0.0")
+    (tmp_path / "cassettes" / "langchain" / separate_version.framework_version).mkdir(parents=True)
+
+    jobs, owners = plan_recordings(
+        [first, another_python, another_traceloop, shared_version, separate_version],
+        tmp_path,
+    )
+
+    assert jobs == [
+        {"id": first.id, "cassette": "cassettes/langchain/test_emission_cell.yaml"},
+        {"id": separate_version.id, "cassette": "cassettes/langchain/1.0.0/test_emission_cell.yaml"},
+    ]
+    assert owners == {
+        first.id: first.id,
+        another_python.id: first.id,
+        another_traceloop.id: first.id,
+        shared_version.id: first.id,
+        separate_version.id: separate_version.id,
+    }

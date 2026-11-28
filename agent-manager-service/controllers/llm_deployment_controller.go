@@ -17,9 +17,12 @@
 package controllers
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
+
+	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
@@ -36,6 +39,7 @@ type LLMDeploymentController interface {
 	DeleteLLMProviderDeployment(w http.ResponseWriter, r *http.Request)
 	GetLLMProviderDeployment(w http.ResponseWriter, r *http.Request)
 	GetLLMProviderDeployments(w http.ResponseWriter, r *http.Request)
+	ListLLMProviderDeploymentHistory(w http.ResponseWriter, r *http.Request)
 }
 
 type llmDeploymentController struct {
@@ -385,14 +389,31 @@ func (c *llmDeploymentController) GetLLMProviderDeployment(w http.ResponseWriter
 }
 
 func (c *llmDeploymentController) GetLLMProviderDeployments(w http.ResponseWriter, r *http.Request) {
+	c.listLLMProviderDeployments(w, r, false)
+}
+
+func (c *llmDeploymentController) ListLLMProviderDeploymentHistory(w http.ResponseWriter, r *http.Request) {
+	c.listLLMProviderDeployments(w, r, true)
+}
+
+func (c *llmDeploymentController) listLLMProviderDeployments(w http.ResponseWriter, r *http.Request, paginated bool) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
 	providerID := r.PathValue(utils.PathParamProviderId)
 
-	// Parse optional query parameters
-	gatewayID := r.URL.Query().Get(utils.PathParamGatewayId)
-	status := r.URL.Query().Get("status")
+	query := r.URL.Query()
+	gatewayID := query.Get(utils.PathParamGatewayId)
+	status := query.Get("status")
+	var after *models.DeploymentPageCursor
+	if rawCursor := query.Get("cursor"); paginated && rawCursor != "" {
+		cursor, ok := decodeDeploymentCursor(rawCursor)
+		if !ok {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid deployment cursor")
+			return
+		}
+		after = &cursor
+	}
 
 	log.Info("GetLLMProviderDeployments: starting", "ouID", ouID, "providerID", providerID,
 		"gatewayID", gatewayID, "status", status)
@@ -417,7 +438,14 @@ func (c *llmDeploymentController) GetLLMProviderDeployments(w http.ResponseWrite
 	log.Info("GetLLMProviderDeployments: calling service layer", "ouID", ouID, "providerID", providerID,
 		"hasGatewayFilter", gatewayIDPtr != nil, "hasStatusFilter", statusPtr != nil)
 
-	deployments, err := c.deploymentService.GetLLMProviderDeployments(providerID, ouID, gatewayIDPtr, statusPtr)
+	var deployments []*models.Deployment
+	var hasMore bool
+	var err error
+	if paginated {
+		deployments, hasMore, err = c.deploymentService.GetLLMProviderDeploymentsPage(ctx, providerID, ouID, gatewayIDPtr, statusPtr, after)
+	} else {
+		deployments, err = c.deploymentService.GetLLMProviderDeployments(providerID, ouID, gatewayIDPtr, statusPtr)
+	}
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
@@ -437,5 +465,30 @@ func (c *llmDeploymentController) GetLLMProviderDeployments(w http.ResponseWrite
 
 	log.Info("GetLLMProviderDeployments: retrieved successfully", "ouID", ouID, "providerID", providerID, "count", len(deployments))
 
+	if hasMore {
+		last := deployments[len(deployments)-1]
+		cursor, err := json.Marshal(models.DeploymentPageCursor{
+			GatewayUUID: last.GatewayUUID, CreatedAt: last.CreatedAt.UTC(), DeploymentID: last.DeploymentID,
+		})
+		if err != nil {
+			log.Error("Failed to encode deployment cursor", "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to encode deployment cursor")
+			return
+		}
+		w.Header().Set("X-Next-Cursor", base64.RawURLEncoding.EncodeToString(cursor))
+		w.Header().Add("Access-Control-Expose-Headers", "X-Next-Cursor")
+	}
 	utils.WriteSuccessResponse(w, http.StatusOK, utils.ConvertModelToSpecLLMDeploymentResponses(deployments))
+}
+
+func decodeDeploymentCursor(raw string) (models.DeploymentPageCursor, bool) {
+	var cursor models.DeploymentPageCursor
+	if len(raw) > 512 {
+		return cursor, false
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil || json.Unmarshal(payload, &cursor) != nil {
+		return cursor, false
+	}
+	return cursor, cursor.GatewayUUID != uuid.Nil && cursor.DeploymentID != uuid.Nil && !cursor.CreatedAt.IsZero()
 }

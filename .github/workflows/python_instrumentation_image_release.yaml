@@ -11,19 +11,7 @@ name: AMP Python Instrumentation Image Release
 
 on:
   workflow_dispatch:
-    inputs:
-      branch:
-        description: "Source ref to build from (branch name or commit SHA)"
-        required: false
-        default: main
-        type: string
-      instrumentation_version:
-        description: "AMP instrumentation version to release (must exist in .github/release-config.json), or 'all' to rebuild every listed version"
-        required: true
-        default: all
-        type: string
-
-run-name: AMP Python Instrumentation Image Release ${{ inputs.instrumentation_version }} (from ${{ inputs.branch }})
+run-name: AMP Python Instrumentation Image Release (${{ github.ref_name }})
 
 env:
   # Deliberately NOT following vars.AMP_REGISTRY. This image is pulled as an
@@ -40,7 +28,15 @@ permissions:
   contents: read
 
 jobs:
+  settings:
+    uses: ./.github/workflows/read-workflow-settings.yml
+    with:
+      section: python_instrumentation_image_release
+      defaults: >-
+        {"branch": "main", "instrumentation_version": "all"}
+
   load-config:
+    needs: settings
     name: Load instrumentation-image matrix
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
@@ -50,12 +46,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.branch }}
+          ref: ${{ fromJSON(needs.settings.outputs.values).branch }}
 
       - name: Build matrix
         id: set-matrix
         env:
-          INSTR_VERSION: ${{ inputs.instrumentation_version }}
+          INSTR_VERSION: ${{ fromJSON(needs.settings.outputs.values).instrumentation_version }}
         run: |
           CONFIG_FILE=".github/release-config.json"
 
@@ -83,7 +79,7 @@ jobs:
 
   build-images:
     name: Build ${{ matrix.image.instrumentation_version }}-python${{ matrix.image.python_version }}
-    needs: load-config
+    needs: [settings, load-config]
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     permissions:
@@ -97,7 +93,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.branch }}
+          ref: ${{ fromJSON(needs.settings.outputs.values).branch }}
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -121,19 +117,19 @@ jobs:
 
   summary:
     name: Summary
-    needs: build-images
+    needs: [settings, build-images]
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
-    if: always()
+    if: always() && needs.settings.result == 'success'
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.branch }}
+          ref: ${{ fromJSON(needs.settings.outputs.values).branch }}
 
       - name: Print published images
         env:
-          INSTR_VERSION: ${{ inputs.instrumentation_version }}
+          INSTR_VERSION: ${{ fromJSON(needs.settings.outputs.values).instrumentation_version }}
         run: |
           if [ "${{ needs.build-images.result }}" != "success" ]; then
             echo "❌ One or more image builds failed; nothing was published from this run for the matrix entries that failed."

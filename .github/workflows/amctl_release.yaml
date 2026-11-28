@@ -6,24 +6,21 @@ name: amctl CLI Release
 
 on:
   workflow_dispatch:
-    inputs:
-      branch:
-        description: "Branch or commit to release from"
-        required: true
-        default: "main"
-        type: string
-      target_version:
-        description: "amctl version to release (e.g., 1.1.0 or 1.1.0-rc.1)"
-        required: true
-        type: string
-
-run-name: amctl Release ${{ inputs.target_version }}
+run-name: amctl CLI Release (${{ github.ref_name }})
 
 permissions:
   contents: read
 
 jobs:
+  settings:
+    uses: ./.github/workflows/read-workflow-settings.yml
+    with:
+      section: amctl_release
+      defaults: >-
+        {"branch": "main", "target_version": null}
+
   release:
+    needs: settings
     name: Release amctl
     runs-on: ubuntu-latest
     permissions:
@@ -32,12 +29,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.branch }}
+          ref: ${{ fromJSON(needs.settings.outputs.values).branch }}
           fetch-depth: 0
 
       - name: Validate and set release metadata
         env:
-          TARGET_VERSION: ${{ inputs.target_version }}
+          TARGET_VERSION: ${{ fromJSON(needs.settings.outputs.values).target_version }}
         run: |
           if ! [[ "$TARGET_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
             echo "Error: target_version must be semver (e.g., 1.2.3 or 1.2.3-rc.1)"
@@ -99,7 +96,7 @@ jobs:
 
             **Commit:** ${{ env.COMMIT }}
             **Built:** ${{ env.BUILD_DATE }}
-            **Source:** ${{ inputs.branch }}
+            **Source:** ${{ fromJSON(needs.settings.outputs.values).branch }}
 
             Prebuilt `amctl` binaries (Linux, macOS, Windows) and `checksums.txt` are attached.
 

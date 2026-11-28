@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+MAX_HOTEL_DETAILS_ROOM_TYPES = 100
+
 
 class HotelSearchError(RuntimeError):
     pass
@@ -238,7 +240,7 @@ def get_hotel_details(
     hotel = dict(match)
 
     if check_in_date and check_out_date:
-        rooms_out = _rooms_for_hotel(hotel_id)
+        rooms_out = _rooms_for_hotel(hotel_id)[:MAX_HOTEL_DETAILS_ROOM_TYPES]
         return {
             "hotel": hotel,
             "rooms": rooms_out,
