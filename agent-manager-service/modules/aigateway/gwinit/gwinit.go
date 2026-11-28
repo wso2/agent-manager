@@ -170,8 +170,12 @@ type GatewayConfig struct {
 	RegistrationToken string
 	AdminPassword     string
 	AMPJWKSURL        string
-	ThunderIssuer     string
-	ThunderJWKSURL    string
+	// ThunderIssuer and ThunderJWKSURL are the platform identity provider's token
+	// issuer and key set, seeded as the ThunderKeyManager key manager. Both are
+	// optional, but go together: without them the gateway trusts no platform
+	// identity provider, so Agent Identity on MCP proxies cannot be used there.
+	ThunderIssuer  string
+	ThunderJWKSURL string
 	// Host is the gateway's public host name (MCP auth metadata, listener certificate).
 	Host         string
 	ListenerPort int
@@ -192,11 +196,14 @@ func LoadGatewayConfig(get func(key string) string) (*GatewayConfig, error) {
 		RegistrationToken: r.str("DEFAULT_GATEWAY_TOKEN"),
 		AdminPassword:     r.required("ADMIN_PASSWORD"),
 		AMPJWKSURL:        r.required("AMP_JWKS_URL"),
-		ThunderIssuer:     strings.TrimRight(r.required("THUNDER_ISSUER"), "/"),
-		ThunderJWKSURL:    r.required("THUNDER_JWKS_URL"),
+		ThunderIssuer:     strings.TrimRight(r.str("THUNDER_ISSUER"), "/"),
+		ThunderJWKSURL:    r.str("THUNDER_JWKS_URL"),
 		Host:              r.required("HOST"),
 		ListenerPort:      r.port("LISTENER_PORT", 19080),
 		FileOwner:         r.str("FILE_OWNER"),
+	}
+	if (cfg.ThunderIssuer == "") != (cfg.ThunderJWKSURL == "") {
+		r.errs = append(r.errs, fmt.Errorf("%sTHUNDER_ISSUER and %sTHUNDER_JWKS_URL must be set together", keyPrefix, keyPrefix))
 	}
 	if cfg.RegistrationToken != "" {
 		if _, err := gatewaytoken.Prefix(cfg.RegistrationToken); err != nil {

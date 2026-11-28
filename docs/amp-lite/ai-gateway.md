@@ -37,7 +37,9 @@ What it already does as a module:
   | `FAILURE_THRESHOLD_SECONDS`, `FAILURE_MAX_AGE_SECONDS`, `FAILURE_PERCENTAGE_THRESHOLD` | The platform gateway failure summary. |
   | `AGENT_CORS_ALLOWED_ORIGIN`, `_METHODS`, `_HEADERS`, `AGENT_CORS_ALLOW_CREDENTIALS` | The CORS policy agents' gateway routes get by default. |
 
-  `amp init ai-gateway DIR` reads its own keys from the same place: `CONTROLPLANE_HOST`, `ADMIN_PASSWORD`, `AMP_JWKS_URL`, `THUNDER_ISSUER`, `THUNDER_JWKS_URL`, `HOST`, `LISTENER_PORT` and `FILE_OWNER` for the controller's `config.toml`, and `DEFAULT_GATEWAY_TOKEN` as the registration token it writes (it generates and keeps one when unset).
+  `amp init ai-gateway DIR` reads its own keys from the same place: `CONTROLPLANE_HOST`, `ADMIN_PASSWORD`, `AMP_JWKS_URL`, `THUNDER_ISSUER`, `THUNDER_JWKS_URL`, `HOST`, `LISTENER_PORT` and `FILE_OWNER` for the controller's `config.toml`, and `DEFAULT_GATEWAY_TOKEN` as the registration token it writes (it generates and keeps one when unset). `THUNDER_ISSUER` and `THUNDER_JWKS_URL` are optional but go together: they seed the `ThunderKeyManager` key manager, which trusts the platform identity provider's tokens. Without them the gateway trusts no platform identity provider, so Agent Identity on MCP proxies is unavailable there, as on any self-hosted gateway.
+
+  Identity providers a gateway trusts for agent OAuth live in its `config.toml` (`[[policy_configurations.jwtauth_v1.keymanagers]]`), which the gateway reads at start. The identity provider routes (`/gateways/{gatewayID}/identity-providers`) keep only the module's record of them, which agent OAuth settings are checked against; the console generates the matching `config.toml` entry, which the operator adds to the gateway before restarting it.
 
 Its write routes call `rt.Core().EnsureOrg` before the handler, so an organization's first gateway rows never precede the organization. Its test helpers (`gwtest`) use the core's test database, as module tests may.
 

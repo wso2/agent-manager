@@ -23,7 +23,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -173,7 +172,6 @@ func loadSettings(strict bool) {
 
 	// IDP OAuth2 client credentials for service-to-service auth
 	config.IDP = IDPConfig{
-		TokenURL:     r.readOptionalString("IDP_TOKEN_URL", d.tokenURL),
 		ClientID:     r.readOptionalString("IDP_CLIENT_ID", "amp-api-client"),
 		ClientSecret: r.readOptionalString("IDP_CLIENT_SECRET", ""),
 	}
@@ -525,46 +523,6 @@ func validateThunderConfig(cfg *Config, r *configReader) {
 	}
 }
 
-// organizationTokenPathSuffix is the token endpoint path an organization token
-// endpoint is derived from.
-const organizationTokenPathSuffix = "/oauth2/token"
-
-// organizationIDPattern is what an organization (organization unit) ID may look
-// like in an organization token endpoint path: one path segment of letters,
-// digits, '.', '_' and '-' (identity provider OU IDs are UUIDs), so it never needs
-// escaping and can never add or climb a path segment.
-var organizationIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
-
-// OrganizationTokenURL returns the identity provider's token endpoint for one
-// organization: tokenURL, an absolute http(s) URL whose path ends in
-// /oauth2/token, with /ou/<ouID> inserted before that suffix. A token issued there
-// is scoped to that organization (its ouId claim names it).
-func OrganizationTokenURL(tokenURL, ouID string) (string, error) {
-	if !organizationIDPattern.MatchString(ouID) || ouID == "." || ouID == ".." {
-		return "", fmt.Errorf("invalid organization ID %q", ouID)
-	}
-	parsed, err := url.Parse(strings.TrimSpace(tokenURL))
-	if err != nil {
-		return "", fmt.Errorf("invalid token URL: %w", err)
-	}
-	if (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" {
-		return "", fmt.Errorf("token URL must be an absolute http(s) URL")
-	}
-	if parsed.RawQuery != "" || parsed.Fragment != "" {
-		return "", fmt.Errorf("token URL must not carry a query or fragment")
-	}
-	prefix, ok := strings.CutSuffix(parsed.Path, organizationTokenPathSuffix)
-	if !ok {
-		return "", fmt.Errorf("token URL path must end with %s", organizationTokenPathSuffix)
-	}
-	if strings.Contains(prefix+"/", "/ou/") {
-		return "", fmt.Errorf("token URL must be the identity provider's own token endpoint, not an organization's")
-	}
-	parsed.Path = prefix + "/ou/" + ouID + organizationTokenPathSuffix
-	parsed.RawPath = ""
-	return parsed.String(), nil
-}
-
 func validateServerPublicURL(cfg *Config, r *configReader) {
 	validatePublicURL("SERVER_PUBLIC_URL", cfg.ServerPublicURL, r)
 }
@@ -799,7 +757,7 @@ const DefaultTrialOrgOUID = "00000000-0000-0000-0000-000000000001"
 // defaults are the settings worked out from the public URLs and sign-in mode
 // when they are not set themselves.
 type defaults struct {
-	thunderURL, tokenURL, jwksURL, issuer, audience string
+	thunderURL, jwksURL, issuer, audience string
 }
 
 func derivedDefaults(serverPort int) defaults {
@@ -815,11 +773,9 @@ func derivedDefaults(serverPort int) defaults {
 	}
 	d := defaults{
 		thunderURL: thunderURL,
-		tokenURL:   "http://thunder.amp.localhost:8080/oauth2/token",
 		issuer:     "Agent Management Platform Local",
 	}
 	if thunderURL != "" {
-		d.tokenURL = thunderDial + "/oauth2/token"
 		d.issuer += "," + thunderURL
 	}
 	if strings.EqualFold(strings.TrimSpace(Value("AUTH_MODE")), AuthModeFile) {

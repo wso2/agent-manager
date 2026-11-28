@@ -2115,13 +2115,13 @@ type IdentityProvider struct {
 
 	// Type Provenance of the identity provider. `system` providers (e.g.
 	// ThunderKeyManager) are seeded with the platform and cannot be deleted;
-	// `custom` providers are added by operators via the management script.
+	// `custom` providers are added by operators.
 	Type *IdentityProviderType `json:"type,omitempty"`
 }
 
 // IdentityProviderType Provenance of the identity provider. `system` providers (e.g.
 // ThunderKeyManager) are seeded with the platform and cannot be deleted;
-// `custom` providers are added by operators via the management script.
+// `custom` providers are added by operators.
 type IdentityProviderType string
 
 // IdentityProviderListResponse defines model for IdentityProviderListResponse.

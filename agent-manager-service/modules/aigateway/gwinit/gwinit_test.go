@@ -88,6 +88,56 @@ func TestLoadGatewayConfigRejectsMalformedToken(t *testing.T) {
 	}
 }
 
+func TestWriteGatewayWithoutPlatformIdentityProvider(t *testing.T) {
+	dir := t.TempDir()
+	cfg := gatewayConfig()
+	cfg.ThunderIssuer, cfg.ThunderJWKSURL = "", ""
+	if err := WriteGateway(cfg, dir); err != nil {
+		t.Fatal(err)
+	}
+	conf := readFile(t, filepath.Join(dir, GatewayConfigFile))
+	if strings.Contains(conf, "ThunderKeyManager") {
+		t.Error("config.toml seeds ThunderKeyManager with no issuer configured")
+	}
+	if !strings.Contains(conf, `name = "agent-manager-service"`) {
+		t.Error("config.toml lacks the agent-manager-service key manager")
+	}
+
+	if err := WriteGateway(gatewayConfig(), dir); err != nil {
+		t.Fatal(err)
+	}
+	conf = readFile(t, filepath.Join(dir, GatewayConfigFile))
+	for _, want := range []string{`name = "ThunderKeyManager"`, `issuer = "http://thunder.amp.localhost:8080"`, `uri = "http://thunder:8080/oauth2/jwks"`} {
+		if !strings.Contains(conf, want) {
+			t.Errorf("config.toml lacks %q", want)
+		}
+	}
+}
+
+func TestLoadGatewayConfigPlatformIdentityProvider(t *testing.T) {
+	base := map[string]string{
+		"CONTROLPLANE_HOST": "amp-api:9243", "ADMIN_PASSWORD": "pw",
+		"AMP_JWKS_URL": "http://a/jwks", "HOST": "gw.localhost",
+	}
+	load := func(extra map[string]string) (*GatewayConfig, error) {
+		return LoadGatewayConfig(func(k string) string {
+			if v, ok := extra[k]; ok {
+				return v
+			}
+			return base[k]
+		})
+	}
+	if cfg, err := load(nil); err != nil || cfg.ThunderIssuer != "" {
+		t.Fatalf("without an identity provider: cfg = %+v, err = %v", cfg, err)
+	}
+	for _, only := range []string{"THUNDER_ISSUER", "THUNDER_JWKS_URL"} {
+		_, err := load(map[string]string{only: "http://t"})
+		if err == nil || !strings.Contains(err.Error(), "must be set together") {
+			t.Errorf("only %s set: err = %v", only, err)
+		}
+	}
+}
+
 func readFile(t *testing.T, path string) string {
 	t.Helper()
 	b, err := os.ReadFile(path)
