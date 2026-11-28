@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -32,13 +34,22 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
 )
 
 // A project MCP proxy binding whose caller sent no capabilities has them discovered by AMS: once the binding is
-// deployed (the MCP kind's AfterLive queues it), the reconciler lists the MCP server's tools, prompts and resources
-// through the binding's public gateway URL and stores them on the binding. AMS cannot reach the MCP server itself:
-// its upstream is an in-cluster address of the data plane. A binding secured with an API key is probed with a
-// short-lived console-managed key, issued for the attempt and revoked after it.
+// deployed (the MCP kind's AfterLive queues it, and a refresh queues it again), the reconciler lists the MCP server's
+// tools, prompts and resources and stores them on the binding. How it reaches the MCP server depends on where the
+// server came from:
+//   - A server registered by URL is listed from the control plane, at that URL with the binding's stored upstream
+//     credential, whatever the binding's gateway security. Through the gateway the answer would pass through the
+//     binding's own policies (mcp-acl-list drops what it hides, mcp-rewrite renames), so the stored list would be
+//     incomplete. A server the control plane cannot reach fails discovery; its capabilities are then sent with the
+//     binding.
+//   - A component's server (Integration Platform) has an in-cluster upstream of the data plane that AMS cannot reach,
+//     so it is listed through the binding's public gateway URL. A binding secured with an API key is probed with a
+//     short-lived console-managed key, issued for the attempt and revoked after it; one secured with a scheme AMS
+//     cannot authenticate to fails.
 
 const (
 	mcpDiscoveryTickInterval = 10 * time.Second
@@ -79,9 +90,11 @@ type projectMCPCapabilityDiscoveryService struct {
 	discoveries repositories.MCPCapabilityDiscoveryRepository
 	bindings    *ProjectMCPProxyService
 	probe       MCPCapabilityProber
-	logger      *slog.Logger
-	stopCh      chan struct{}
-	stopOnce    sync.Once
+	// probeUpstream probes an MCP server at its own URL, which its owner gave, so it is SSRF-guarded.
+	probeUpstream MCPCapabilityProber
+	logger        *slog.Logger
+	stopCh        chan struct{}
+	stopOnce      sync.Once
 
 	attemptTimeout time.Duration
 	batchBudget    time.Duration
@@ -94,7 +107,18 @@ func NewProjectMCPCapabilityDiscoveryService(
 	discoveries repositories.MCPCapabilityDiscoveryRepository, bindings *ProjectMCPProxyService, logger *slog.Logger,
 ) ProjectMCPCapabilityDiscoveryService {
 	client := newMCPDiscoveryClient(config.GetConfig().A2ACardFetchDialAddr)
-	return newProjectMCPCapabilityDiscoveryService(discoveries, bindings, newMCPDiscoveryProber(client, logger), logger)
+	s := newProjectMCPCapabilityDiscoveryService(discoveries, bindings, newMCPDiscoveryProber(client, logger), logger)
+	s.probeUpstream = newMCPDiscoveryProber(newMCPUpstreamDiscoveryClient(), logger)
+	return s
+}
+
+// newMCPUpstreamDiscoveryClient is the client that probes an MCP server at its upstream URL.
+func newMCPUpstreamDiscoveryClient() *http.Client {
+	client := ssrf.NewClient(mcpRequestTimeout)
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	return client
 }
 
 // newMCPDiscoveryClient is the probe's HTTP client. It is not the SSRF-guarded one: the URL is built by AMS from a
@@ -127,11 +151,12 @@ func newProjectMCPCapabilityDiscoveryService(
 	probe MCPCapabilityProber, logger *slog.Logger,
 ) *projectMCPCapabilityDiscoveryService {
 	return &projectMCPCapabilityDiscoveryService{
-		discoveries: discoveries,
-		bindings:    bindings,
-		probe:       probe,
-		logger:      logger,
-		stopCh:      make(chan struct{}),
+		discoveries:   discoveries,
+		bindings:      bindings,
+		probe:         probe,
+		probeUpstream: probe,
+		logger:        logger,
+		stopCh:        make(chan struct{}),
 
 		attemptTimeout: mcpDiscoveryAttemptTimeout,
 		batchBudget:    mcpDiscoveryBatchBudget,
@@ -219,13 +244,25 @@ type mcpDiscoveryPermanentError struct{ reason string }
 
 func (e *mcpDiscoveryPermanentError) Error() string { return e.reason }
 
-// attempt lists the binding's capabilities through its gateway.
+// attempt lists the binding's capabilities, at the MCP server's own URL or through the binding's gateway (see
+// discoveryTarget).
 func (s *projectMCPCapabilityDiscoveryService) attempt(
 	ctx context.Context, row models.MCPCapabilityDiscovery,
 ) (*models.MCPProxyCapabilities, error) {
 	target, err := s.bindings.discoveryTarget(ctx, row.OUID, row.ArtifactUUID)
 	if err != nil {
 		return nil, err
+	}
+	if target.upstream {
+		info, err := s.probeUpstream(ctx, target.probeURL, target.headerName, target.headerValue)
+		if err != nil {
+			return nil, upstreamProbeError(err, target)
+		}
+		capabilities, err := normalizeDiscoveredCapabilities(info)
+		if err != nil {
+			return nil, err
+		}
+		return scrubCapabilities(capabilities, upstreamSecrets(target), upstreamCredentials(target))
 	}
 	headerName, headerValue := "", ""
 	if target.security.RequiresAPIKey() {
@@ -245,11 +282,38 @@ func (s *projectMCPCapabilityDiscoveryService) attempt(
 		defer revoke()
 		headerName, headerValue = name, value
 	}
-	info, err := s.probeUntilKeyArrives(ctx, target.publicURL, headerName, headerValue)
+	info, err := s.probeUntilKeyArrives(ctx, target.probeURL, headerName, headerValue)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the MCP server's capabilities at %s: %w",
-			target.publicURL, redactSecret(err, headerValue))
+			target.probeURL, redactSecret(err, headerValue))
 	}
+	return normalizeDiscoveredCapabilities(info)
+}
+
+// upstreamProbeError is a failed probe of an MCP server at its own URL, with the probe's secrets redacted. A URL the
+// control plane refuses to call (not publicly routable) and a credential the server rejects (401) cannot get better
+// until the binding changes, and a binding change queues discovery again, so both are permanent. Any other failure is
+// retried; its reason says the control plane could not reach the server, so the last one recorded tells the user
+// what to do. The endpoint it names is scrubbed too: a credential can sit in the URL's path.
+func upstreamProbeError(err error, target *mcpDiscoveryTarget) error {
+	endpoint := scrubString(safeEndpoint(target.probeURL), upstreamSecrets(target))
+	switch {
+	case errors.Is(err, utils.ErrInvalidURL):
+		return &mcpDiscoveryPermanentError{reason: fmt.Sprintf(
+			"the control plane does not call the MCP server at %s: its address is not publicly reachable; "+
+				"send capabilities with the binding", endpoint)}
+	case errors.Is(err, utils.ErrMCPServerUnauthorized):
+		return &mcpDiscoveryPermanentError{reason: fmt.Sprintf(
+			"the MCP server at %s rejected the binding's upstream credential (401); update the credential or "+
+				"send capabilities with the binding", endpoint)}
+	}
+	return fmt.Errorf("the control plane could not list the MCP server's capabilities at %s (if only the gateway "+
+		"can reach the server, send capabilities with the binding): %w", endpoint, redactUpstream(err, target))
+}
+
+// normalizeDiscoveredCapabilities is a probe's answer as a binding stores it; capabilities it cannot store are a
+// permanent failure.
+func normalizeDiscoveredCapabilities(info *models.MCPServerInfoFetchResponse) (*models.MCPProxyCapabilities, error) {
 	capabilities, err := normalizeBindingCapabilities(&models.MCPProxyCapabilities{
 		Tools: info.Tools, Prompts: info.Prompts, Resources: info.Resources,
 	})
@@ -394,11 +458,228 @@ func redactSecret(err error, secret string) error {
 	return &redactedError{err: err, text: strings.ReplaceAll(err.Error(), secret, "[REDACTED]")}
 }
 
+// mcpDiscoveryMinQuerySecret is the shortest query or userinfo value redacted on its own. A shorter one (?format=json)
+// is too likely to be an ordinary word to blank out of every description; the whole query, which contains it, is
+// still redacted.
+const mcpDiscoveryMinQuerySecret = 6
+
+// upstreamSecrets is what an upstream probe must never let reach lastError, the logs or the stored capabilities: the
+// upstream credentials (upstreamCredentials) and what the registered URL's query carries: the whole query and each
+// query value, decoded and as encoded. Longest first, so a secret that contains another is replaced whole.
+func upstreamSecrets(target *mcpDiscoveryTarget) []string {
+	s := newSecretSet()
+	for _, credential := range upstreamCredentials(target) {
+		s.add(credential, 1)
+	}
+	if u, err := url.Parse(target.probeURL); err == nil {
+		s.add(u.RawQuery, 1)
+		for _, values := range u.Query() {
+			for _, value := range values {
+				s.add(value, mcpDiscoveryMinQuerySecret)
+				s.add(url.QueryEscape(value), mcpDiscoveryMinQuerySecret)
+			}
+		}
+	}
+	return s.longestFirst()
+}
+
+// upstreamCredentials is what certainly is a credential of the probe: the credential header's value, its credential
+// without a scheme ("Bearer <token>" also yields "<token>"), and the registered URL's userinfo and password. A query
+// value is left out: it may as well be an ordinary setting (?toolset=issues) that the server's tool names repeat.
+func upstreamCredentials(target *mcpDiscoveryTarget) []string {
+	s := newSecretSet()
+	if v := strings.TrimSpace(target.headerValue); v != "" {
+		s.add(v, 1)
+		if _, credential, ok := strings.Cut(v, " "); ok {
+			s.add(credential, 1)
+		}
+	}
+	if u, err := url.Parse(target.probeURL); err == nil && u.User != nil {
+		s.add(u.User.String(), 1)
+		if password, ok := u.User.Password(); ok {
+			s.add(password, mcpDiscoveryMinQuerySecret)
+		}
+	}
+	return s.longestFirst()
+}
+
+// secretSet collects distinct, trimmed secrets.
+type secretSet struct {
+	seen    map[string]bool
+	secrets []string
+}
+
+func newSecretSet() *secretSet { return &secretSet{seen: map[string]bool{}} }
+
+// add keeps secret when it is at least minLen long.
+func (s *secretSet) add(secret string, minLen int) {
+	secret = strings.TrimSpace(secret)
+	if len(secret) < minLen || s.seen[secret] {
+		return
+	}
+	s.seen[secret] = true
+	s.secrets = append(s.secrets, secret)
+}
+
+func (s *secretSet) longestFirst() []string {
+	sort.SliceStable(s.secrets, func(i, j int) bool { return len(s.secrets[i]) > len(s.secrets[j]) })
+	return s.secrets
+}
+
+// redactUpstream is an upstream probe's error with each of upstreamSecrets hidden; a transport error that names the
+// whole URL names it without its query or userinfo.
+func redactUpstream(err error, target *mcpDiscoveryTarget) error {
+	for _, secret := range upstreamSecrets(target) {
+		err = redactSecret(err, secret)
+	}
+	return err
+}
+
+// safeEndpoint is a registered URL as a diagnostic names it: scheme, host and path, with no userinfo, query or
+// fragment, which may carry credentials.
+func safeEndpoint(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return "the registered URL"
+	}
+	return (&url.URL{Scheme: u.Scheme, Host: u.Host, Path: u.Path}).String()
+}
+
+// capabilityIdentityFields are the fields that name a capability. The binding's policies match on them as the gateway
+// sees them (mcp-acl-list allows or denies by name and URI, mcp-rewrite renames by name), so they are stored exactly
+// as the MCP server sent them: a scrubbed name would be listed in the console and saved in a rule that never matches.
+var capabilityIdentityFields = []string{"name", "uri"}
+
+// scrubCapabilities hides secrets in every string an MCP server returned in its capabilities (a description that
+// echoes the request's credential, say) and in every map key, so a binding read never returns one. It walks the
+// values, so numbers, booleans and nulls are kept as they are and the schemas stay valid. A capability's identity
+// fields (capabilityIdentityFields) are kept as sent; one that carries one of credentials cannot be stored either way,
+// so the capabilities are refused.
+func scrubCapabilities(
+	capabilities *models.MCPProxyCapabilities, secrets, credentials []string,
+) (*models.MCPProxyCapabilities, error) {
+	if capabilities == nil || len(secrets) == 0 {
+		return capabilities, nil
+	}
+	tools, err := scrubCapabilityList(capabilities.Tools, secrets, credentials)
+	if err != nil {
+		return nil, err
+	}
+	prompts, err := scrubCapabilityList(capabilities.Prompts, secrets, credentials)
+	if err != nil {
+		return nil, err
+	}
+	resources, err := scrubCapabilityList(capabilities.Resources, secrets, credentials)
+	if err != nil {
+		return nil, err
+	}
+	return &models.MCPProxyCapabilities{Tools: tools, Prompts: prompts, Resources: resources}, nil
+}
+
+func scrubCapabilityList(list *[]map[string]interface{}, secrets, credentials []string) (*[]map[string]interface{}, error) {
+	if list == nil {
+		return nil, nil //nolint:nilnil // an absent list stays absent
+	}
+	out := make([]map[string]interface{}, len(*list))
+	for i, entry := range *list {
+		scrubbed, err := scrubValue(entry, secrets)
+		if err != nil {
+			return nil, err
+		}
+		out[i], _ = scrubbed.(map[string]interface{})
+		for _, field := range capabilityIdentityFields {
+			identity, ok := entry[field].(string)
+			if !ok {
+				continue
+			}
+			if scrubString(identity, credentials) != identity {
+				return nil, &mcpDiscoveryPermanentError{
+					reason: "the MCP server's capabilities carry the binding's upstream credential in a capability's " +
+						field + " and cannot be stored; send capabilities with the binding",
+				}
+			}
+			out[i][field] = identity
+		}
+	}
+	return &out, nil
+}
+
+// scrubString is text with every secret replaced.
+func scrubString(text string, secrets []string) string {
+	for _, secret := range secrets {
+		text = strings.ReplaceAll(text, secret, "[REDACTED]")
+	}
+	return text
+}
+
+// scrubValue is v with secrets replaced in every string it holds, map keys included; the containers are copied, never
+// changed in place. A key is scrubbed like a value, so a schema's references to it (such as a required list, whose
+// entries are strings) are scrubbed the same way and still match. Two keys of one map that scrub to the same key would
+// lose one of them, so that document is refused instead.
+func scrubValue(v interface{}, secrets []string) (interface{}, error) {
+	switch t := v.(type) {
+	case string:
+		return scrubString(t, secrets), nil
+	case map[string]interface{}:
+		out := make(map[string]interface{}, len(t))
+		for k, item := range t {
+			key := scrubString(k, secrets)
+			if _, taken := out[key]; taken {
+				return nil, &mcpDiscoveryPermanentError{
+					reason: "the MCP server's capabilities echo the binding's upstream credential in their field names " +
+						"and cannot be stored; send capabilities with the binding",
+				}
+			}
+			scrubbed, err := scrubValue(item, secrets)
+			if err != nil {
+				return nil, err
+			}
+			out[key] = scrubbed
+		}
+		return out, nil
+	case []interface{}:
+		out := make([]interface{}, len(t))
+		for i, item := range t {
+			scrubbed, err := scrubValue(item, secrets)
+			if err != nil {
+				return nil, err
+			}
+			out[i] = scrubbed
+		}
+		return out, nil
+	case []map[string]interface{}:
+		out := make([]map[string]interface{}, len(t))
+		for i, item := range t {
+			scrubbed, err := scrubValue(item, secrets)
+			if err != nil {
+				return nil, err
+			}
+			out[i], _ = scrubbed.(map[string]interface{})
+		}
+		return out, nil
+	case []string:
+		out := make([]string, len(t))
+		for i, item := range t {
+			out[i] = scrubString(item, secrets)
+		}
+		return out, nil
+	default:
+		return v, nil
+	}
+}
+
 // mcpDiscoveryTarget is what a discovery attempt needs of a binding.
 type mcpDiscoveryTarget struct {
-	artifact  string
-	publicURL string
-	security  *models.SecurityConfig
+	artifact string
+	// probeURL is the URL discovery lists the MCP server at: the binding's public gateway URL, or the MCP server's own
+	// URL when upstream is set.
+	probeURL string
+	security *models.SecurityConfig
+	// upstream marks a target probed at the MCP server's own URL instead of through the gateway, with the binding's
+	// upstream credential in headerName/headerValue when it has one.
+	upstream    bool
+	headerName  string
+	headerValue string
 }
 
 // bindingByArtifact finds the project proxy binding whose gateway artifact is artifactUUID. errMCPDiscoveryNotNeeded
@@ -436,8 +717,12 @@ func callerGaveCapabilities(cfg models.MCPEndpointConfig) bool {
 	return cfg.Capabilities != nil && !cfg.CapabilitiesDiscovered
 }
 
-// discoveryTarget is the deployed binding's public URL and security. A binding not deployed yet is an attempt
-// failure, retried; a JWT-only binding cannot be probed and is a permanent one.
+// discoveryTarget is where a deployed binding's MCP server is listed and with what credential. A binding not deployed
+// yet is an attempt failure, retried. A server registered by URL is listed at that URL from the control plane, with
+// the binding's upstream credential (directDiscoveryTarget), whatever the binding's security. A component's server is
+// listed through the binding's public gateway URL: with a discovery key when the binding requires an API key, with
+// none when its security is off or absent. A component binding secured with any other scheme (such as Agent
+// Identity) cannot be probed through the gateway and is a permanent failure.
 func (s *ProjectMCPProxyService) discoveryTarget(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*mcpDiscoveryTarget, error) {
 	proxy, endpoint, ee, err := s.bindingByArtifact(ctx, ouID, artifactUUID)
 	if err != nil {
@@ -450,6 +735,8 @@ func (s *ProjectMCPProxyService) discoveryTarget(ctx context.Context, ouID strin
 	if err != nil {
 		return nil, err
 	}
+	// Discovery runs for a deployed binding only, however it is reached: a refresh queued while the binding deploys
+	// waits for it.
 	if resp.DeploymentStatus != models.MCPDeploymentStatusDeployed {
 		status := resp.DeploymentStatus
 		if status == "" {
@@ -457,16 +744,45 @@ func (s *ProjectMCPProxyService) discoveryTarget(ctx context.Context, ouID strin
 		}
 		return nil, fmt.Errorf("the binding is not deployed (%s)", status)
 	}
-	if resp.PublicURL == "" {
-		return nil, fmt.Errorf("the binding's gateway has no public URL")
+	if direct, err := s.directDiscoveryTarget(proxy, endpoint, ee); direct != nil || err != nil {
+		return direct, err
 	}
 	security := endpoint.Configuration.Security
 	if security != nil && (security.Enabled == nil || *security.Enabled) && !security.RequiresAPIKey() {
 		return nil, &mcpDiscoveryPermanentError{
-			reason: "the binding is secured with a scheme AMS cannot authenticate to; send capabilities with the binding",
+			reason: "the binding is secured with a scheme AMS cannot authenticate to, and its MCP server is " +
+				"reachable only through the gateway; send capabilities with the binding",
 		}
 	}
-	return &mcpDiscoveryTarget{artifact: ee.ArtifactUUID.String(), publicURL: resp.PublicURL, security: security}, nil
+	if resp.PublicURL == "" {
+		return nil, fmt.Errorf("the binding's gateway has no public URL")
+	}
+	return &mcpDiscoveryTarget{artifact: ee.ArtifactUUID.String(), probeURL: resp.PublicURL, security: security}, nil
+}
+
+// directDiscoveryTarget is the target of a binding whose MCP server was registered by URL: Agent Manager lists it from
+// the control plane, at that URL with the binding's upstream credential, as the org proxy flow does, whatever the
+// binding's gateway security. Through the gateway the answer would have been through the binding's policies
+// (mcp-acl-list drops what it hides, mcp-rewrite renames and filters), so its stored list would lose capabilities.
+// nil for a component's MCP server, whose upstream is an in-cluster address of the data plane that only the gateway
+// reaches. An MCP server the control plane cannot reach fails discovery; its capabilities are then given with the
+// binding.
+func (s *ProjectMCPProxyService) directDiscoveryTarget(
+	proxy *models.MCPProxy, endpoint *models.MCPProxyEndpoint, ee *models.MCPProxyEndpointEnvironment,
+) (*mcpDiscoveryTarget, error) {
+	upstream := endpoint.Configuration.Upstream
+	if proxy.Configuration.Source != nil || upstream == nil || strings.TrimSpace(upstream.URL) == "" {
+		return nil, nil //nolint:nilnil // not a direct target
+	}
+	target := &mcpDiscoveryTarget{artifact: ee.ArtifactUUID.String(), probeURL: strings.TrimSpace(upstream.URL), upstream: true}
+	if auth := upstream.Auth; auth != nil && strings.EqualFold(valueOrEmpty(auth.Type), "api-key") {
+		value, err := s.storedUpstreamValue(auth)
+		if err != nil {
+			return nil, &mcpDiscoveryPermanentError{reason: "the binding's upstream credential cannot be read"}
+		}
+		target.headerName, target.headerValue = strings.TrimSpace(valueOrEmpty(auth.Header)), value
+	}
+	return target, nil
 }
 
 // issueDiscoveryKey issues the console-managed key a discovery attempt probes with, sent to the organization's
